@@ -56,8 +56,13 @@ final class VolumeButtonPager {
         }
         self.onPress = onPress
         isRunning = true
-        let view = MPVolumeView(frame: CGRect(x: -1000, y: -1000, width: 1, height: 1))
+        // On screen and all but transparent: on iOS 27 (iPhone Duo, build 7) an off-screen volume
+        // view no longer kept the system volume HUD away.
+        let view = MPVolumeView(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
+        view.alpha = 0.01
+        view.clipsToBounds = true
         view.isUserInteractionEnabled = false
+        view.accessibilityElementsHidden = true
         (host.window ?? host).addSubview(view)
         volumeView = view
         madeSlider = Self.firstSlider(in: view)
@@ -117,21 +122,33 @@ final class VolumeButtonPager {
         onPress?(press)
     }
 
-    /// Moves the volume back to the reference, so the next press reads in either direction.
+    /// Near either end of the range the next press that way could not move the volume (and would go
+    /// unseen), so put it back to the reference. Only there: every put-back is a reading of its own.
     private func putBack() {
-        guard let slider, abs(reader.previous - reader.reference) > PressReader.tolerance else { return }
+        guard let slider, reader.needsPutBack else { return }
+        VolumeLog.shared.note("put back: \(reader.previous) → \(reader.reference) (slider at \(slider.value))")
         reader.didPutBack(at: ProcessInfo.processInfo.systemUptime)
+        // The slider follows the system volume lazily; if it still holds the target, setting it is a
+        // no-op, so move it to the real volume first.
+        slider.value = reader.previous
         slider.value = reader.reference
     }
 }
 
-/// Turns `outputVolume` readings into presses. A press is a step from the PREVIOUS reading, so the
-/// direction is right even if the slider fails to put the volume back; the reading that answers a
-/// put-back (the reference, shortly after asking for it) is not a press.
+
+/// Turns `outputVolume` readings into presses. A press is a step from the PREVIOUS reading. The
+/// volume is put back (to the reference) only near either end of the range, and the reading that
+/// answers a put-back is not a press: the first one within `putBackWindow` that lands nearer the
+/// reference than the volume was. 🔴 It does NOT land on the reference: the device's volume moves
+/// in its own steps (an iPhone Duo on iOS 27.1 read 0.0, 0.05, 0.15, 0.2, 0.25), so build 7, which
+/// put back after every press and only recognised an exact landing, read each put-back as a press
+/// the other way and turned pages at random.
 struct PressReader {
     nonisolated static let tolerance: Float = 0.01
     /// How long after a put-back its reading may arrive.
-    nonisolated static let putBackWindow: TimeInterval = 0.5
+    nonisolated static let putBackWindow: TimeInterval = 1.0
+    /// Within this of either end, a press toward that end might not move the volume.
+    nonisolated static let edge: Float = 0.1
 
     private(set) var previous: Float
     let reference: Float
@@ -142,10 +159,14 @@ struct PressReader {
         self.reference = reference
     }
 
-    /// The level presses are put back to: the user's volume, kept a step away from both ends
-    /// so a press in either direction moves it (iOS steps the volume by 1/16).
+    /// The level put-backs aim for: the user's volume, kept well inside the range.
     nonisolated static func reference(for volume: Float) -> Float {
-        min(max(volume, 0.125), 0.875)
+        min(max(volume, 0.25), 0.75)
+    }
+
+    /// Whether the volume is so near an end that it should be put back before the next press.
+    nonisolated var needsPutBack: Bool {
+        previous <= Self.edge + Self.tolerance || previous >= 1 - Self.edge - Self.tolerance
     }
 
     nonisolated mutating func didPutBack(at time: TimeInterval) {
@@ -154,9 +175,11 @@ struct PressReader {
 
     nonisolated mutating func read(_ volume: Float, at time: TimeInterval) -> VolumeButtonPager.Press? {
         defer { previous = volume }
-        if let putBackAt, time - putBackAt < Self.putBackWindow, abs(volume - reference) < Self.tolerance {
-            self.putBackAt = nil
-            return nil
+        if let putBackAt {
+            let landing = time - putBackAt < Self.putBackWindow
+                && abs(volume - reference) + Self.tolerance < abs(previous - reference)
+            if landing || time - putBackAt >= Self.putBackWindow { self.putBackAt = nil }
+            if landing { return nil }
         }
         if volume > previous + Self.tolerance { return .up }
         if volume < previous - Self.tolerance { return .down }
