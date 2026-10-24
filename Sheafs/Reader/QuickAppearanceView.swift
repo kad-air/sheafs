@@ -8,6 +8,7 @@ struct QuickAppearanceView: View {
     var onClose: () -> Void
     @Environment(ReaderSettings.self) private var settings
     @Environment(\.colorScheme) private var colorScheme
+    @State private var showFonts = false
 
     var body: some View {
         @Bindable var settings = settings
@@ -63,12 +64,8 @@ struct QuickAppearanceView: View {
 
     private var fontMenu: some View {
         @Bindable var settings = settings
-        return Menu {
-            Picker("Font", selection: $settings.font) {
-                ForEach(ReaderFont.allCases) { font in
-                    Text(font.title).tag(font)
-                }
-            }
+        return Button {
+            showFonts = true
         } label: {
             HStack(spacing: 4) {
                 Text(settings.font.title)
@@ -86,6 +83,11 @@ struct QuickAppearanceView: View {
         }
         .foregroundStyle(.primary)
         .accessibilityLabel("Font, \(settings.font.title)")
+        .popover(isPresented: $showFonts) {
+            FontList(selection: $settings.font)
+                .frame(idealWidth: 280, idealHeight: 470)
+                .presentationCompactAdaptation(.popover)
+        }
     }
 
     private func swatch(_ theme: ReaderTheme) -> some View {

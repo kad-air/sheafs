@@ -108,6 +108,29 @@ struct ReaderEngineTests {
         #expect(layout.deckFrame == nil)
     }
 
+    /// Unfolding from book pose to flat must not move a single line: the simulator reports the hinge
+    /// as the same 40 pt region in both poses (455.5, 0, 40 × 669), only its `isActive` changes, and
+    /// the pages used to be 453 pt wide folded but 441 pt flat (a 2 pt vs 14 pt pad), so every line
+    /// broke differently. A zero-width inactive region (what the device may report flat) gets the
+    /// same gutter too.
+    @Test func bookPoseAndFlatLayTheSpreadOutIdentically() {
+        func layout(_ fold: CGRect, active: Bool) -> PageLayout {
+            PageLayout.compute(.init(size: CGSize(width: 951, height: 669),
+                                     safeArea: EdgeInsets(top: 0, leading: 0, bottom: 34, trailing: 84),
+                                     division: fold, divisionIsActive: active, occlusions: [],
+                                     margin: 24, fontSize: 19, allowSpread: true, fullBleed: true))
+        }
+        let hinge = CGRect(x: 455.5, y: 0, width: 40, height: 669)
+        let book = layout(hinge, active: true)
+        #expect(book.isSpread)
+        #expect(book.pageFrames[0].maxX <= hinge.minX)
+        #expect(book.pageFrames[1].minX >= hinge.maxX)
+        #expect(layout(hinge, active: false) == book)
+        #expect(layout(CGRect(x: 475.5, y: 0, width: 0, height: 669), active: false) == book)
+        #expect(book.pageFrames == [CGRect(x: 0, y: 0, width: 453, height: 635),
+                                    CGRect(x: 498, y: 0, width: 453, height: 635)])
+    }
+
     @Test func tabletopPosePutsThePageAboveTheFoldAndControlsBelow() throws {
         let fold = CGRect(x: 0, y: 450, width: 669, height: 50)
         let layout = PageLayout.compute(.init(size: CGSize(width: 669, height: 951),

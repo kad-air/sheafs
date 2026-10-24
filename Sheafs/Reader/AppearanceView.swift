@@ -35,11 +35,12 @@ struct AppearanceView: View {
                 .listRowInsets(EdgeInsets())
             }
             Section("Type") {
-                Picker("Font", selection: $settings.font) {
-                    ForEach(ReaderFont.allCases) { font in
-                        Text(font.title)
-                            .font(Font(font.font(size: 17)))
-                            .tag(font)
+                NavigationLink {
+                    FontList(selection: $settings.font)
+                } label: {
+                    LabeledContent("Font") {
+                        Text(settings.font.title)
+                            .font(Font(settings.font.font(size: 17)))
                     }
                 }
                 HStack {

@@ -100,7 +100,10 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     closes it, edge taps still turn pages, and its sliders button steps through to the detailed sheet.
     Over a vertical fold (spread, book pose) the panel keeps to the LEFT page: off the fold, and the
     right page, which holds the reading position, stays in view. Its −/+ buttons move along the
-    detailed sliders' grids (`QuickAppearanceTests`).
+    detailed sliders' grids (`QuickAppearanceTests`). Fonts are picked from `FontList` (each name in
+    its own face; a popover from the panel, a pushed page from the sheet), not a `Menu`/menu
+    `Picker`: system menus draw every item in the system font. `FontTests` checks every family is
+    really installed (a missing one falls back to the system font without a word).
   - `Reader/PageFlip/` — the default page turn (`ReaderSettings.pageTurn`, `.flip` or `.slide`): a
     leaf of paper hinged at the spine that bends and falls over. `PageFlipPhysics` is the model
     (`PageCurl`: the sheet lies flat to `flat`, wraps a cylinder of `radius`, the rest lies turned
@@ -134,9 +137,11 @@ display and inner-landscape), `toolbarVisibility(_:for: .statusBar)`, `ToolbarOv
 
 `PageLayout.compute` (tested in `SheafsTests`):
 - cover display / inner portrait flat → one page (measure capped at ~38 em on wide screens);
-- inner landscape, flat → the INACTIVE vertical division (zero-width, centre) → two-page spread with a
-  14 pt gutter each side of the fold;
-- book pose (active vertical division) → spread with the gutter = the division frame + 2 pt;
+- inner landscape, flat (INACTIVE vertical division) or book pose (ACTIVE) → a two-page spread
+  whose gutter is the division frame + 2 pt each side, at least `minimumFoldGutter` (44 pt), centred
+  on the fold. 🔴 The SAME in both poses: the simulator reports the hinge as one 40 pt region
+  (455.5, 0, 40 × 669) flat and folded, only `isActive` changes, and a pose-dependent pad (14 vs
+  2 pt) made the pages 441 vs 453 pt wide, so every line re-broke on unfolding;
 - tabletop/laptop (active horizontal division) → the page on the upper half, `ReaderDeck` (progress,
   prev/next, contents, text size, appearance) on the lower half;
 - a camera hole in the top quarter of the page (the cover display's) pushes the text below it.
