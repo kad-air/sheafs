@@ -122,12 +122,16 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     really installed (a missing one falls back to the system font without a word).
   - `Reader/VolumeButtons` — `VolumeButtonPager` (setting `volumeButtonsTurn`, off by default):
     down = next page, up = previous. An active `.playback` + `.mixWithOthers` session makes
-    `outputVolume` observable; `PressReader` reads a press as a step from the PREVIOUS reading,
-    and a hidden off-screen `MPVolumeView`'s slider (searched for in its subtree each time, else the
-    one it had when made; on the simulator it swaps the slider for a label once in a window) puts the volume back to a reference (the user's, kept within 0.125…0.875 so both
-    directions read; the reference reading within 0.5 s of a put-back is not a press; the view
-    also hides the HUD). 🔴 Comparing against the fixed reference instead turned pages backward
-    whenever the put-back failed. `ReaderView.volumeButtonsArmed` runs it only while the scene is
+    `outputVolume` observable; `PressReader` reads a press as a step from the PREVIOUS reading.
+    The volume really moves with each press; only within 0.1 of either end does the hidden
+    `MPVolumeView`'s slider (searched for in its subtree each time, else the one it had when made;
+    on the simulator it swaps the slider for a label once in a window) put it back to a reference
+    (the user's volume kept within 0.25…0.75), and the first reading within 1 s that lands nearer
+    the reference is that put-back, not a press. 🔴 Device readings move in the device's own steps
+    (Duo, iOS 27.1: 0.0, 0.05, 0.15, 0.2…), so a put-back never lands exactly on the reference:
+    build 7 put back after EVERY press and read each landing as a press the other way (pages
+    turned at random). The volume view sits ON screen (origin, 1 pt, alpha 0.01): off-screen it no
+    longer hid the system volume HUD on iOS 27. `ReaderView.volumeButtonsArmed` runs it only while the scene is
     active, the book is ready, the regions are known and no sheet is up, and arming RETRIES until
     the pager is in a window (it appears after the regions; arming once gave up silently). Stop
     restores the user's volume. `VolumeButtonTests` pins the press logic. The simulator can't

@@ -2,49 +2,73 @@ import Foundation
 import Testing
 @testable import Sheafs
 
-/// Volume-button page turns: how a volume reading becomes a press. iOS moves the volume in steps
-/// of 1/16 (0.0625), so those are the readings a real press produces; expected values are by hand.
+/// Volume-button page turns: how a volume reading becomes a press. Readings are the ones an iPhone
+/// Duo on iOS 27.1 reported (TestFlight build 7's Volume Button Log): the volume moves in the
+/// device's own steps (0.0, 0.05, 0.15, 0.2, 0.25), not iOS's nominal 1/16. Expected values by hand.
 struct VolumeButtonTests {
-    /// The slider works: each press is followed by the put-back's reading, which is not a press.
-    @Test func pressesWithPutBacksTurnOncePerPress() {
-        var reader = PressReader(previous: 0.5, reference: 0.5)
-        #expect(reader.read(0.4375, at: 1.0) == .down)
-        reader.didPutBack(at: 1.0)
-        #expect(reader.read(0.500_000_1, at: 1.1) == nil)  // the put-back, give or take float noise
-        #expect(reader.read(0.5625, at: 2.0) == .up)
-        reader.didPutBack(at: 2.0)
-        #expect(reader.read(0.5, at: 2.1) == nil)
-        // Two quick presses before the put-back lands are two presses.
-        #expect(reader.read(0.4375, at: 3.0) == .down)
-        reader.didPutBack(at: 3.0)
-        #expect(reader.read(0.375, at: 3.05) == .down)
-        #expect(reader.read(0.5, at: 3.2) == nil)
+    /// Mid-range, nothing is put back: each reading is one press, its direction from the last one.
+    @Test func midRangePressesReadByTheirStep() {
+        var reader = PressReader(previous: 0.15, reference: 0.25)
+        #expect(!reader.needsPutBack)
+        #expect(reader.read(0.2, at: 1) == .up)
+        #expect(reader.read(0.15, at: 2) == .down)
+        #expect(reader.read(0.2, at: 3) == .up)
+        #expect(reader.read(0.25, at: 4) == .up)
+        #expect(reader.read(0.25, at: 5) == nil)  // the same reading again is no press
+        #expect(!reader.needsPutBack)
     }
 
-    /// The slider fails to put the volume back (build 5 compared against a fixed reference, so the
-    /// second press here read as "up" and turned backward): direction must come from the last reading.
-    @Test func directionIsRightWhenTheVolumeIsNotPutBack() {
-        var reader = PressReader(previous: 0.5, reference: 0.5)
-        #expect(reader.read(0.5625, at: 1.0) == .up)
-        reader.didPutBack(at: 1.0)
-        #expect(reader.read(0.5, at: 2.0) == .down)  // long after the put-back: a real press back down
-        #expect(reader.read(0.4375, at: 3.0) == .down)
-        #expect(reader.read(0.375, at: 4.0) == .down)
-        // The same reading again is no press.
-        #expect(reader.read(0.375, at: 5.0) == nil)
+    /// 🔴 Build 7: the volume started at 0.0, the put-back aimed at 0.125 and LANDED at 0.15, which
+    /// it read as "up" and turned a page backward with no button pressed (every later put-back
+    /// likewise). A landing short of or past the reference is still the put-back.
+    @Test func aPutBackLandingOffTheReferenceIsNotAPress() {
+        var reader = PressReader(previous: 0.0, reference: 0.25)
+        #expect(reader.needsPutBack)
+        reader.didPutBack(at: 45.031)
+        #expect(reader.read(0.15, at: 45.034) == nil)
+        #expect(!reader.needsPutBack)
+        var past = PressReader(previous: 0.0, reference: 0.25)
+        past.didPutBack(at: 0)
+        #expect(past.read(0.3, at: 0.05) == nil)
+        // After the landing, presses read normally again.
+        #expect(past.read(0.25, at: 2) == .down)
     }
 
-    /// At either end of the range a press could not move the volume, so it would never be seen.
-    @Test func referenceKeepsAStepFromBothEnds() {
-        #expect(PressReader.reference(for: 0) == 0.125)
-        #expect(PressReader.reference(for: 1) == 0.875)
+    /// Near the bottom a down press still reads before the put-back lands, and the landing then
+    /// does not count.
+    @Test func aPressAwayFromTheReferenceDuringAPutBackStillCounts() {
+        var reader = PressReader(previous: 0.05, reference: 0.25)
+        #expect(reader.needsPutBack)
+        reader.didPutBack(at: 10)
+        #expect(reader.read(0.0, at: 10.02) == .down)
+        #expect(reader.read(0.25, at: 10.08) == nil)
+    }
+
+    /// A press toward the reference before the put-back lands is taken for the landing; the
+    /// landing then reads as that press, so the page still turns once, the right way.
+    @Test func aPressTowardTheReferenceDuringAPutBackTurnsOnce() {
+        var reader = PressReader(previous: 0.05, reference: 0.25)
+        reader.didPutBack(at: 10)
+        #expect(reader.read(0.15, at: 10.02) == nil)
+        #expect(reader.read(0.25, at: 10.08) == .up)
+    }
+
+    /// The put-back's window closes: a reading long after it is a press, whatever its value.
+    @Test func aReadingAfterThePutBackWindowIsAPress() {
+        var reader = PressReader(previous: 0.05, reference: 0.25)
+        reader.didPutBack(at: 10)
+        #expect(reader.read(0.15, at: 12) == .up)
+    }
+
+    @Test func referenceStaysWellInsideTheRange() {
+        #expect(PressReader.reference(for: 0) == 0.25)
+        #expect(PressReader.reference(for: 1) == 0.75)
         #expect(PressReader.reference(for: 0.5) == 0.5)
-        // From the clamped reference a press in either direction still reads.
-        var low = PressReader(previous: 0.125, reference: 0.125)
-        #expect(low.read(0.0625, at: 1) == .down)
-        var high = PressReader(previous: 0.875, reference: 0.875)
-        #expect(high.read(0.9375, at: 1) == .up)
+        #expect(PressReader(previous: 0.95, reference: 0.75).needsPutBack)
+        #expect(PressReader(previous: 0.1, reference: 0.25).needsPutBack)
+        #expect(!PressReader(previous: 0.85, reference: 0.75).needsPutBack)
     }
+
 
     /// Settings saved before the key existed must still decode (a non-optional missing key resets
     /// every setting), and the buttons stay off until the user turns them on.
