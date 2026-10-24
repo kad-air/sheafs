@@ -60,6 +60,12 @@ struct VolumeButtonTests {
         #expect(reader.read(0.15, at: 12) == .up)
     }
 
+    /// Volume up goes forward, down goes back (chosen after trying the reverse on the device).
+    @Test func volumeUpTurnsForward() {
+        #expect(VolumeButtonPager.Press.up.turnsForward)
+        #expect(!VolumeButtonPager.Press.down.turnsForward)
+    }
+
     @Test func referenceStaysWellInsideTheRange() {
         #expect(PressReader.reference(for: 0) == 0.25)
         #expect(PressReader.reference(for: 1) == 0.75)

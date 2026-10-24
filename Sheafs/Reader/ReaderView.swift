@@ -374,8 +374,8 @@ struct ReaderView: View {
             VolumeLog.shared.note("pager found after \(30 - tries) retries")
             volumeButtons.start(host: host) { press in
                 let hasPager = pagerProxy.controller != nil
-                VolumeLog.shared.note("turn \(press == .down ? "forward" : "back") pager=\(hasPager)")
-                pagerProxy.turn(forward: press == .down)
+                VolumeLog.shared.note("turn \(press.turnsForward ? "forward" : "back") pager=\(hasPager)")
+                pagerProxy.turn(forward: press.turnsForward)
             }
             return
         }

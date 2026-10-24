@@ -121,7 +121,7 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     `Picker`: system menus draw every item in the system font. `FontTests` checks every family is
     really installed (a missing one falls back to the system font without a word).
   - `Reader/VolumeButtons` — `VolumeButtonPager` (setting `volumeButtonsTurn`, off by default):
-    down = next page, up = previous. An active `.playback` + `.mixWithOthers` session makes
+    up = next page, down = previous (`Press.turnsForward`, the owner's choice). An active `.playback` + `.mixWithOthers` session makes
     `outputVolume` observable; `PressReader` reads a press as a step from the PREVIOUS reading.
     The volume really moves with each press; only within 0.1 of either end does the hidden
     `MPVolumeView`'s slider (searched for in its subtree each time, else the one it had when made;
@@ -131,7 +131,8 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     (Duo, iOS 27.1: 0.0, 0.05, 0.15, 0.2…), so a put-back never lands exactly on the reference:
     build 7 put back after EVERY press and read each landing as a press the other way (pages
     turned at random). The volume view sits ON screen (origin, 1 pt, alpha 0.01): off-screen it no
-    longer hid the system volume HUD on iOS 27. `ReaderView.volumeButtonsArmed` runs it only while the scene is
+    longer hid the system volume HUD on iOS 27; on screen it does (confirmed on the Duo, keep it
+    there). `ReaderView.volumeButtonsArmed` runs it only while the scene is
     active, the book is ready, the regions are known and no sheet is up, and arming RETRIES until
     the pager is in a window (it appears after the regions; arming once gave up silently). Stop
     restores the user's volume. `VolumeButtonTests` pins the press logic. The simulator can't
