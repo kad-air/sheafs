@@ -32,6 +32,8 @@ final class BookSession {
     private(set) var chapterStarts: [Int] = []
     private(set) var totalLength: Int = 0
     var location: ReadingLocation
+    /// The book's highlights, for the pages to paint (kept here so every spread sees the same list).
+    var marks: [HighlightMark] = []
 
     private(set) var style: TypesetStyle?
     private(set) var textSize: CGSize = .zero

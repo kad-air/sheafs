@@ -11,6 +11,20 @@ struct PageSlot: Hashable {
 enum ReaderTap {
     case previous, next, center
     case link(href: String, spineIndex: Int)
+    /// A tap on an existing highlight.
+    case annotation(id: UUID)
+}
+
+/// A run of selected text in one chapter.
+struct TextSelection: Hashable {
+    var spineIndex: Int
+    var range: NSRange
+}
+
+/// What the user asked for from the selection menu.
+enum SelectionAction {
+    case highlight(TextSelection, text: String, color: HighlightColor)
+    case note(TextSelection, text: String, color: HighlightColor)
 }
 
 /// Hosts a `UIPageViewController` whose units are spreads of one or two pages.
@@ -21,9 +35,12 @@ struct ReaderPager: UIViewControllerRepresentable {
     let palette: ReaderPalette
     let location: ReadingLocation
     let tapTurnsPages: Bool
+    let marks: [HighlightMark]
+    let highlightColor: HighlightColor
     let proxy: PagerProxy
     var onLocationChange: (ReadingLocation) -> Void
     var onTap: (ReaderTap) -> Void
+    var onSelectionAction: (SelectionAction) -> Void
 
     func makeUIViewController(context: Context) -> PagerController {
         let controller = PagerController(session: session)
@@ -39,13 +56,17 @@ struct ReaderPager: UIViewControllerRepresentable {
     private func configure(_ controller: PagerController) {
         controller.onLocationChange = onLocationChange
         controller.onTap = onTap
+        controller.onSelectionAction = onSelectionAction
         controller.tapTurnsPages = tapTurnsPages
+        controller.highlightColor = highlightColor
         session.configure(style: style, textSize: layout.textSize)
+        controller.apply(marks: marks)
         controller.apply(layout: layout, palette: palette, location: location, animated: false)
     }
 }
 
-final class PagerController: UIViewController, UIPageViewControllerDataSource, UIPageViewControllerDelegate, UIGestureRecognizerDelegate {
+final class PagerController: UIViewController, UIPageViewControllerDataSource, UIPageViewControllerDelegate,
+                             UIGestureRecognizerDelegate, UIEditMenuInteractionDelegate {
     let session: BookSession
     private let pager = UIPageViewController(transitionStyle: .scroll, navigationOrientation: .horizontal,
                                              options: [.interPageSpacing: 0])
@@ -55,9 +76,21 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
     private(set) var displayedLocation: ReadingLocation?
     var onLocationChange: ((ReadingLocation) -> Void)?
     var onTap: ((ReaderTap) -> Void)?
+    var onSelectionAction: ((SelectionAction) -> Void)?
     var tapTurnsPages = true
+    var highlightColor = HighlightColor.yellow
     /// The style generation the visible spread was built with; a change re-lays out at the same place.
     private var appliedStyle: TypesetStyle?
+
+    // Selection: a long press selects the word under the finger and grows it by words while the
+    // finger moves; the handles then adjust it by characters, and the edit menu acts on it.
+    private(set) var selection: TextSelection?
+    private var selectionAnchor: NSRange?
+    private let startHandle = SelectionHandleView(isStart: true)
+    private let endHandle = SelectionHandleView(isStart: false)
+    private lazy var editMenu = UIEditMenuInteraction(delegate: self)
+    private weak var scrollView: UIScrollView?
+    private let log = Logger(subsystem: "io.sheafs.reader", category: "pager")
 
     init(session: BookSession) {
         self.session = session
@@ -65,6 +98,8 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override var canBecomeFirstResponder: Bool { true }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -85,6 +120,18 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
         tap.delegate = self
         view.addGestureRecognizer(tap)
+        let press = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
+        press.minimumPressDuration = 0.4
+        press.delegate = self
+        view.addGestureRecognizer(press)
+        view.addInteraction(editMenu)
+        for handle in [startHandle, endHandle] {
+            handle.isHidden = true
+            handle.tintColor = palette.link
+            view.addSubview(handle)
+            let pan = UIPanGestureRecognizer(target: self, action: #selector(handleHandlePan(_:)))
+            handle.addGestureRecognizer(pan)
+        }
     }
 
     override func viewDidLayoutSubviews() {
@@ -94,11 +141,18 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
 
     /// The page layout already accounts for safe areas; UIKit must not shift the pages again when
     /// the bars appear (otherwise every chrome toggle moves the text). The page controller's
-    /// scroll view is created lazily, so this runs on every layout pass.
+    /// scroll view is created lazily, so this runs on every layout pass. The same pass makes the
+    /// page swipe yield to the selection handles.
     private func disableInsetAdjustment() {
         pager.view.subviews.compactMap { $0 as? UIScrollView }.forEach { scrollView in
             if scrollView.contentInsetAdjustmentBehavior != .never {
                 scrollView.contentInsetAdjustmentBehavior = .never
+            }
+            if self.scrollView !== scrollView {
+                self.scrollView = scrollView
+                for handle in [startHandle, endHandle] {
+                    for pan in handle.gestureRecognizers ?? [] { scrollView.panGestureRecognizer.require(toFail: pan) }
+                }
             }
         }
     }
@@ -112,6 +166,8 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         self.layout = layout
         self.palette = palette
         view.backgroundColor = palette.background
+        startHandle.tintColor = palette.link
+        endHandle.tintColor = palette.link
         guard session.isReady, !layout.pageFrames.isEmpty, session.style != nil else { return }
         appliedStyle = session.style
         if layoutChanged || paletteChanged || styleChanged || displayedLocation == nil || displayedLocation != location {
@@ -119,10 +175,19 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         }
     }
 
+    /// The book's highlights; the visible spread repaints when they change, later spreads read
+    /// them from the session as they appear.
+    func apply(marks: [HighlightMark]) {
+        guard marks != session.marks else { return }
+        session.marks = marks
+        currentSpread?.refreshMarks()
+    }
+
     /// Shows the spread starting at `location`. A chapter laid out for the first time at this size
     /// breaks its pages at the location, so that line is the first on its page.
     func show(location: ReadingLocation, animated: Bool, direction: UIPageViewController.NavigationDirection = .forward) {
         guard let chapter = session.paginatedChapter(location.spineIndex, anchor: location.textOffset) else { return }
+        clearSelection()
         let page = chapter.pageIndex(containing: location.textOffset)
         let spread = makeSpread(anchoredAt: PageSlot(spineIndex: location.spineIndex, page: page))
         displayedLocation = spread.location
@@ -141,9 +206,10 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
     }
 
     private func makeSpread(slots: [PageSlot?]) -> SpreadViewController {
-        let spread = SpreadViewController(session: session, slots: slots, layout: layout, palette: palette)
-        return spread
+        SpreadViewController(session: session, slots: slots, layout: layout, palette: palette)
     }
+
+    private var currentSpread: SpreadViewController? { pager.viewControllers?.first as? SpreadViewController }
 
     // MARK: Slot arithmetic
 
@@ -202,10 +268,13 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         return makeSpread(slots: slots)
     }
 
+    func pageViewController(_ pageViewController: UIPageViewController, willTransitionTo pendingViewControllers: [UIViewController]) {
+        clearSelection()
+    }
+
     func pageViewController(_ pageViewController: UIPageViewController, didFinishAnimating finished: Bool,
                             previousViewControllers: [UIViewController], transitionCompleted completed: Bool) {
-        guard completed, let spread = pager.viewControllers?.first as? SpreadViewController,
-              let location = spread.location else { return }
+        guard completed, let spread = currentSpread, let location = spread.location else { return }
         displayedLocation = location
         onLocationChange?(location)
         session.prefetch(around: location.spineIndex)
@@ -214,15 +283,37 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
     // MARK: Taps
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
-        true
+        // The tap and the long press are exclusive: a tap recognises on finger-up however long
+        // the hold was, and would clear the selection the press just made. Once the press begins
+        // the tap is cancelled. (Not `require(toFail:)`: that would delay every page-turn tap.)
+        let pair = [gestureRecognizer, otherGestureRecognizer]
+        if pair.contains(where: { $0 is UITapGestureRecognizer }), pair.contains(where: { $0 is UILongPressGestureRecognizer }) {
+            return false
+        }
+        return true
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        // The handles have their own pans; taps and presses on them must not reach the page.
+        !(touch.view is SelectionHandleView)
     }
 
     @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
         let point = gesture.location(in: view)
-        if let spread = pager.viewControllers?.first as? SpreadViewController,
-           let link = spread.link(at: view.convert(point, to: spread.view)) {
-            onTap?(.link(href: link.href, spineIndex: link.spineIndex))
+        if selection != nil {
+            clearSelection()
             return
+        }
+        if let spread = currentSpread {
+            let local = view.convert(point, to: spread.view)
+            if let mark = spread.mark(at: local) {
+                onTap?(.annotation(id: mark.id))
+                return
+            }
+            if let link = spread.link(at: local) {
+                onTap?(.link(href: link.href, spineIndex: link.spineIndex))
+                return
+            }
         }
         let width = view.bounds.width
         if tapTurnsPages, point.x < width * 0.22 {
@@ -238,6 +329,7 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
 
     func turnPage(forward: Bool) {
         guard let current = pager.viewControllers?.first else { return }
+        clearSelection()
         let target = forward ? pageViewController(pager, viewControllerAfter: current)
                              : pageViewController(pager, viewControllerBefore: current)
         guard let spread = target as? SpreadViewController, let location = spread.location else { return }
@@ -249,6 +341,201 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
             }
         }
     }
+
+    // MARK: Selection
+
+    @objc private func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
+        guard let spread = currentSpread else { return }
+        let point = view.convert(gesture.location(in: view), to: spread.view)
+        switch gesture.state {
+        case .began:
+            editMenu.dismissMenu()
+            guard let hit = spread.character(at: point), let chapter = session.paginatedChapter(hit.spineIndex) else {
+                selectionAnchor = nil
+                return
+            }
+            let word = chapter.wordRange(at: hit.index)
+            selectionAnchor = word
+            scrollView?.isScrollEnabled = false
+            setSelection(TextSelection(spineIndex: hit.spineIndex, range: word))
+        case .changed:
+            guard let anchor = selectionAnchor, let current = selection,
+                  let hit = spread.nearestCharacter(to: point, inSpine: current.spineIndex),
+                  let chapter = session.paginatedChapter(current.spineIndex) else { return }
+            let word = chapter.wordRange(at: hit.index)
+            setSelection(TextSelection(spineIndex: current.spineIndex, range: NSUnionRange(anchor, word)))
+        case .ended, .cancelled, .failed:
+            scrollView?.isScrollEnabled = true
+            selectionAnchor = nil
+            if gesture.state == .ended, selection != nil { presentMenu() }
+        default:
+            break
+        }
+    }
+
+    @objc private func handleHandlePan(_ gesture: UIPanGestureRecognizer) {
+        guard let handle = gesture.view as? SelectionHandleView, let spread = currentSpread, var current = selection else { return }
+        switch gesture.state {
+        case .began:
+            editMenu.dismissMenu()
+            scrollView?.isScrollEnabled = false
+        case .changed:
+            let point = view.convert(gesture.location(in: view), to: spread.view)
+            guard let hit = spread.nearestCharacter(to: point, inSpine: current.spineIndex) else { return }
+            let end = NSMaxRange(current.range)
+            if handle.isStart {
+                let start = min(hit.index, end - 1)
+                current.range = NSRange(location: start, length: end - start)
+            } else {
+                let newEnd = max(current.range.location + 1, hit.index + (hit.fraction >= 0.5 ? 1 : 0))
+                current.range = NSRange(location: current.range.location, length: newEnd - current.range.location)
+            }
+            setSelection(current)
+        case .ended, .cancelled, .failed:
+            scrollView?.isScrollEnabled = true
+            if selection != nil { presentMenu() }
+        default:
+            break
+        }
+    }
+
+    private func setSelection(_ new: TextSelection?) {
+        selection = new
+        currentSpread?.selection = new
+        layoutHandles()
+    }
+
+    func clearSelection() {
+        guard selection != nil else { return }
+        editMenu.dismissMenu()
+        setSelection(nil)
+    }
+
+    /// The selection's rects in this controller's view.
+    private func selectionRects() -> [CGRect] {
+        guard let selection, let spread = currentSpread else { return [] }
+        return spread.rects(for: selection).map { spread.view.convert($0, to: view) }
+    }
+
+    private func layoutHandles() {
+        let rects = selectionRects()
+        guard let first = rects.first, let last = rects.last else {
+            startHandle.isHidden = true
+            endHandle.isHidden = true
+            return
+        }
+        startHandle.isHidden = false
+        endHandle.isHidden = false
+        startHandle.place(at: CGPoint(x: first.minX, y: first.minY), lineHeight: first.height)
+        endHandle.place(at: CGPoint(x: last.maxX, y: last.maxY), lineHeight: last.height)
+        view.bringSubviewToFront(startHandle)
+        view.bringSubviewToFront(endHandle)
+    }
+
+    private func presentMenu() {
+        let rects = selectionRects()
+        guard let union = rects.dropFirst().reduce(rects.first, { $0?.union($1) }) else { return }
+        becomeFirstResponder()
+        editMenu.presentEditMenu(with: UIEditMenuConfiguration(identifier: nil, sourcePoint: CGPoint(x: union.midX, y: union.minY)))
+    }
+
+    /// The selected text, trimmed of the whitespace a word drag may have swept in, with the
+    /// selection shrunk to match.
+    private func trimmedSelection() -> (TextSelection, String)? {
+        guard let selection, let chapter = session.paginatedChapter(selection.spineIndex) else { return nil }
+        let string = chapter.textStorage.string as NSString
+        let range = NSIntersectionRange(selection.range, NSRange(location: 0, length: string.length))
+        guard range.length > 0 else { return nil }
+        var start = range.location, end = NSMaxRange(range)
+        let blank = CharacterSet.whitespacesAndNewlines
+        while start < end, let scalar = Unicode.Scalar(string.character(at: start)), blank.contains(scalar) { start += 1 }
+        while end > start, let scalar = Unicode.Scalar(string.character(at: end - 1)), blank.contains(scalar) { end -= 1 }
+        guard end > start else { return nil }
+        let trimmed = NSRange(location: start, length: end - start)
+        return (TextSelection(spineIndex: selection.spineIndex, range: trimmed), string.substring(with: trimmed))
+    }
+
+    func editMenuInteraction(_ interaction: UIEditMenuInteraction, targetRectFor configuration: UIEditMenuConfiguration) -> CGRect {
+        let rects = selectionRects()
+        return rects.dropFirst().reduce(rects.first, { $0?.union($1) }) ?? .null
+    }
+
+    func editMenuInteraction(_ interaction: UIEditMenuInteraction, menuFor configuration: UIEditMenuConfiguration,
+                             suggestedActions: [UIMenuElement]) -> UIMenu? {
+        guard let (trimmed, text) = trimmedSelection() else { return nil }
+        let colour = highlightColor
+        var children: [UIMenuElement] = [
+            UIAction(title: "Highlight", image: UIImage(systemName: "highlighter")) { [weak self] _ in
+                self?.clearSelection()
+                self?.onSelectionAction?(.highlight(trimmed, text: text, color: colour))
+            },
+            UIAction(title: "Note", image: UIImage(systemName: "note.text")) { [weak self] _ in
+                self?.clearSelection()
+                self?.onSelectionAction?(.note(trimmed, text: text, color: colour))
+            },
+            UIMenu(title: "Color", image: UIImage(systemName: "paintpalette"), children: HighlightColor.allCases.map { option in
+                UIAction(title: option.title, image: UIImage(systemName: "circle.fill")?.withTintColor(option.base, renderingMode: .alwaysOriginal),
+                         state: option == colour ? .on : .off) { [weak self] _ in
+                    self?.clearSelection()
+                    self?.onSelectionAction?(.highlight(trimmed, text: text, color: option))
+                }
+            }),
+            UIAction(title: "Copy", image: UIImage(systemName: "doc.on.doc")) { [weak self] _ in
+                UIPasteboard.general.string = text
+                self?.clearSelection()
+            },
+        ]
+        if UIReferenceLibraryViewController.dictionaryHasDefinition(forTerm: text) {
+            children.append(UIAction(title: "Look Up", image: UIImage(systemName: "character.book.closed")) { [weak self] _ in
+                guard let self else { return }
+                clearSelection()
+                present(UIReferenceLibraryViewController(term: text), animated: true)
+            })
+        }
+        return UIMenu(children: children)
+    }
+}
+
+/// An iOS-style selection handle: a knob on a stem, the knob above the line at the start and
+/// below it at the end. The touch target is wider than the drawing.
+final class SelectionHandleView: UIView {
+    let isStart: Bool
+    private let knob: CGFloat = 11
+    private var lineHeight: CGFloat = 20
+
+    init(isStart: Bool) {
+        self.isStart = isStart
+        super.init(frame: .zero)
+        isOpaque = false
+        backgroundColor = .clear
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    /// Puts the stem on the line's edge at `point` (its top at the start, its bottom at the end).
+    func place(at point: CGPoint, lineHeight: CGFloat) {
+        self.lineHeight = max(12, lineHeight)
+        let width: CGFloat = 44
+        let height = self.lineHeight + knob + 4
+        frame = CGRect(x: point.x - width / 2, y: isStart ? point.y - knob - 4 : point.y - self.lineHeight,
+                       width: width, height: height)
+        setNeedsDisplay()
+    }
+
+    override func tintColorDidChange() { setNeedsDisplay() }
+
+    override func draw(_ rect: CGRect) {
+        guard let ctx = UIGraphicsGetCurrentContext() else { return }
+        ctx.setFillColor(tintColor.cgColor)
+        let x = bounds.midX
+        if isStart {
+            ctx.fillEllipse(in: CGRect(x: x - knob / 2, y: 0, width: knob, height: knob))
+            ctx.fill(CGRect(x: x - 1, y: knob - 1, width: 2, height: bounds.height - knob + 1))
+        } else {
+            ctx.fill(CGRect(x: x - 1, y: 0, width: 2, height: bounds.height - knob + 1))
+            ctx.fillEllipse(in: CGRect(x: x - knob / 2, y: bounds.height - knob, width: knob, height: knob))
+        }
+    }
 }
 
 /// One or two pages side by side.
@@ -258,6 +545,9 @@ final class SpreadViewController: UIViewController {
     let layout: PageLayout
     let palette: ReaderPalette
     private var pageViews: [PageView] = []
+    var selection: TextSelection? {
+        didSet { pushSelection() }
+    }
 
     init(session: BookSession, slots: [PageSlot?], layout: PageLayout, palette: ReaderPalette) {
         self.session = session
@@ -297,12 +587,36 @@ final class SpreadViewController: UIViewController {
             view.addSubview(pageView)
             pageViews.append(pageView)
         }
+        refreshMarks()
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        refreshMarks()
     }
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         for (index, frame) in layout.pageFrames.enumerated() where index < pageViews.count {
             pageViews[index].frame = frame
+        }
+    }
+
+    /// Gives every page the highlights of its chapter (the view keeps the ones on its page).
+    func refreshMarks() {
+        for (index, pageView) in pageViews.enumerated() {
+            guard index < slots.count, let slot = slots[index] else { continue }
+            pageView.marks = session.marks.filter { $0.spineIndex == slot.spineIndex }
+        }
+    }
+
+    private func pushSelection() {
+        for (index, pageView) in pageViews.enumerated() {
+            guard index < slots.count, let slot = slots[index], let selection, slot.spineIndex == selection.spineIndex else {
+                pageView.selection = nil
+                continue
+            }
+            pageView.selection = selection.range
         }
     }
 
@@ -317,5 +631,46 @@ final class SpreadViewController: UIViewController {
             return (href, slot.spineIndex)
         }
         return nil
+    }
+
+    /// The highlight under a point in this controller's view, if any.
+    func mark(at point: CGPoint) -> HighlightMark? {
+        for pageView in pageViews where pageView.frame.contains(point) {
+            return pageView.mark(at: view.convert(point, to: pageView))
+        }
+        return nil
+    }
+
+    /// The character under a point, when the point is over text.
+    func character(at point: CGPoint) -> (spineIndex: Int, index: Int)? {
+        for (index, pageView) in pageViews.enumerated() where pageView.frame.contains(point) {
+            guard index < slots.count, let slot = slots[index],
+                  let character = pageView.characterIndex(at: view.convert(point, to: pageView)) else { continue }
+            return (slot.spineIndex, character)
+        }
+        return nil
+    }
+
+    /// The character of chapter `spine` nearest to a point anywhere in this view: the page under
+    /// the point when it shows that chapter, otherwise the nearest such page.
+    func nearestCharacter(to point: CGPoint, inSpine spine: Int) -> (index: Int, fraction: CGFloat)? {
+        var candidates: [(PageView, CGFloat)] = []
+        for (index, pageView) in pageViews.enumerated() {
+            guard index < slots.count, let slot = slots[index], slot.spineIndex == spine else { continue }
+            let dx = max(0, pageView.frame.minX - point.x, point.x - pageView.frame.maxX)
+            candidates.append((pageView, dx))
+        }
+        guard let (pageView, _) = candidates.min(by: { $0.1 < $1.1 }) else { return nil }
+        return pageView.nearestCharacter(to: view.convert(point, to: pageView))
+    }
+
+    /// The rects of a selection in this controller's view.
+    func rects(for selection: TextSelection) -> [CGRect] {
+        var result: [CGRect] = []
+        for (index, pageView) in pageViews.enumerated() {
+            guard index < slots.count, let slot = slots[index], slot.spineIndex == selection.spineIndex else { continue }
+            result += pageView.rects(for: selection.range).map { pageView.convert($0, to: view) }
+        }
+        return result
     }
 }

@@ -14,6 +14,14 @@ final class PagerProxy {
 /// The full-screen reading experience for one book.
 struct ReaderView: View {
     let book: Book
+    @Query private var annotations: [Annotation]
+
+    init(book: Book) {
+        self.book = book
+        let id = book.id
+        _annotations = Query(filter: #Predicate<Annotation> { $0.bookID == id },
+                             sort: [SortDescriptor(\Annotation.spineIndex), SortDescriptor(\Annotation.startOffset)])
+    }
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
@@ -30,6 +38,7 @@ struct ReaderView: View {
     @State private var layoutInput: PageLayout.Input?
     @State private var regions: WindowRegions?
     @State private var footnote: Footnote?
+    @State private var editingAnnotation: Annotation?
     @State private var remotePrompt: RemotePrompt?
     @State private var pagerProxy = PagerProxy()
     @State private var pushTask: Task<Void, Never>?
@@ -76,10 +85,19 @@ struct ReaderView: View {
         .tint(Color(uiColor: palette.link))
         .sheet(isPresented: $showContents) {
             if let session {
-                ContentsView(session: session) { location in
+                ContentsView(session: session, book: book, annotations: annotations) { location in
                     showContents = false
                     jump(to: location)
                 }
+            }
+        }
+        .sheet(item: $editingAnnotation) { annotation in
+            if let session {
+                AnnotationEditorView(annotation: annotation, session: session) { location in
+                    editingAnnotation = nil
+                    jump(to: location)
+                }
+                .presentationDetents([.medium, .large])
             }
         }
         .sheet(isPresented: $showAppearance) {
@@ -155,13 +173,15 @@ struct ReaderView: View {
                 let layout = PageLayout.compute(effectiveInput(for: fresh))
                 ZStack(alignment: .topLeading) {
                     ReaderPager(session: session, layout: layout, style: style, palette: palette,
-                                location: session.location, tapTurnsPages: settings.tapToTurn, proxy: pagerProxy,
+                                location: session.location, tapTurnsPages: settings.tapToTurn,
+                                marks: annotations.map(\.mark), highlightColor: settings.highlightColor, proxy: pagerProxy,
                                 onLocationChange: { location in
                                     session.location = location
                                     persist(location)
                                     if chromeVisible { withAnimation { chromeVisible = false } }
                                 },
-                                onTap: handle(tap:))
+                                onTap: handle(tap:),
+                                onSelectionAction: handle(selection:))
                     if let deck = layout.deckFrame {
                         ReaderDeck(session: session, palette: palette, proxy: pagerProxy,
                                    showContents: $showContents, showAppearance: $showAppearance) { location in
@@ -310,7 +330,33 @@ struct ReaderView: View {
             break // the pager turns the page itself
         case .link(let href, let spine):
             open(link: href, from: spine)
+        case .annotation(let id):
+            editingAnnotation = annotations.first { $0.id == id }
         }
+    }
+
+    /// Makes a highlight from the selection; a note opens the editor right away.
+    private func handle(selection action: SelectionAction) {
+        switch action {
+        case .highlight(let selection, let text, let color):
+            _ = add(selection, text: text, color: color)
+        case .note(let selection, let text, let color):
+            editingAnnotation = add(selection, text: text, color: color)
+        }
+    }
+
+    private func add(_ selection: TextSelection, text: String, color: HighlightColor) -> Annotation {
+        let start = ReadingLocation(spineIndex: selection.spineIndex, textOffset: selection.range.location)
+        let end = ReadingLocation(spineIndex: selection.spineIndex, textOffset: NSMaxRange(selection.range))
+        let annotation = Annotation(bookID: book.id, spineIndex: selection.spineIndex,
+                                    startOffset: start.textOffset, endOffset: end.textOffset,
+                                    startPointer: session?.xpointer(for: start)?.serialized,
+                                    endPointer: session?.xpointer(for: end)?.serialized,
+                                    text: text, color: color)
+        settings.highlightColor = color
+        library.add(annotation)
+        log.info("highlight \(selection.spineIndex):\(selection.range.location)+\(selection.range.length) \(color.rawValue, privacy: .public)")
+        return annotation
     }
 
     private func open(link href: String, from spine: Int) {
@@ -429,13 +475,20 @@ struct ReaderView: View {
 
 struct ContentsView: View {
     let session: BookSession
+    let book: Book
+    let annotations: [Annotation]
     var onSelect: (ReadingLocation) -> Void
     @Environment(\.dismiss) private var dismiss
+    @State private var tab = ContentsTab.contents
+
+    enum ContentsTab: Hashable { case contents, notes }
 
     var body: some View {
         NavigationStack {
             Group {
-                if session.flatTOC.isEmpty {
+                if tab == .notes {
+                    NotesListView(session: session, annotations: annotations, onSelect: onSelect)
+                } else if session.flatTOC.isEmpty {
                     List(0 ..< session.chapterCount, id: \.self) { index in
                         Button {
                             onSelect(ReadingLocation(spineIndex: index, textOffset: 0))
@@ -455,11 +508,29 @@ struct ContentsView: View {
                 }
             }
             .listStyle(.plain)
-            .navigationTitle("Contents")
+            .navigationTitle(tab == .notes ? "Notes" : "Contents")
             .navigationBarTitleDisplayMode(.inline)
+            .safeAreaInset(edge: .top) {
+                Picker("Section", selection: $tab) {
+                    Text("Contents").tag(ContentsTab.contents)
+                    Text("Notes").tag(ContentsTab.notes)
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal)
+                .padding(.bottom, 8)
+                .background(.bar)
+            }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
+                }
+                if tab == .notes, !annotations.isEmpty {
+                    ToolbarItem(placement: .topBarLeading) {
+                        ShareLink(item: NotesListView.markdown(book: book, session: session, annotations: annotations),
+                                  subject: Text("Notes from \(book.title)")) {
+                            Label("Share Notes", systemImage: "square.and.arrow.up")
+                        }
+                    }
                 }
             }
         }

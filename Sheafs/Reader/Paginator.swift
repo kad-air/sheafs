@@ -90,6 +90,52 @@ final class PaginatedChapter {
         return index + part.offset
     }
 
+    /// The character nearest to `point` on `page` (chapter coordinates), with how far through the
+    /// glyph the point lies, for dragging selection handles past the edges of the text.
+    func nearestCharacter(to point: CGPoint, page: Int) -> (index: Int, fraction: CGFloat) {
+        guard let (part, local) = part(forPage: page) else { return (0, 0) }
+        let hit = part.nearestCharacter(to: point, page: local)
+        return (hit.index + part.offset, hit.fraction)
+    }
+
+    /// The rects (page coordinates, origin at the text's top-left) enclosing the part of `range`
+    /// that lies on `page`; empty when none of it does.
+    func rects(for range: NSRange, page: Int) -> [CGRect] {
+        guard let (part, local) = part(forPage: page) else { return [] }
+        let onPage = NSIntersectionRange(range, self.range(ofPage: page))
+        guard onPage.length > 0 else { return [] }
+        return part.rects(for: NSRange(location: onPage.location - part.offset, length: onPage.length), page: local)
+    }
+
+    /// The word around `index`, for a long press; on whitespace or punctuation the nearest word in
+    /// the paragraph, and failing that the character itself.
+    func wordRange(at index: Int) -> NSRange {
+        Self.wordRange(in: textStorage.string as NSString, at: index)
+    }
+
+    nonisolated static func wordRange(in string: NSString, at index: Int) -> NSRange {
+        guard string.length > 0 else { return NSRange(location: 0, length: 0) }
+        let index = max(0, min(index, string.length - 1))
+        let paragraph = string.paragraphRange(for: NSRange(location: index, length: 0))
+        var best: NSRange?
+        var bestDistance = Int.max
+        string.enumerateSubstrings(in: paragraph, options: [.byWords, .substringNotRequired]) { _, range, _, stop in
+            if NSLocationInRange(index, range) {
+                best = range
+                bestDistance = 0
+                stop.pointee = true
+                return
+            }
+            let distance = index < range.location ? range.location - index : index - NSMaxRange(range) + 1
+            if distance < bestDistance {
+                best = range
+                bestDistance = distance
+            }
+        }
+        if let best, bestDistance <= 2 { return best }
+        return string.rangeOfComposedCharacterSequence(at: index)
+    }
+
     /// One contiguous stretch of the chapter, laid out once in a tall container and cut into pages
     /// at line boundaries. Forward parts fill pages from the top; the part before an anchor is cut
     /// backward from the anchor, so its short page lands at the chapter start rather than right
@@ -185,6 +231,30 @@ final class PaginatedChapter {
             let shifted = CGPoint(x: origin.x, y: origin.y - pageTops[page])
             layoutManager.drawBackground(forGlyphRange: pageGlyphRanges[page], at: shifted)
             layoutManager.drawGlyphs(forGlyphRange: pageGlyphRanges[page], at: shifted)
+        }
+
+        func nearestCharacter(to point: CGPoint, page: Int) -> (index: Int, fraction: CGFloat) {
+            guard page >= 0, page < pageGlyphRanges.count, pageGlyphRanges[page].length > 0 else { return (0, 0) }
+            let inContainer = CGPoint(x: point.x, y: point.y + pageTops[page])
+            var fraction: CGFloat = 0
+            var glyph = layoutManager.glyphIndex(for: inContainer, in: container, fractionOfDistanceThroughGlyph: &fraction)
+            let range = pageGlyphRanges[page]
+            if glyph < range.location { glyph = range.location; fraction = 0 }
+            if glyph >= NSMaxRange(range) { glyph = NSMaxRange(range) - 1; fraction = 1 }
+            return (layoutManager.characterIndexForGlyph(at: glyph), fraction)
+        }
+
+        func rects(for range: NSRange, page: Int) -> [CGRect] {
+            guard page >= 0, page < pageGlyphRanges.count, range.length > 0 else { return [] }
+            let glyphs = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+            let visible = NSIntersectionRange(glyphs, pageGlyphRanges[page])
+            guard visible.length > 0 else { return [] }
+            var rects: [CGRect] = []
+            let top = pageTops[page]
+            layoutManager.enumerateEnclosingRects(forGlyphRange: visible, withinSelectedGlyphRange: visible, in: container) { rect, _ in
+                rects.append(rect.offsetBy(dx: 0, dy: -top))
+            }
+            return rects
         }
 
         func characterIndex(at point: CGPoint, page: Int) -> Int? {
