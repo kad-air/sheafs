@@ -40,6 +40,12 @@ struct PageLayout: Equatable {
     static let footerHeight: CGFloat = 30
     static let headerHeight: CGFloat = 36
 
+    /// The gutter of a spread on a fold: the fold's region plus 2 pt each side, never narrower than
+    /// the 40 pt region the Duo reports for its hinge. The same in every pose, so unfolding from
+    /// book pose to flat (or back) keeps the pages, and therefore every line break, exactly as they
+    /// were; only whether the region is active changes between those poses, not where the text goes.
+    static let minimumFoldGutter: CGFloat = 44
+
     /// The occlusions the page must keep clear of: those in the top quarter of the content that are
     /// not merely the housing around another one. The cover display reports its camera twice, as
     /// the hole (37 pt square) and as the strip around it (84 × 82 pt); Books runs the text right
@@ -82,8 +88,8 @@ struct PageLayout: Equatable {
         if input.allowSpread, let fold = input.division, fold.height >= fold.width,
            fold.minX > content.minX + 200, content.maxX - fold.maxX > 200 {
             wantsSpread = true
-            let pad: CGFloat = input.divisionIsActive ? 2 : 14
-            gutterRect = fold.insetBy(dx: -pad, dy: 0)
+            let width = max(fold.width + 4, minimumFoldGutter)
+            gutterRect = CGRect(x: fold.midX - width / 2, y: content.minY, width: width, height: content.height)
         } else if input.allowSpread, input.division == nil, content.width >= 820, content.width > content.height {
             // A wide screen without a fold (iPad landscape): a conventional spread.
             wantsSpread = true

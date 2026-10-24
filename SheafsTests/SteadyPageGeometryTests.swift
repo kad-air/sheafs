@@ -81,12 +81,17 @@ struct SteadyPageGeometryTests {
     @Test func foldingIntoBookPoseIsFollowedAtOnce() {
         var replay = Replay()
         replay.see(Self.innerInput(top: 0, bottom: 20), barsVisible: false)
-        replay.see(Self.innerInput(top: 0, bottom: 20, foldActive: true), barsVisible: false, after: 10)
+        // Long after the flat geometry locked, book pose arrives with other insets: a new display
+        // state, so they are taken at once (the lock would have held the flat bottom inset).
+        replay.see(Self.innerInput(top: 0, bottom: 34, foldActive: true), barsVisible: false, after: 10)
         let flat = replay.layouts[0], book = replay.layouts[1]
-        // Flat: a 14 pt gutter each side of the zero-width fold; book pose: the fold frame + 2 pt.
-        // Page edges land on whole points, rounded away from the fold.
-        #expect(flat.pageFrames[1].minX == 490)
-        #expect(book.pageFrames[1].minX == 478)
+        #expect(flat.pageFrames[0].height == 649)
+        #expect(book.pageFrames[0].height == 635)
+        // The gutter is the same 44 pt in both poses (`minimumFoldGutter`), so the measure and every
+        // line break stay put; page edges land on whole points, rounded away from the fold.
+        #expect(flat.pageFrames.map(\.minX) == [0, 498])
+        #expect(book.pageFrames.map(\.minX) == [0, 498])
+        #expect(flat.pageFrames.map(\.width) == book.pageFrames.map(\.width))
     }
 
     @Test func aNewDisplaySettlesWhileTheBarsLeaveThenLocks() {
