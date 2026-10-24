@@ -21,7 +21,9 @@ volume by `simctl` (permission error) — write them under `/tmp` or the scratch
 
 Launch arguments: `-SheafsOpen <title fragment>` opens the first matching library book at launch;
 `-SheafsCatalogURL <url> [-SheafsCatalogName <name>]` adds an OPDS catalog once (keeps keys out of
-typed text and transcripts: build the URL in a shell variable).
+typed text and transcripts: build the URL in a shell variable);
+`-SheafsAppearance quick|full` (with `-SheafsOpen`) opens the quick appearance panel or the detailed
+sheet once the book is ready.
 Dropping `.epub` files into the app's Documents folder (`xcrun simctl get_app_container <udid>
 io.sheafs.reader data`/Documents) imports them on the next launch or foreground.
 
@@ -84,7 +86,15 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     `ReaderView` (chrome: system toolbar + glass progress strip, contents/appearance/footnote sheets,
     sync pull on open / debounced push; `@Query` of the book's annotations → `HighlightMark`s →
     `BookSession.marks`, which every spread reads as it appears), `ReaderSettings` (incl. the
-    last-used highlight colour), `Theme`, `AppearanceView`.
+    last-used highlight colour; the shared slider ranges/grids and `step(_:by:grid:in:)`), `Theme`,
+    `AppearanceView` (the detailed sheet, also embedded in Settings), `QuickAppearanceView`.
+    Appearance is two-level: the toolbar's (and the tabletop deck's) Appearance button hides the bars
+    and floats `QuickAppearanceView` over the bottom of the page (themes, size, font, spacing,
+    margins, justify/hyphenate/indent), so the text being adjusted stays visible; a centre tap or ✕
+    closes it, edge taps still turn pages, and its sliders button steps through to the detailed sheet.
+    Over a vertical fold (spread, book pose) the panel keeps to the LEFT page: off the fold, and the
+    right page, which holds the reading position, stays in view. Its −/+ buttons move along the
+    detailed sliders' grids (`QuickAppearanceTests`).
   - `Catalog/` — OPDS browser (catalog list, add/edit, feed browser with pagination/search,
     entry detail + download → `LibraryStore.importBook`).
   - `Settings/` — sync account, appearance link, library stats, about. `Sync/SyncService` — kosync

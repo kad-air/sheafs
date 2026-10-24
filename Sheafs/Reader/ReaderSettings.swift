@@ -139,3 +139,24 @@ final class ReaderSettings {
                      palette: ReaderPalette.resolve(theme, colorScheme: colorScheme), language: language)
     }
 }
+
+/// The ranges and grids the appearance controls share, so the quick menu's buttons and the detailed
+/// sheet's sliders land on the same values.
+extension ReaderSettings {
+    nonisolated static let fontSizeRange: ClosedRange<Double> = 12 ... 32
+    nonisolated static let fontSizeGrid = 1.0
+    nonisolated static let lineHeightRange: ClosedRange<Double> = 1.1 ... 1.9
+    nonisolated static let lineHeightGrid = 0.05
+    nonisolated static let marginRange: ClosedRange<Double> = 8 ... 56
+    nonisolated static let marginGrid = 2.0
+
+    /// `value` moved by `steps` grid steps: snapped to the grid that starts at the range's lower bound
+    /// (an off-grid value from an older build first rounds to the nearest grid point), then clamped.
+    nonisolated static func step(_ value: Double, by steps: Int, grid: Double, in range: ClosedRange<Double>) -> Double {
+        let index = ((value - range.lowerBound) / grid).rounded() + Double(steps)
+        let moved = range.lowerBound + index * grid
+        // Strip float noise (1.1 + 7 × 0.05 = 1.4500000000000002) so values compare and persist cleanly.
+        let clean = (moved * 1_000_000).rounded() / 1_000_000
+        return min(max(clean, range.lowerBound), range.upperBound)
+    }
+}

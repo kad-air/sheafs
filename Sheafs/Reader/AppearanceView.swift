@@ -44,19 +44,19 @@ struct AppearanceView: View {
                 }
                 HStack {
                     Text("A").font(.system(size: 13))
-                    Slider(value: $settings.fontSize, in: 12 ... 32, step: 1)
+                    Slider(value: $settings.fontSize, in: ReaderSettings.fontSizeRange, step: ReaderSettings.fontSizeGrid)
                     Text("A").font(.system(size: 24))
                 }
                 .accessibilityLabel("Text size")
                 HStack {
                     Image(systemName: "text.alignleft").imageScale(.small)
-                    Slider(value: $settings.lineHeight, in: 1.1 ... 1.9, step: 0.05)
+                    Slider(value: $settings.lineHeight, in: ReaderSettings.lineHeightRange, step: ReaderSettings.lineHeightGrid)
                     Image(systemName: "text.alignleft")
                 }
                 .accessibilityLabel("Line spacing")
                 HStack {
                     Image(systemName: "rectangle.compress.vertical").rotationEffect(.degrees(90))
-                    Slider(value: $settings.margin, in: 8 ... 56, step: 2)
+                    Slider(value: $settings.margin, in: ReaderSettings.marginRange, step: ReaderSettings.marginGrid)
                     Image(systemName: "rectangle.expand.vertical").rotationEffect(.degrees(90))
                 }
                 .accessibilityLabel("Margins")
