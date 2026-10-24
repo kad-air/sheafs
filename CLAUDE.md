@@ -10,6 +10,8 @@ hostnames or secrets anywhere in the tree** — `scripts/check` greps for them a
 scripts/bootstrap                 # Config/Signing.xcconfig (git-ignored) + `xcodegen generate`
 scripts/check                     # THE gate: hygiene grep, Python reference freshness, swift test,
                                   #   simulator build, simulator unit tests (SKIP_SIM_TESTS=1 skips the last)
+scripts/check-auto-theme          # end to end on a simulator (SIM="Sheafs Duo"): theme Automatic follows
+                                  #   live Light/Dark flips (reads the page colour off screenshots)
 cd Packages/SheafsKit && swift test            # the core package, on the Mac, ~1 s
 xcodebuild -project Sheafs.xcodeproj -scheme Sheafs -destination 'platform=iOS Simulator,name=iPhone Duo' build
 scripts/hinge/hinge 110           # fold the booted Duo simulator (0 closed … 180 flat); `get` reads it
@@ -172,6 +174,10 @@ under the reader's eyes on every tap; the bars overlay the page instead. A size 
 rotate) while the bars are up hides them first, so the stored insets are always reading ones.
 
 ## Landmines
+- The reader forces a colour scheme only for a FIXED theme (`ReaderPalette.forcedColorScheme`; nil for
+  Automatic). It resolves the palette from the environment's `colorScheme`, which a forced
+  `preferredColorScheme` overrides for the whole presentation, so forcing one for Automatic latched the
+  first value and live Light/Dark changes never reached the page. `scripts/check-auto-theme` pins it.
 - The pager's `UIScrollView` has `contentInsetAdjustmentBehavior = .never` (set on every layout pass,
   the scroll view is created lazily): the page frames already include the safe areas. The same pass
   makes its pan `require(toFail:)` the selection handles' pans, so dragging a handle never swipes
