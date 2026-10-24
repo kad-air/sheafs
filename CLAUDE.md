@@ -108,14 +108,15 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     is, the bend travels to the spine and then shrinks as the leaf falls; `tilt` lets the held
     corner lead; `FlipSpring` is the critically damped release). `PageFlipShader` is the Metal
     fragment shader (inverse mapping per pixel: turned-over part, back and front of the bend,
-    flat part, else the page beneath; lighting, a shadow under the bend and the free edge, a
+    flat part, else the page beneath; lighting, a cast shadow beyond the leaf's silhouette, a
     mirrored show-through "ghost" for the back of a single page). `PageFlipView` (MTKView, opaque,
     covers the pager while a turn is in flight) renders pages to textures through
     `PageView.render(in:)`. `PageFlipDriver` builds the scene for a turn (a spread turns like a
     book: the leaf's back is the page that lands face up on the other side; a single display is a
     pad printed on one side), follows the pan or runs the spring on a CADisplayLink, and calls
     `PagerController.install(spread:…)` under the opaque leaf as the turn starts and `announce(location:)` a frame after it lands (the save and the prefetch never share the landing frame). `SheafsTests`
-    pins the physics against numerical integration.
+    pins the physics against numerical integration, and `PageFlipShadowTests` renders the real
+    shader offscreen (leaf red, page beneath blue, so blue reads the shade) and pins the shadow.
   - `Catalog/` — OPDS browser (catalog list, add/edit, feed browser with pagination/search,
     entry detail + download → `LibraryStore.importBook`).
   - `Settings/` — sync account, appearance link, library stats, about. `Sync/SyncService` — kosync
@@ -197,6 +198,12 @@ rotate) while the bars are up hides them first, so the stored insets are always 
   `FlipUniforms` (Swift) and `FlipUniforms` (shader) are plain floats in the same order; the view
   asserts the float count. If the flip view cannot be made (no Metal, shader error) or Reduce Motion
   is on, pages slide.
+- 🔴 The flip's cast shadow comes from the leaf's silhouette in EACH ROW: the crest of the bend if
+  the sheet reaches it there, else the free edge still rising, deepening and widening with that
+  point's height. Gating it on the crest alone made it fill in row by row while a corner led (the
+  axis tilts), a hard-edged block sweeping up the page on a slow drag, and left a lifted edge short
+  of the crest with no shadow. `PageFlipShadowTests` fails on that (steps along the edge and
+  between frames of a slow drag, shade beside a lifted edge).
 - Page textures are cached per `PageSlot` and dropped on layout/palette/style changes; anything
   else that changes what a page draws (highlights, selection) must call
   `PageFlipDriver.invalidateTextures()` or the leaf shows stale content.
