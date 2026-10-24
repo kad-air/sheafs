@@ -174,6 +174,10 @@ final class PageFlipDriver: NSObject {
             return made
         }
         let palette = host.palette
+        // The leaf is the whole sheet: it runs the window's full height, the printed page sits
+        // where its frame is (clear of the home indicator), the rest is paper.
+        let top: CGFloat = 0
+        let fullHeight = flipView.bounds.height
         let scene: FlipScene
         let reversed: Bool
         if layout.isSpread {
@@ -184,29 +188,36 @@ final class PageFlipDriver: NSObject {
             let spine = frames[0].maxX + gap / 2
             let inset = gap / 2
             if forward {
-                let leaf = CGRect(x: spine, y: frames[1].minY, width: frames[1].maxX - spine, height: frames[1].height)
-                scene = FlipScene(leafFrame: leaf, hinge: spine, flip: 1, inset: inset,
+                let leaf = CGRect(x: spine, y: top, width: frames[1].maxX - spine, height: fullHeight)
+                scene = FlipScene(leafFrame: leaf, pageTop: frames[1].minY, pageHeight: frames[1].height,
+                                  hinge: spine, flip: 1, inset: inset,
                                   front: texture(current, 1), back: texture(destination, 0), ghostBack: false,
                                   under: [(frames[0], texture(current, 0)), (frames[1], texture(destination, 1))],
                                   palette: palette)
             } else {
-                let leaf = CGRect(x: frames[0].minX, y: frames[0].minY, width: spine - frames[0].minX, height: frames[0].height)
-                scene = FlipScene(leafFrame: leaf, hinge: spine, flip: -1, inset: inset,
+                let leaf = CGRect(x: frames[0].minX, y: top, width: spine - frames[0].minX, height: fullHeight)
+                scene = FlipScene(leafFrame: leaf, pageTop: frames[0].minY, pageHeight: frames[0].height,
+                                  hinge: spine, flip: -1, inset: inset,
                                   front: texture(current, 0), back: texture(destination, 1), ghostBack: false,
                                   under: [(frames[1], texture(current, 1)), (frames[0], texture(destination, 0))],
                                   palette: palette)
             }
             reversed = false
-        } else if forward {
-            scene = FlipScene(leafFrame: frames[0], hinge: frames[0].minX, flip: 1, inset: 0,
-                              front: texture(current, 0), back: nil, ghostBack: true,
-                              under: [(frames[0], texture(destination, 0))], palette: palette)
-            reversed = false
         } else {
-            scene = FlipScene(leafFrame: frames[0], hinge: frames[0].minX, flip: 1, inset: 0,
-                              front: texture(destination, 0), back: nil, ghostBack: true,
-                              under: [(frames[0], texture(current, 0))], palette: palette)
-            reversed = true
+            let leaf = CGRect(x: frames[0].minX, y: top, width: frames[0].width, height: fullHeight)
+            if forward {
+                scene = FlipScene(leafFrame: leaf, pageTop: frames[0].minY, pageHeight: frames[0].height,
+                                  hinge: frames[0].minX, flip: 1, inset: 0,
+                                  front: texture(current, 0), back: nil, ghostBack: true,
+                                  under: [(frames[0], texture(destination, 0))], palette: palette)
+                reversed = false
+            } else {
+                scene = FlipScene(leafFrame: leaf, pageTop: frames[0].minY, pageHeight: frames[0].height,
+                                  hinge: frames[0].minX, flip: 1, inset: 0,
+                                  front: texture(destination, 0), back: nil, ghostBack: true,
+                                  under: [(frames[0], texture(current, 0))], palette: palette)
+                reversed = true
+            }
         }
         let ms = (CFAbsoluteTimeGetCurrent() - started) * 1000
         log.debug("prepared \(forward ? "forward" : "backward") turn in \(ms, format: .fixed(precision: 1)) ms")

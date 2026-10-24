@@ -14,15 +14,19 @@ struct FlipUniforms {
     var under0X: Float = 0, under0Y: Float = 0, under0Width: Float = 0, under0Height: Float = 0, under0On: Float = 0
     var under1X: Float = 0, under1Y: Float = 0, under1Width: Float = 0, under1Height: Float = 0, under1On: Float = 0
     var paperR: Float = 1, paperG: Float = 1, paperB: Float = 1, isDark: Float = 0
+    var pageTop: Float = 0, pageHeight: Float = 1
 
-    static let floatCount = 29
+    static let floatCount = 31
 }
 
 /// Everything one turn draws with: the leaf's frame and hinge, the textures, and the page(s)
 /// lying beneath. The curl itself (`flat`, `radius`, `tilt`, `grabY`) changes every frame.
 struct FlipScene {
-    /// The whole leaf, spine to outer edge, when flat.
+    /// The whole leaf, spine to outer edge and the window's full height, when flat.
     var leafFrame: CGRect
+    /// Where the printed page sits on the leaf, vertically (window coordinates).
+    var pageTop: CGFloat
+    var pageHeight: CGFloat
     var hinge: CGFloat
     /// +1 when the leaf extends to the right of the hinge, −1 to the left.
     var flip: CGFloat
@@ -135,6 +139,8 @@ final class PageFlipView: MTKView {
         }
         uniforms.paperR = Float(red); uniforms.paperG = Float(green); uniforms.paperB = Float(blue)
         uniforms.isDark = scene.palette.isDark ? 1 : 0
+        uniforms.pageTop = Float(scene.pageTop - scene.leafFrame.minY)
+        uniforms.pageHeight = Float(scene.pageHeight)
 
         encoder.setRenderPipelineState(pipeline)
         encoder.setFragmentBytes(&uniforms, length: MemoryLayout<FlipUniforms>.size, index: 0)

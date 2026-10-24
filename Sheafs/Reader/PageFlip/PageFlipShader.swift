@@ -23,6 +23,7 @@ struct FlipUniforms {
     float under0X, under0Y, under0Width, under0Height, under0On;
     float under1X, under1Y, under1Width, under1Height, under1On;
     float paperR, paperG, paperB, isDark;
+    float pageTop, pageHeight;                   // where the printed page sits on the leaf (the leaf is the whole sheet)
 };
 
 struct FlipVertexOut {
@@ -54,8 +55,9 @@ static float overhang(float2 s, float w, float h) {
 static half3 sampleFront(texture2d<half> front, float2 s, half3 paper, constant FlipUniforms &u) {
     float t = (s.x - u.inset) / (u.leafWidth - u.inset);
     float x = u.flip > 0 ? t : 1 - t;
-    if (x < 0 || x > 1) return paper;
-    return front.sample(pageSampler, float2(x, s.y / u.leafHeight)).rgb;
+    float y = (s.y - u.pageTop) / u.pageHeight;
+    if (x < 0 || x > 1 || y < 0 || y > 1) return paper;
+    return front.sample(pageSampler, float2(x, y)).rgb;
 }
 
 // The back of the leaf: the page that lands face up on the other side, or, for a single page
@@ -65,8 +67,9 @@ static half3 sampleBack(texture2d<half> front, texture2d<half> back, float2 s, h
     if (u.hasBack > 0.5) {
         float t = (s.x - u.inset) / (u.leafWidth - u.inset);
         float x = u.flip > 0 ? 1 - t : t;
-        if (x < 0 || x > 1) return paper;
-        return back.sample(pageSampler, float2(x, s.y / u.leafHeight)).rgb;
+        float y = (s.y - u.pageTop) / u.pageHeight;
+        if (x < 0 || x > 1 || y < 0 || y > 1) return paper;
+        return back.sample(pageSampler, float2(x, y)).rgb;
     }
     half3 through = sampleFront(front, s, paper, u);
     return mix(paper, through, half(0.11));
@@ -80,12 +83,14 @@ static float shadeFront(float theta, float isDark) {
     return mix(grazing, dark, isDark);
 }
 
-// The far side of the bend, seen from inside the curl: darkest at the crest, opening up to the
-// plain lit back as it flattens out on top.
+// The far side of the bend, seen from inside the curl: lit from above, so darkest at the crest
+// where it faces away and brightening steadily as it turns up, with the concave corner where it
+// meets the turned-over part kept a little in shadow (the same tone as the crease on that part).
 static float shadeBack(float theta, float isDark) {
     float k = clamp(-cos(theta), 0.0, 1.0);
-    float light = 0.70 + 0.30 * pow(k, 0.6);
-    float dark = 1.16 - 0.16 * pow(k, 0.6);
+    float corner = 1 - 0.07 * smoothstep(0.55, 1.0, k);
+    float light = (0.72 + 0.28 * k) * corner;
+    float dark = 1.14 - 0.14 * k;
     return mix(light, dark, isDark);
 }
 
@@ -175,7 +180,7 @@ fragment half4 flipFragment(FlipVertexOut in [[stage_in]],
         float cov = coverage(turned, w, h);
         if (cov > 0) {
             // A hint of the crease where the turned part meets the bend.
-            float crease = R > 0.01 ? 1 - 0.06 * (1 - smoothstep(0.0, R * 0.9, -xi)) : 1;
+            float crease = R > 0.01 ? 1 - 0.07 * (1 - smoothstep(0.0, R * 0.9, -xi)) : 1;
             half3 b = sampleBack(front, back, turned, paper, u) * half(mix(crease, 1.0, u.isDark));
             color = mix(color, b, half(cov));
         }
