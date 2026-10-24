@@ -95,7 +95,7 @@ struct ReaderView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .preferredColorScheme(palette.isDark ? .dark : .light)
+        .preferredColorScheme(ReaderPalette.forcedColorScheme(for: settings.theme))
         .tint(Color(uiColor: palette.link))
         .sheet(isPresented: $showContents) {
             if let session {

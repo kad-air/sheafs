@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# End-to-end check that the Automatic theme follows live Light/Dark changes on the device.
+# Opens a book on a simulator with the reader settings reset (theme = Automatic), flips the simulator's
+# appearance light → dark → light, and reads the page colour off screenshots. Fails loudly when the
+# page doesn't follow (the regression: a forced `preferredColorScheme` latched the first scheme).
+#   SIM="Sheafs Duo" (default; flips that simulator's appearance, restored on exit)
+#   DERIVED_DATA=/tmp/sheafs-derived (builds there, incrementally)
+set -euo pipefail
+cd "$(dirname "$0")/.."
+fail() { echo "AUTO THEME CHECK FAILED: $*" >&2; exit 1; }
+SIM=${SIM:-Sheafs Duo}
+DD=${DERIVED_DATA:-/tmp/sheafs-derived}
+WORK=$(mktemp -d)
+
+UDID=$(xcrun simctl list devices available -j | python3 -I -c '
+import json, sys
+name = sys.argv[1]
+for runtime in json.load(sys.stdin)["devices"].values():
+    for d in runtime:
+        if d["name"] == name: print(d["udid"]); sys.exit()
+' "$SIM")
+[[ -n $UDID ]] || fail "no simulator named \"$SIM\""
+xcrun simctl bootstatus "$UDID" -b >/dev/null
+
+ORIGINAL=$(xcrun simctl ui "$UDID" appearance)
+trap 'xcrun simctl ui "$UDID" appearance "$ORIGINAL" >/dev/null 2>&1 || true; rm -rf "$WORK"' EXIT
+
+[[ -f Config/Signing.xcconfig ]] || cp Config/Signing.example.xcconfig Config/Signing.xcconfig
+xcodegen generate --quiet
+xcodebuild -project Sheafs.xcodeproj -scheme Sheafs -destination "platform=iOS Simulator,id=$UDID" \
+  -derivedDataPath "$DD" -quiet build >"$WORK/build.log" 2>&1 || { tail -n 30 "$WORK/build.log" >&2; fail "build"; }
+xcrun simctl install "$UDID" "$DD/Build/Products/Debug-iphonesimulator/Sheafs.app"
+xcrun simctl terminate "$UDID" io.sheafs.reader >/dev/null 2>&1 || true
+
+# A book in the library, and the reader settings back to their defaults (theme Automatic).
+DATA=$(xcrun simctl get_app_container "$UDID" io.sheafs.reader data)
+mkdir -p "$DATA/Documents"
+cp Packages/SheafsKit/Tests/SheafsKitTests/Fixtures/pride-epub2.epub "$DATA/Documents/"
+PREFS=$DATA/Library/Preferences/io.sheafs.reader.plist
+[[ -f $PREFS ]] && plutil -remove 'reader\.settings\.v1' "$PREFS" >/dev/null 2>&1 || true
+scripts/hinge/hinge -d "$UDID" 0 >/dev/null   # the cover display: one page, `--display=primary`
+
+xcrun simctl ui "$UDID" appearance light
+xcrun simctl launch "$UDID" io.sheafs.reader >/dev/null            # imports Documents/
+sleep 4
+xcrun simctl launch --terminate-running-process "$UDID" io.sheafs.reader -SheafsOpen Pride >/dev/null
+sleep 4
+
+# The page's left margin, sampled down the middle of the screen. Paper is (251, 249, 244), Night
+# (18, 18, 19): `ReaderPalette` in Sheafs/Reader/Theme.swift. Answers "light", "dark" or the RGB.
+page_colour() {
+  xcrun simctl io "$UDID" screenshot --display=primary "$WORK/shot.png" >/dev/null 2>&1
+  sips -s format bmp "$WORK/shot.png" --out "$WORK/shot.bmp" >/dev/null
+  python3 -I - "$WORK/shot.bmp" <<'PY'
+import struct, sys
+data = open(sys.argv[1], "rb").read()
+offset, = struct.unpack_from("<I", data, 10)
+width, height = struct.unpack_from("<ii", data, 18)
+bpp, = struct.unpack_from("<H", data, 28)
+step = bpp // 8
+row = (width * step + 3) & ~3
+def pixel(x, y):  # y from the top
+    yy = (height - 1 - y) if height > 0 else y
+    b, g, r = data[offset + yy * row + x * step: offset + yy * row + x * step + 3]
+    return r, g, b
+h = abs(height)
+samples = sorted(pixel(30, h * k // 10) for k in range(3, 8))
+r, g, b = samples[len(samples) // 2]
+close = lambda c, t: all(abs(a - e) <= 4 for a, e in zip(c, t))
+print("light" if close((r, g, b), (251, 249, 244)) else "dark" if close((r, g, b), (18, 18, 19)) else f"rgb({r},{g},{b})")
+PY
+}
+
+expect() {  # expect <light|dark> <what>: polls for up to 10 s, the switch animates
+  local got
+  for _ in $(seq 1 10); do
+    got=$(page_colour)
+    [[ $got == "$1" ]] && { echo "ok: $2 → page is $got"; return; }
+    sleep 1
+  done
+  cp "$WORK/shot.png" /tmp/sheafs-auto-theme-failure.png
+  fail "$2: page is $got, expected $1 (screenshot /tmp/sheafs-auto-theme-failure.png)"
+}
+
+expect light "opened with the device in Light"
+xcrun simctl ui "$UDID" appearance dark
+expect dark "device switched to Dark while reading"
+xcrun simctl ui "$UDID" appearance light
+expect light "device switched back to Light"
+echo "AUTO THEME OK"

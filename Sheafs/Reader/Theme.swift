@@ -38,6 +38,18 @@ struct ReaderPalette: Hashable, Sendable {
         case .system: colorScheme == .dark ? .night : .paper
         }
     }
+
+    /// The colour scheme the reader forces so its bars and sheets match the page, or nil to follow
+    /// the device. 🔴 Automatic must be nil: the reader resolves the palette from the environment's
+    /// `colorScheme`, and a forced scheme overrides that same environment, so the first value would
+    /// latch and live Light/Dark changes would never reach the page.
+    static func forcedColorScheme(for theme: ReaderTheme) -> ColorScheme? {
+        switch theme {
+        case .paper, .sepia: .light
+        case .night: .dark
+        case .system: nil
+        }
+    }
 }
 
 extension Color {
