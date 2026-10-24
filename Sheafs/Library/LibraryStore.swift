@@ -18,6 +18,8 @@ final class LibraryStore {
     private let log = Logger(subsystem: "io.sheafs.reader", category: "library")
     /// What the widget was last handed, so a page turn that doesn't change it reloads nothing.
     private var publishedRecent: RecentBook?
+    /// Where the widget reads from; tests point it at a temporary folder.
+    var shelf: RecentBookShelf? = RecentBookShelf.shared
     private var hasPublished = false
 
     init(inMemory: Bool = false) {
@@ -173,8 +175,10 @@ final class LibraryStore {
 
     /// Hands the most recent book to the "Continue Reading" widget through the app group, and
     /// reloads it only when what it shows changed (progress is rounded to whole percents).
-    func publishRecentBook() {
-        guard let shelf = RecentBookShelf.shared else {
+    /// `force` (launch and every return to the foreground) rewrites the snapshot and cover even if
+    /// nothing seems to have changed, so a missing or stale file repairs itself.
+    func publishRecentBook(force: Bool = false) {
+        guard let shelf else {
             print("[widget] app group \(RecentBookShelf.appGroup) unavailable")
             log.error("widget: app group \(RecentBookShelf.appGroup, privacy: .public) unavailable")
             return
@@ -184,9 +188,9 @@ final class LibraryStore {
             RecentBook(id: $0.id, title: $0.title, author: $0.author,
                        progress: ($0.progress * 100).rounded() / 100, hasCover: $0.hasCover)
         }
-        print("[widget] publish: shelf=\(shelf.directory.path) book=\(recent?.title ?? "none") progress=\(recent?.progress ?? -1) published=\(hasPublished)")
-        if hasPublished, publishedRecent == recent { return }
-        let coverChanged = !hasPublished || recent?.id != publishedRecent?.id
+        print("[widget] publish: shelf=\(shelf.directory.path) book=\(recent?.title ?? "none") progress=\(recent?.progress ?? -1) published=\(hasPublished) force=\(force)")
+        if !force, hasPublished, publishedRecent == recent { return }
+        let coverChanged = force || !hasPublished || recent?.id != publishedRecent?.id
         var cover: Data?
         if let book, book.hasCover, coverChanged, let data = try? Data(contentsOf: coverURL(for: book)) {
             // Widgets live under a tight memory limit: a small thumbnail is plenty for the tile.

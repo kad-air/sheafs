@@ -174,8 +174,10 @@ regions (see Duo behaviour below), so check layout changes on the phone.
   `group.io.sheafs.reader` (`recent-book.json` + a 480 px `recent-cover.jpg`), `SheafsLink` the URL.
   The widget cannot see SwiftData or Application Support, so the app pushes a snapshot:
   `LibraryStore.publishRecentBook()` (most recent = `lastOpenedAt ?? addedAt`, like the library grid)
-  runs at launch, on import/delete, on reader open and on every saved position; it writes and
-  reloads the timeline only when the snapshot changed (progress rounded to whole percents). The
+  runs on import/delete, on reader open and on every saved position, writing and reloading the
+  timeline only when the snapshot changed (progress rounded to whole percents); at launch and on
+  every return to the foreground it runs with `force: true`, rewriting snapshot and cover regardless,
+  so a missing or stale file repairs itself. The
   timeline policy is `.never`. `SheafsApp.onOpenURL` sends `sheafs://` to
   `AppNavigation.open(bookWithID:in:)` and everything else to import. `WidgetTests` pins the URL
   type, the embedded extension and the app group entitlement (fails without it).

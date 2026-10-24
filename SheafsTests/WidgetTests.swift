@@ -70,4 +70,29 @@ struct WidgetTests {
         read.lastOpenedAt = .now
         #expect(library.mostRecentBook()?.title == "Read last week")
     }
+
+    /// A snapshot that went missing (or was never written) comes back on the next foreground,
+    /// even though the book itself didn't change.
+    @Test func forcedPublishRepairsAMissingSnapshot() throws {
+        let dir = FileManager.default.temporaryDirectory.appending(path: "shelf-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let library = LibraryStore(inMemory: true)
+        let shelf = RecentBookShelf(directory: dir)
+        library.shelf = shelf
+        let book = Book(title: "The Return of the King", author: nil, language: nil, fileSize: 1, partialMD5: "k", hasCover: false)
+        book.lastOpenedAt = .now
+        library.context.insert(book)
+
+        library.publishRecentBook()
+        #expect(shelf.read()?.title == "The Return of the King")
+        try FileManager.default.removeItem(at: shelf.bookURL)
+        library.publishRecentBook()   // a page turn with no visible change: skipped
+        #expect(shelf.read() == nil)
+        library.publishRecentBook(force: true)
+        #expect(shelf.read()?.id == book.id)
+        // A real change still goes through without force.
+        book.progress = 0.5
+        library.publishRecentBook()
+        #expect(shelf.read()?.progress == 0.5)
+    }
 }

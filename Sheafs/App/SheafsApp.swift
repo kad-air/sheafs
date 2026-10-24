@@ -22,10 +22,14 @@ struct SheafsApp: App {
                 }
                 .task {
                     await library.importFromDocuments()
-                    library.publishRecentBook()
+                    library.publishRecentBook(force: true)
                 }
                 .onChange(of: scenePhase) { _, phase in
-                    if phase == .active { Task { await library.importFromDocuments() } }
+                    guard phase == .active else { return }
+                    Task {
+                        await library.importFromDocuments()
+                        library.publishRecentBook(force: true)
+                    }
                 }
         }
         .modelContainer(library.container)
