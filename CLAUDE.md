@@ -18,7 +18,7 @@ scripts/check-auto-theme          # end to end on a simulator (SIM="Sheafs Duo")
                                   #   live Light/Dark flips (reads the page colour off screenshots)
 cd Packages/SheafsKit && swift test            # the core package, on the Mac, ~1 s
 xcodebuild -project Sheafs.xcodeproj -scheme Sheafs -destination 'platform=iOS Simulator,name=iPhone Duo' build
-scripts/release                   # archive + upload to TestFlight with an App Store Connect API key
+scripts/release                   # fallback only (Xcode Cloud ships, below): archive + upload with an API key
                                   #   (ASC_KEY_PATH/ASC_KEY_ID/ASC_ISSUER_ID; build = commit count,
                                   #   refuses a dirty tree; --no-upload archives and checks only)
 scripts/hinge/hinge 110           # fold the booted Duo simulator (0 closed … 180 flat); `get` reads it
@@ -27,6 +27,12 @@ xcrun simctl io <udid> screenshot --display=primary-1 out.png   # inner display 
 `Sheafs.xcodeproj` and `Sheafs/Generated/Info.plist` are generated from `project.yml`; never edit
 them, re-run `xcodegen generate` after adding files. Screenshots cannot be written to the external
 volume by `simctl` (permission error) — write them under `/tmp` or the scratchpad.
+
+**Shipping:** Xcode Cloud archives every merge to `main` and hands it to TestFlight.
+`ci_scripts/ci_post_clone.sh` runs XcodeGen in the cloud (the project is git-ignored) and writes
+`Config/Signing.xcconfig` from `CI_TEAM_ID`; the Sheafs target's `scheme:` in `project.yml` exists
+so the scheme is SHARED, which Xcode Cloud needs (don't remove it). Xcode Cloud numbers the builds
+itself, so don't also upload with `scripts/release` for the same version: the numbers collide.
 
 Launch arguments: `-SheafsOpen <title fragment>` opens the first matching library book at launch;
 `-SheafsCatalogURL <url> [-SheafsCatalogName <name>]` adds an OPDS catalog once (keeps keys out of
