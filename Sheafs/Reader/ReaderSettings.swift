@@ -74,6 +74,15 @@ enum ParagraphStyleChoice: String, CaseIterable, Codable, Identifiable {
     var title: String { self == .indented ? "Indented" : "Spaced" }
 }
 
+enum PageTurnStyle: String, CaseIterable, Codable, Identifiable {
+    /// A leaf lifts, bends and falls over onto the facing page, like paper.
+    case flip
+    /// Pages slide across, like a scroll view.
+    case slide
+    var id: Self { self }
+    var title: String { self == .flip ? "Flip" : "Slide" }
+}
+
 /// User preferences for the reading surface, persisted in UserDefaults.
 @Observable
 final class ReaderSettings {
@@ -89,6 +98,7 @@ final class ReaderSettings {
     var tapToTurn: Bool { didSet { save() } }
     /// The colour the next highlight takes (the last one used).
     var highlightColor: HighlightColor { didSet { save() } }
+    var pageTurn: PageTurnStyle { didSet { save() } }
 
     private static let key = "reader.settings.v1"
 
@@ -105,6 +115,7 @@ final class ReaderSettings {
         var tapToTurn = true
         // Optional: settings saved before this key existed must still decode.
         var highlightColor: HighlightColor?
+        var pageTurn: PageTurnStyle?
     }
 
     init() {
@@ -121,12 +132,14 @@ final class ReaderSettings {
         keepScreenAwake = stored.keepScreenAwake
         tapToTurn = stored.tapToTurn
         highlightColor = stored.highlightColor ?? .yellow
+        pageTurn = stored.pageTurn ?? .flip
     }
 
     private func save() {
         let stored = Stored(theme: theme, font: font, fontSize: fontSize, lineHeight: lineHeight, margin: margin,
                             justified: justified, hyphenate: hyphenate, paragraphStyle: paragraphStyle,
-                            keepScreenAwake: keepScreenAwake, tapToTurn: tapToTurn, highlightColor: highlightColor)
+                            keepScreenAwake: keepScreenAwake, tapToTurn: tapToTurn, highlightColor: highlightColor,
+                            pageTurn: pageTurn)
         if let data = try? JSONEncoder().encode(stored) {
             UserDefaults.standard.set(data, forKey: Self.key)
         }

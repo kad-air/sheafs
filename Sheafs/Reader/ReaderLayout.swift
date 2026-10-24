@@ -92,19 +92,21 @@ struct PageLayout: Equatable {
             wantsSpread = false
         }
 
+        // Frames land on whole points (whole pixels at any scale): the fold's region and a centred
+        // measure often come out at a half point, which draws the text soft and makes the page
+        // flip's textures disagree with the live page by half a pixel.
         if wantsSpread, let gutter = gutterRect {
-            let leftWidth = gutter.minX - content.minX
-            let rightWidth = content.maxX - gutter.maxX
-            let width = min(leftWidth, rightWidth)
-            let left = CGRect(x: gutter.minX - width, y: content.minY, width: width, height: content.height)
-            let right = CGRect(x: gutter.maxX, y: content.minY, width: width, height: content.height)
+            let leftEdge = gutter.minX.rounded(.down), rightEdge = gutter.maxX.rounded(.up)
+            let width = min(leftEdge - content.minX, content.maxX - rightEdge).rounded(.down)
+            let left = CGRect(x: leftEdge - width, y: content.minY, width: width, height: content.height)
+            let right = CGRect(x: rightEdge, y: content.minY, width: width, height: content.height)
             return PageLayout(pageFrames: [left, right], textInsets: insets, deckFrame: deck, occlusions: holes)
         }
 
         // Single page: cap the measure so long lines stay readable on wide screens.
         let maxMeasure = input.fontSize * 38 + input.margin * 2
-        let width = min(content.width, maxMeasure)
-        let frame = CGRect(x: content.midX - width / 2, y: content.minY, width: width, height: content.height)
+        let width = min(content.width, maxMeasure).rounded(.down)
+        let frame = CGRect(x: (content.midX - width / 2).rounded(), y: content.minY, width: width, height: content.height)
         return PageLayout(pageFrames: [frame], textInsets: insets, deckFrame: deck, occlusions: holes)
     }
 }

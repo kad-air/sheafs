@@ -120,6 +120,14 @@ final class PageView: UIView {
         return CGRect(x: textInsets.left, y: bounds.height - textInsets.bottom + 8, width: width, height: lineHeight)
     }
 
+    /// Draws the page into `context`, set up the UIKit way (origin top-left, scaled), exactly as
+    /// `draw(_:)` paints it on screen; the page flip renders its leaves this way.
+    func render(in context: CGContext) {
+        UIGraphicsPushContext(context)
+        draw(bounds)
+        UIGraphicsPopContext()
+    }
+
     override var accessibilityLabel: String? {
         get {
             guard let chapter else { return nil }

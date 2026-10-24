@@ -70,6 +70,10 @@ struct AppearanceView: View {
                 Toggle("Hyphenate", isOn: $settings.hyphenate)
             }
             Section("Reading") {
+                Picker("Page Turn", selection: $settings.pageTurn) {
+                    ForEach(PageTurnStyle.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
                 Toggle("Tap edges to turn pages", isOn: $settings.tapToTurn)
                 Toggle("Keep screen awake", isOn: $settings.keepScreenAwake)
             }
