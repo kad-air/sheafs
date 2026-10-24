@@ -356,6 +356,9 @@ struct ReaderView: View {
     }
 
     private func armVolumeButtons(_ armed: Bool) {
+        VolumeLog.shared.note("armed=\(armed): setting=\(settings.volumeButtonsTurn) scene=\(scenePhase) "
+            + "ready=\(session?.isReady == true) regions=\(regions != nil) contents=\(showContents) "
+            + "appearance=\(showAppearance) footnote=\(footnote != nil) note=\(editingAnnotation != nil)")
         guard armed else {
             volumeButtons.stop()
             return
@@ -368,13 +371,16 @@ struct ReaderView: View {
     private func armVolumeButtonsWhenPagerIsUp(tries: Int) {
         guard volumeButtonsArmed, !volumeButtons.isRunning else { return }
         if let host = pagerProxy.hostView, host.window != nil {
+            VolumeLog.shared.note("pager found after \(30 - tries) retries")
             volumeButtons.start(host: host) { press in
+                let hasPager = pagerProxy.controller != nil
+                VolumeLog.shared.note("turn \(press == .down ? "forward" : "back") pager=\(hasPager)")
                 pagerProxy.turn(forward: press == .down)
             }
             return
         }
         guard tries > 0 else {
-            log.error("[volume] not armed: no pager in a window")
+            VolumeLog.shared.note("not armed: no pager in a window (host=\(pagerProxy.hostView != nil))")
             return
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {

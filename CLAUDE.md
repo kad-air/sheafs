@@ -131,8 +131,12 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     active, the book is ready, the regions are known and no sheet is up, and arming RETRIES until
     the pager is in a window (it appears after the regions; arming once gave up silently). Stop
     restores the user's volume. `VolumeButtonTests` pins the press logic. The simulator can't
-    press the buttons: verify on the phone; `[volume] …` lines are `Logger` notices (category
-    `volume`, public), so Console.app shows them from a TestFlight build too.
+    press the buttons (and setting the hidden slider there changes nothing: no volume route), so
+    verify on the phone. Every step (arming decisions with each condition, session state, the
+    volume view's subview tree, each reading, each turn) goes through `VolumeLog.note`: a public
+    `Logger` notice (category `volume`) AND an in-memory buffer shown and copied in Settings →
+    About → Volume Button Log, so a TestFlight run can be read without a Mac.
+    `-SheafsVolumeProbe up|down` moves the volume one step through the slider 1.5 s after arming.
   - `Reader/PageFlip/` — the default page turn (`ReaderSettings.pageTurn`, `.flip` or `.slide`): a
     leaf of paper hinged at the spine that bends and falls over. `PageFlipPhysics` is the model
     (`PageCurl`: the sheet lies flat to `flat`, wraps a cylinder of `radius`, the rest lies turned
