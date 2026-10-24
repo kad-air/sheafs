@@ -339,7 +339,7 @@ struct ReaderView: View {
     /// sheet up (contents, appearance, a note, a footnote) they change the volume again. Leaving
     /// the foreground stops them, so Control Center's volume works and they re-arm on return.
     private var volumeButtonsArmed: Bool {
-        settings.volumeButtonsTurn && scenePhase == .active && session?.isReady == true
+        settings.volumeButtonsTurn && scenePhase == .active && session?.isReady == true && regions != nil
             && !showContents && !showAppearance && footnote == nil && editingAnnotation == nil
     }
 
@@ -348,15 +348,25 @@ struct ReaderView: View {
             volumeButtons.stop()
             return
         }
-        // The pager appears with the ready session; give it a pass to land in the window.
-        DispatchQueue.main.async {
-            guard volumeButtonsArmed, let host = pagerProxy.hostView, host.window != nil else {
-                print("[volume] not armed: host=\(pagerProxy.hostView != nil) window=\(pagerProxy.hostView?.window != nil)")
-                return
-            }
+        armVolumeButtonsWhenPagerIsUp(tries: 30)
+    }
+
+    /// The pager appears some time after the session is ready (it waits for the window's regions),
+    /// so keep looking for it for a few seconds; giving up on the first pass left the buttons dead.
+    private func armVolumeButtonsWhenPagerIsUp(tries: Int) {
+        guard volumeButtonsArmed, !volumeButtons.isRunning else { return }
+        if let host = pagerProxy.hostView, host.window != nil {
             volumeButtons.start(host: host) { press in
                 pagerProxy.turn(forward: press == .down)
             }
+            return
+        }
+        guard tries > 0 else {
+            log.error("[volume] not armed: no pager in a window")
+            return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            armVolumeButtonsWhenPagerIsUp(tries: tries - 1)
         }
     }
 

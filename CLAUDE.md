@@ -119,12 +119,17 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     really installed (a missing one falls back to the system font without a word).
   - `Reader/VolumeButtons` — `VolumeButtonPager` (setting `volumeButtonsTurn`, off by default):
     down = next page, up = previous. An active `.playback` + `.mixWithOthers` session makes
-    `outputVolume` observable; a press is a reading off a reference volume (the user's, kept
-    within 0.125…0.875 so both directions read), and a hidden off-screen `MPVolumeView`'s slider
-    snaps it back (reading == reference is that reset, not a press; that also hides the HUD).
-    `ReaderView.volumeButtonsArmed` runs it only while the scene is active, the book is ready and
-    no sheet is up; stop restores the user's volume. `VolumeButtonTests` pins the press logic.
-    The simulator can't press the buttons, so verify on the phone (`[volume] …` log lines).
+    `outputVolume` observable; `PressReader` reads a press as a step from the PREVIOUS reading,
+    and a hidden off-screen `MPVolumeView`'s slider (looked up lazily: it builds its subviews in a
+    window) puts the volume back to a reference (the user's, kept within 0.125…0.875 so both
+    directions read; the reference reading within 0.5 s of a put-back is not a press; the view
+    also hides the HUD). 🔴 Comparing against the fixed reference instead turned pages backward
+    whenever the put-back failed. `ReaderView.volumeButtonsArmed` runs it only while the scene is
+    active, the book is ready, the regions are known and no sheet is up, and arming RETRIES until
+    the pager is in a window (it appears after the regions; arming once gave up silently). Stop
+    restores the user's volume. `VolumeButtonTests` pins the press logic. The simulator can't
+    press the buttons: verify on the phone; `[volume] …` lines are `Logger` notices (category
+    `volume`, public), so Console.app shows them from a TestFlight build too.
   - `Reader/PageFlip/` — the default page turn (`ReaderSettings.pageTurn`, `.flip` or `.slide`): a
     leaf of paper hinged at the spine that bends and falls over. `PageFlipPhysics` is the model
     (`PageCurl`: the sheet lies flat to `flat`, wraps a cylinder of `radius`, the rest lies turned
