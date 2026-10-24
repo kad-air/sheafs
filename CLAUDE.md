@@ -104,7 +104,10 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     (`PageLayout.compute`: safe areas + reserved regions → page frames; see Duo below),
     `ReaderView` (chrome: system toolbar + glass progress strip, contents/appearance/footnote sheets,
     sync pull on open / debounced push; `@Query` of the book's annotations → `HighlightMark`s →
-    `BookSession.marks`, which every spread reads as it appears), `ReaderSettings` (incl. the
+    `BookSession.marks`, which every spread reads as it appears; every `jump(to:)` — link, contents, note,
+    slider, accepted sync — pushes the place it left onto a `ReturnTrail`, shown as a glass "Back to
+    page N" capsule over the folio of the page holding the position (in the progress strip while
+    the bars are up); ✕ forgets the trail, paging back onto a stop drops it; `ReturnTrailTests`), `ReaderSettings` (incl. the
     last-used highlight colour; the shared slider ranges/grids and `step(_:by:grid:in:)`), `Theme`,
     `AppearanceView` (the detailed sheet, also embedded in Settings), `QuickAppearanceView`.
     Appearance is two-level: the toolbar's (and the tabletop deck's) Appearance button hides the bars
@@ -240,6 +243,10 @@ while the bars are up hides them first. Known gap: a Live Activity animating in 
 - Page textures are cached per `PageSlot` and dropped on layout/palette/style changes; anything
   else that changes what a page draws (highlights, selection) must call
   `PageFlipDriver.invalidateTextures()` or the leaf shows stale content.
+- Never call `BookSession.paginatedChapter` for a chapter other than the one on screen from view
+  code (body, labels): it lays the chapter out UNANCHORED and caches it, so returning there shows
+  pages cut differently from the ones you left (and mutating observed state mid-draw bounced the
+  bars off). Use `laidOutChapter` (cache only); the back button stores its page number when leaving.
 - Pagination runs on the main actor, synchronously, on demand (neighbours prefetched). A single
   huge spine item (whole-book-in-one-file EPUBs) will hitch on open; move it off-main if it bites.
 - `hub-fixture.epub`'s manifest lists an NCX that isn't in the archive — `toc` is empty, no error.

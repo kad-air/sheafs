@@ -204,6 +204,10 @@ final class BookSession {
         return result
     }
 
+    /// The chapter's layout if it is already cached; never lays one out. For callers that run while
+    /// a view is drawn: an unanchored layout there would re-cut the pages around the position.
+    func laidOutChapter(_ spineIndex: Int) -> PaginatedChapter? { paginated[spineIndex] }
+
     /// Book-wide page numbers like Books shows them: exact for chapters already laid out at this
     /// size, estimated from their text length for the rest (so the total settles as you read).
     func bookPages(spineIndex: Int, page: Int) -> (page: Int, total: Int) {
