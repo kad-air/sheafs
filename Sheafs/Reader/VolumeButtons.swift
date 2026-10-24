@@ -3,7 +3,8 @@ import MediaPlayer
 import UIKit
 import os
 
-/// Turns pages with the volume buttons: down = next page, up = previous (like Kindle and Readest).
+/// Turns pages with the volume buttons: up = next page, down = previous (`Press.turnsForward`; the
+/// owner's choice, the reverse of Kindle and Readest).
 ///
 /// iOS has no public volume-button event outside a camera session, so this is the usual trick:
 /// an active audio session makes `outputVolume` observable, every press is a step from the last
@@ -14,7 +15,17 @@ import os
 /// restored and the session deactivated. The approach is credited in the README; Readest is
 /// AGPL, so its code must not be copied into this MIT tree.
 final class VolumeButtonPager {
-    enum Press: Equatable { case up, down }
+    enum Press: Equatable {
+        case up, down
+
+        /// Volume up turns to the next page.
+        nonisolated var turnsForward: Bool {
+            switch self {
+            case .up: true
+            case .down: false
+            }
+        }
+    }
 
     private var observation: NSKeyValueObservation?
     private var volumeView: MPVolumeView?

@@ -121,7 +121,7 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     `Picker`: system menus draw every item in the system font. `FontTests` checks every family is
     really installed (a missing one falls back to the system font without a word).
   - `Reader/VolumeButtons` — `VolumeButtonPager` (setting `volumeButtonsTurn`, off by default):
-    down = next page, up = previous. An active `.playback` + `.mixWithOthers` session makes
+    up = next page, down = previous (`Press.turnsForward`, the owner's choice). An active `.playback` + `.mixWithOthers` session makes
     `outputVolume` observable; `PressReader` reads a press as a step from the PREVIOUS reading.
     The volume really moves with each press; only within 0.1 of either end does the hidden
     `MPVolumeView`'s slider (searched for in its subtree each time, else the one it had when made;
