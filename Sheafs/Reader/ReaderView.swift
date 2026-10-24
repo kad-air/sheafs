@@ -513,6 +513,7 @@ struct ReaderView: View {
         book.lastOpenedAt = .now
         if book.progress >= 0.985, book.finishedAt == nil { book.finishedAt = .now }
         library.save()
+        library.publishRecentBook()
         schedulePush()
     }
 
@@ -551,6 +552,7 @@ struct ReaderView: View {
         guard fresh.isReady else { return }
         book.lastOpenedAt = .now
         library.save()
+        library.publishRecentBook()
         openAppearanceFromLaunchArgument()
         if let remote = await sync.pull(for: book) {
             offer(remote, session: fresh, force: false)

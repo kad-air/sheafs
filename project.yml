@@ -31,8 +31,16 @@ targets:
       - path: Sheafs
         excludes:
           - Generated
+      - path: Shared
     dependencies:
       - package: SheafsKit
+      - target: SheafsWidget
+    entitlements:
+      path: Sheafs/Generated/Sheafs.entitlements
+      properties:
+        # Shared with the widget: the app writes the most recent book there (RecentBookShelf).
+        com.apple.security.application-groups:
+          - group.io.sheafs.reader
     info:
       path: Sheafs/Generated/Info.plist
       properties:
@@ -65,6 +73,11 @@ targets:
           # Self-hosted catalogs on a LAN are often plain http; the user chooses what to add.
           NSAllowsArbitraryLoads: true
         UIViewControllerBasedStatusBarAppearance: true
+        # sheafs://open?book=<uuid>, the widget's tap (SheafsLink)
+        CFBundleURLTypes:
+          - CFBundleURLName: io.sheafs.reader
+            CFBundleURLSchemes:
+              - sheafs
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.sheafs.reader
@@ -79,6 +92,34 @@ targets:
     scheme:
       testTargets:
         - SheafsTests
+  SheafsWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: SheafsWidget
+      - path: Shared
+    info:
+      path: Sheafs/Generated/SheafsWidget-Info.plist
+      properties:
+        CFBundleDisplayName: Sheafs
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: Sheafs/Generated/SheafsWidget.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.io.sheafs.reader
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.sheafs.reader.widget
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: Sheafs/Generated/SheafsWidget-Info.plist
+        # WidgetKit's provider protocols are nonisolated; the app's MainActor default doesn't fit.
+        SWIFT_DEFAULT_ACTOR_ISOLATION: nonisolated
+        SKIP_INSTALL: YES
   SheafsTests:
     type: bundle.unit-test
     platform: iOS
