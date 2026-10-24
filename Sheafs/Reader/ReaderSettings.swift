@@ -87,6 +87,8 @@ final class ReaderSettings {
     var paragraphStyle: ParagraphStyleChoice { didSet { save() } }
     var keepScreenAwake: Bool { didSet { save() } }
     var tapToTurn: Bool { didSet { save() } }
+    /// The colour the next highlight takes (the last one used).
+    var highlightColor: HighlightColor { didSet { save() } }
 
     private static let key = "reader.settings.v1"
 
@@ -101,6 +103,8 @@ final class ReaderSettings {
         var paragraphStyle = ParagraphStyleChoice.indented
         var keepScreenAwake = true
         var tapToTurn = true
+        // Optional: settings saved before this key existed must still decode.
+        var highlightColor: HighlightColor?
     }
 
     init() {
@@ -116,12 +120,13 @@ final class ReaderSettings {
         paragraphStyle = stored.paragraphStyle
         keepScreenAwake = stored.keepScreenAwake
         tapToTurn = stored.tapToTurn
+        highlightColor = stored.highlightColor ?? .yellow
     }
 
     private func save() {
         let stored = Stored(theme: theme, font: font, fontSize: fontSize, lineHeight: lineHeight, margin: margin,
                             justified: justified, hyphenate: hyphenate, paragraphStyle: paragraphStyle,
-                            keepScreenAwake: keepScreenAwake, tapToTurn: tapToTurn)
+                            keepScreenAwake: keepScreenAwake, tapToTurn: tapToTurn, highlightColor: highlightColor)
         if let data = try? JSONEncoder().encode(stored) {
             UserDefaults.standard.set(data, forKey: Self.key)
         }

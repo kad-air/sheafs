@@ -59,18 +59,32 @@ regions (see Duo behaviour below), so check layout changes on the phone.
   - `App/` — `SheafsApp` (SwiftData container, environment objects, open-in, Documents import),
     `RootView` (tabs Library / Catalogs / Settings; the reader is a `fullScreenCover`).
   - `Library/` — `Models` (SwiftData `Book`: position = `spineIndex` + `textOffset` + `xpointer` +
-    `progress`; `Catalog`), `LibraryStore` (files in Application Support/Books/<uuid>.epub, covers in
-    Covers/<uuid>.jpg, import = copy + parse + partial MD5 + thumbnail, dedupe by partial MD5),
-    `LibraryView` (cover grid; even column count when a fold is present, per the Duo HIG).
+    `progress`; `Catalog`), `Annotations` (SwiftData `Annotation`: a highlight = `bookID` +
+    `spineIndex` + `startOffset`/`endOffset` in the SAME UTF-16 chapter offsets as the position,
+    plus the CREngine pointers of both ends, the quoted `text`, a `note`, a `HighlightColor` and
+    `isUnderline`; keyed by book id, not a relationship, so `LibraryStore.delete(book)` deletes them
+    by hand; `AnnotationExport.markdown` for sharing), `LibraryStore` (files in Application
+    Support/Books/<uuid>.epub, covers in Covers/<uuid>.jpg, import = copy + parse + partial MD5 +
+    thumbnail, dedupe by partial MD5; `annotations(for:)`/`add`/`delete`), `LibraryView` (cover grid;
+    even column count when a fold is present, per the Duo HIG).
   - `Reader/` — `BookSession` (loads the EPUB and converts every chapter in a detached task; caches
     typeset+paginated chapters per style/page size; position ↔ progress ↔ xpointer ↔ TOC/href),
     `Typesetter` (Block → NSAttributedString with the user's fonts), `Paginator` (`PaginatedChapter`:
     one TextKit 1 `NSLayoutManager`, one `NSTextContainer` per page, drawn by `PageView`),
     `ReaderPager` (`UIPageViewController` .scroll whose units are spreads of 1–2 pages;
-    tap zones turn pages, centre tap toggles chrome, link hit-testing), `ReaderLayout`
+    tap zones turn pages, centre tap toggles chrome, link and highlight hit-testing; text
+    SELECTION: a long press selects the word under the finger and grows by words while it moves,
+    two `SelectionHandleView`s then adjust it by characters, a `UIEditMenuInteraction` offers
+    Highlight / Note / Color / Copy / Look Up; the selection lives in `PagerController`, the
+    spread only provides geometry and the `PageView`s draw it; a tap, a page turn or a layout
+    change clears it), `AnnotationViews` (`AnnotationEditorView`: colour, underline, note, show in
+    book, delete; `NotesListView`: the Notes segment of the contents sheet, share as Markdown),
+    `ReaderLayout`
     (`PageLayout.compute`: safe areas + reserved regions → page frames; see Duo below),
     `ReaderView` (chrome: system toolbar + glass progress strip, contents/appearance/footnote sheets,
-    sync pull on open / debounced push), `ReaderSettings`, `Theme`, `AppearanceView`.
+    sync pull on open / debounced push; `@Query` of the book's annotations → `HighlightMark`s →
+    `BookSession.marks`, which every spread reads as it appears), `ReaderSettings` (incl. the
+    last-used highlight colour), `Theme`, `AppearanceView`.
   - `Catalog/` — OPDS browser (catalog list, add/edit, feed browser with pagination/search,
     entry detail + download → `LibraryStore.importBook`).
   - `Settings/` — sync account, appearance link, library stats, about. `Sync/SyncService` — kosync
@@ -130,7 +144,16 @@ rotate) while the bars are up hides them first, so the stored insets are always 
 
 ## Landmines
 - The pager's `UIScrollView` has `contentInsetAdjustmentBehavior = .never` (set on every layout pass,
-  the scroll view is created lazily): the page frames already include the safe areas.
+  the scroll view is created lazily): the page frames already include the safe areas. The same pass
+  makes its pan `require(toFail:)` the selection handles' pans, so dragging a handle never swipes
+  the page; the long press disables scrolling while the finger is down.
+- Highlights are painted by `PageView` UNDER the glyphs (`PaginatedChapter.rects(for:page:)` =
+  TextKit enclosing rects shifted by the page top) and the selection over them; nothing is added to
+  the attributed string, so the offsets contract and the pagination cache are untouched. Highlights
+  are not synced: the vanilla kosync protocol carries only the position.
+- `ReaderSettings.Stored` must keep NEW keys optional (`highlightColor: HighlightColor?`): a
+  non-optional key missing from the saved JSON fails the whole decode and silently resets every
+  setting.
 - Pagination runs on the main actor, synchronously, on demand (neighbours prefetched). A single
   huge spine item (whole-book-in-one-file EPUBs) will hitch on open; move it off-main if it bites.
 - `hub-fixture.epub`'s manifest lists an NCX that isn't in the archive — `toc` is empty, no error.

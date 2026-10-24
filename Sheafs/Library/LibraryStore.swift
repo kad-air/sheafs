@@ -17,7 +17,7 @@ final class LibraryStore {
     private let log = Logger(subsystem: "io.sheafs.reader", category: "library")
 
     init(inMemory: Bool = false) {
-        let schema = Schema([Book.self, Catalog.self])
+        let schema = Schema([Book.self, Catalog.self, Annotation.self])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
         do {
             container = try ModelContainer(for: schema, configurations: [config])
@@ -151,8 +151,29 @@ final class LibraryStore {
     func delete(_ book: Book) {
         try? FileManager.default.removeItem(at: fileURL(for: book))
         try? FileManager.default.removeItem(at: coverURL(for: book))
+        for annotation in annotations(for: book) { context.delete(annotation) }
         context.delete(book)
         try? context.save()
+    }
+
+    // MARK: Annotations
+
+    /// The book's highlights and notes in reading order.
+    func annotations(for book: Book) -> [Annotation] {
+        let id = book.id
+        let fetch = FetchDescriptor<Annotation>(predicate: #Predicate { $0.bookID == id },
+                                                sortBy: [SortDescriptor(\.spineIndex), SortDescriptor(\.startOffset)])
+        return (try? context.fetch(fetch)) ?? []
+    }
+
+    func add(_ annotation: Annotation) {
+        context.insert(annotation)
+        save()
+    }
+
+    func delete(_ annotation: Annotation) {
+        context.delete(annotation)
+        save()
     }
 
     func save() {
