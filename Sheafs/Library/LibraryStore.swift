@@ -2,6 +2,7 @@ import Foundation
 import SwiftData
 import SheafsKit
 import os
+import WidgetKit
 
 /// Owns the model container and the on-disk library (EPUB files and cover thumbnails).
 @Observable
@@ -15,6 +16,9 @@ final class LibraryStore {
     var importing: Set<URL> = []
 
     private let log = Logger(subsystem: "io.sheafs.reader", category: "library")
+    /// What the widget was last handed, so a page turn that doesn't change it reloads nothing.
+    private var publishedRecent: RecentBook?
+    private var hasPublished = false
 
     init(inMemory: Bool = false) {
         let schema = Schema([Book.self, Catalog.self, Annotation.self])
@@ -87,6 +91,7 @@ final class LibraryStore {
         }
         context.insert(book)
         try context.save()
+        publishRecentBook()
         log.info("imported \(book.title, privacy: .public) (\(staged.fileSize) bytes, key \(staged.partialMD5, privacy: .public))")
         return book
     }
@@ -154,6 +159,46 @@ final class LibraryStore {
         for annotation in annotations(for: book) { context.delete(annotation) }
         context.delete(book)
         try? context.save()
+        publishRecentBook()
+    }
+
+    // MARK: Widget
+
+    /// The book the widget shows: the most recently read, else the most recently added (the
+    /// library's own order).
+    func mostRecentBook() -> Book? {
+        let books = (try? context.fetch(FetchDescriptor<Book>())) ?? []
+        return books.max { ($0.lastOpenedAt ?? $0.addedAt) < ($1.lastOpenedAt ?? $1.addedAt) }
+    }
+
+    /// Hands the most recent book to the "Continue Reading" widget through the app group, and
+    /// reloads it only when what it shows changed (progress is rounded to whole percents).
+    func publishRecentBook() {
+        guard let shelf = RecentBookShelf.shared else {
+            log.error("widget: app group \(RecentBookShelf.appGroup, privacy: .public) unavailable")
+            return
+        }
+        let book = mostRecentBook()
+        let recent = book.map {
+            RecentBook(id: $0.id, title: $0.title, author: $0.author,
+                       progress: ($0.progress * 100).rounded() / 100, hasCover: $0.hasCover)
+        }
+        if hasPublished, publishedRecent == recent { return }
+        let coverChanged = !hasPublished || recent?.id != publishedRecent?.id
+        var cover: Data?
+        if let book, book.hasCover, coverChanged, let data = try? Data(contentsOf: coverURL(for: book)) {
+            // Widgets live under a tight memory limit: a small thumbnail is plenty for the tile.
+            cover = ImageUtilities.jpegThumbnail(from: data, maxPixelSize: 480)
+        }
+        do {
+            try shelf.write(recent, cover: cover)
+            publishedRecent = recent
+            hasPublished = true
+            WidgetCenter.shared.reloadTimelines(ofKind: RecentBookShelf.widgetKind)
+            log.info("widget: now \(recent?.title ?? "empty", privacy: .public) \(recent?.progress ?? 0)")
+        } catch {
+            log.error("widget: write failed: \(error)")
+        }
     }
 
     // MARK: Annotations

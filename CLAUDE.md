@@ -43,6 +43,9 @@ sheet once the book is ready.
 -SheafsFlipFreeze <0…1> [-SheafsFlipGrab <0…1 down the page>]` starts one page flip on its own
 once the book is up and holds it at that amount, so `simctl io … screenshot` can catch the leaf
 mid-air (the next tap lands it).
+`xcrun simctl openurl <udid> "sheafs://open?book=<uuid>"` is the widget's tap (the simulator asks
+"Open in Sheafs?" first; a real widget tap doesn't). `simctl get_app_container <udid>
+io.sheafs.reader group.io.sheafs.reader` is the folder the widget reads.
 Dropping `.epub` files into the app's Documents folder (`xcrun simctl get_app_container <udid>
 io.sheafs.reader data`/Documents) imports them on the next launch or foreground.
 
@@ -139,6 +142,18 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     Library → storage stats, Sync & Accounts → the kosync account, About), each row pushing its
     own screen (`LibrarySettingsView`, `SyncSettingsView`, `AboutSettingsView`). `Sync/SyncService` — kosync
     settings (password in the keychain) + `pull`/`push`.
+- `SheafsWidget/` (app extension, `SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated`: WidgetKit's
+  providers are nonisolated) — "Continue Reading", `systemSmall` only: the most recently read book's
+  cover (blurred cover behind it), a progress bar, tap → `sheafs://open?book=<uuid>`. `Shared/`
+  (`RecentBook.swift`) is compiled into BOTH targets: `RecentBookShelf` is the app group
+  `group.io.sheafs.reader` (`recent-book.json` + a 480 px `recent-cover.jpg`), `SheafsLink` the URL.
+  The widget cannot see SwiftData or Application Support, so the app pushes a snapshot:
+  `LibraryStore.publishRecentBook()` (most recent = `lastOpenedAt ?? addedAt`, like the library grid)
+  runs at launch, on import/delete, on reader open and on every saved position; it writes and
+  reloads the timeline only when the snapshot changed (progress rounded to whole percents). The
+  timeline policy is `.never`. `SheafsApp.onOpenURL` sends `sheafs://` to
+  `AppNavigation.open(bookWithID:in:)` and everything else to import. `WidgetTests` pins the URL
+  type, the embedded extension and the app group entitlement (fails without it).
 
 ## iPhone Duo behaviour (the point of the app)
 

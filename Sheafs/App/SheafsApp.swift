@@ -17,9 +17,13 @@ struct SheafsApp: App {
                 .environment(navigation)
                 .environment(sync)
                 .onOpenURL { url in
-                    Task { await library.importFromOutside(url) }
+                    if let id = SheafsLink.bookID(in: url) { navigation.open(bookWithID: id, in: library) }
+                    else { Task { await library.importFromOutside(url) } }
                 }
-                .task { await library.importFromDocuments() }
+                .task {
+                    await library.importFromDocuments()
+                    library.publishRecentBook()
+                }
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active { Task { await library.importFromDocuments() } }
                 }
@@ -36,6 +40,14 @@ final class AppNavigation {
     var selectedTab: AppTab = .library
 
     func open(_ book: Book) { openBook = book }
+
+    /// The widget's tap: open that book in the reader, from any tab (a deleted book does nothing).
+    func open(bookWithID id: UUID, in library: LibraryStore) {
+        let fetch = FetchDescriptor<Book>(predicate: #Predicate { $0.id == id })
+        guard let book = try? library.context.fetch(fetch).first else { return }
+        selectedTab = .library
+        openBook = book
+    }
 }
 
 enum AppTab: Hashable { case library, catalogs, settings }
