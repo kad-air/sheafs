@@ -76,6 +76,7 @@ struct AppearanceView: View {
                 }
                 .pickerStyle(.segmented)
                 Toggle("Tap edges to turn pages", isOn: $settings.tapToTurn)
+                Toggle("Volume buttons turn pages", isOn: $settings.volumeButtonsTurn)
                 Toggle("Keep screen awake", isOn: $settings.keepScreenAwake)
             }
         }

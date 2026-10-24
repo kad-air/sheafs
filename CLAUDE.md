@@ -117,6 +117,14 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     its own face; a popover from the panel, a pushed page from the sheet), not a `Menu`/menu
     `Picker`: system menus draw every item in the system font. `FontTests` checks every family is
     really installed (a missing one falls back to the system font without a word).
+  - `Reader/VolumeButtons` — `VolumeButtonPager` (setting `volumeButtonsTurn`, off by default):
+    down = next page, up = previous. An active `.playback` + `.mixWithOthers` session makes
+    `outputVolume` observable; a press is a reading off a reference volume (the user's, kept
+    within 0.125…0.875 so both directions read), and a hidden off-screen `MPVolumeView`'s slider
+    snaps it back (reading == reference is that reset, not a press; that also hides the HUD).
+    `ReaderView.volumeButtonsArmed` runs it only while the scene is active, the book is ready and
+    no sheet is up; stop restores the user's volume. `VolumeButtonTests` pins the press logic.
+    The simulator can't press the buttons, so verify on the phone (`[volume] …` log lines).
   - `Reader/PageFlip/` — the default page turn (`ReaderSettings.pageTurn`, `.flip` or `.slide`): a
     leaf of paper hinged at the spine that bends and falls over. `PageFlipPhysics` is the model
     (`PageCurl`: the sheet lies flat to `flat`, wraps a cylinder of `radius`, the rest lies turned
