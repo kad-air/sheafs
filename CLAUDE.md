@@ -25,6 +25,15 @@ typed text and transcripts: build the URL in a shell variable).
 Dropping `.epub` files into the app's Documents folder (`xcrun simctl get_app_container <udid>
 io.sheafs.reader data`/Documents) imports them on the next launch or foreground.
 
+Running on a real Duo, headless: the same `xcodebuild` with `-destination 'platform=iOS,id=<udid>'`,
+`-allowProvisioningUpdates -allowProvisioningDeviceRegistration` and an App Store Connect API key
+(`-authenticationKeyPath/-authenticationKeyID/-authenticationKeyIssuerID`), then `xcrun devicectl
+device install app --device <udid> <Build/Products/Debug-iphoneos/Sheafs.app>`. `xcrun devicectl
+device process launch --console --device <udid> io.sheafs.reader` streams the app's `print` output:
+the reader logs a `[layout] …` line (size, safe area, regions, page frames) on every geometry change,
+and `GeometryProbe` logs the raw reserved regions. The simulator is not the device for reserved
+regions (see Duo behaviour below), so check layout changes on the phone.
+
 ## Architecture
 
 - `Packages/SheafsKit` (Foundation + Compression + CryptoKit; builds on macOS so tests are fast):
@@ -125,7 +134,8 @@ rotate) while the bars are up hides them first, so the stored insets are always 
 - Pagination runs on the main actor, synchronously, on demand (neighbours prefetched). A single
   huge spine item (whole-book-in-one-file EPUBs) will hitch on open; move it off-main if it bites.
 - `hub-fixture.epub`'s manifest lists an NCX that isn't in the archive — `toc` is empty, no error.
-- Simulator taps bind to the cover display; use `-SheafsOpen` / launch args to reach inner-display
-  states, and `scripts/hinge/hinge` for poses.
+- Simulator input: the iOS Simulator MCP's taps and rotation reach the inner display (coordinates in
+  the lit screen's points); `-SheafsOpen` / launch args reach reader states and `scripts/hinge/hinge`
+  sets poses. `xcrun simctl launch --console-pty <udid> io.sheafs.reader …` captures `print` output.
 - kosync `progress` strings from other devices are treated as opaque for comparison
   (`book.lastSyncedPointer`) and only *resolved* via `XPointer`; never rewrite them.
