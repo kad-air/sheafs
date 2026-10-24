@@ -10,7 +10,7 @@ struct FlipUniforms {
     var leafX: Float = 0, leafY: Float = 0, leafWidth: Float = 0, leafHeight: Float = 0
     var hinge: Float = 0, flip: Float = 1
     var flat: Float = 0, radius: Float = 0, tilt: Float = 0, grabY: Float = 0
-    var backInset: Float = 0, hasBack: Float = 0
+    var inset: Float = 0, hasBack: Float = 0
     var under0X: Float = 0, under0Y: Float = 0, under0Width: Float = 0, under0Height: Float = 0, under0On: Float = 0
     var under1X: Float = 0, under1Y: Float = 0, under1Width: Float = 0, under1Height: Float = 0, under1On: Float = 0
     var paperR: Float = 1, paperG: Float = 1, paperB: Float = 1, isDark: Float = 0
@@ -21,11 +21,13 @@ struct FlipUniforms {
 /// Everything one turn draws with: the leaf's frame and hinge, the textures, and the page(s)
 /// lying beneath. The curl itself (`flat`, `radius`, `tilt`, `grabY`) changes every frame.
 struct FlipScene {
+    /// The whole leaf, spine to outer edge, when flat.
     var leafFrame: CGRect
     var hinge: CGFloat
     /// +1 when the leaf extends to the right of the hinge, −1 to the left.
     var flip: CGFloat
-    var backInset: CGFloat
+    /// Blank margin from the hinge to the printed page on both faces (half the gutter).
+    var inset: CGFloat
     var front: MTLTexture?
     /// The page that lands face up (nil for a blank page); ignored when `ghostBack` is set.
     var back: MTLTexture?
@@ -117,7 +119,7 @@ final class PageFlipView: MTKView {
         uniforms.radius = Float(curl.radius)
         uniforms.tilt = Float(tilt)
         uniforms.grabY = Float(grabY)
-        uniforms.backInset = Float(scene.backInset)
+        uniforms.inset = Float(scene.inset)
         uniforms.hasBack = scene.ghostBack ? 0 : (scene.back == nil ? 2 : 1)
         if scene.under.count > 0 {
             let u = scene.under[0]

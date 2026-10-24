@@ -18,6 +18,9 @@ final class PageFlipDriver: NSObject {
     private let log = Logger(subsystem: "io.sheafs.reader", category: "flip")
 
     struct Turn {
+        /// The spread the turn started from, put back if the leaf falls back.
+        let origin: SpreadViewController
+        let originLocation: ReadingLocation
         let destination: SpreadViewController
         let location: ReadingLocation
         let forward: Bool
@@ -30,6 +33,8 @@ final class PageFlipDriver: NSObject {
         var spring: FlipSpring?
         var tracking = false
         var fingerStartX: CGFloat = 0
+        /// The destination spread has been put in the pager, under the opaque leaf.
+        var installed = false
 
         var width: Double { Double(scene.leafFrame.width) }
         var restingAmount: Double { reversed ? 1 : 0 }
@@ -71,24 +76,36 @@ final class PageFlipDriver: NSObject {
     func handlePan(_ pan: UIPanGestureRecognizer) {
         guard let view = host.viewIfLoaded else { return }
         let finger = pan.location(in: view)
+        let translation = pan.translation(in: view)
+        print("[flip] pan state=\(pan.state.rawValue) at \(Int(finger.x)),\(Int(finger.y)) translation \(Int(translation.x)),\(Int(translation.y)) active=\(turn != nil)")
         switch pan.state {
-        case .began:
-            let translation = pan.translation(in: view)
-            guard abs(translation.x) > abs(translation.y) else {
+        case .began, .changed:
+            if var turn, turn.tracking {
+                turn.amount = amount(for: turn, fingerX: finger.x)
+                turn.grabY = finger.y
+                present(turn)
+                return
+            }
+            // On a device the pan often begins with no translation at all; the direction comes
+            // from the first event that has some. A finger rarely starts dead level, so only a
+            // clearly vertical pull is not a turn.
+            guard translation != .zero else { return }
+            guard abs(translation.x) * 2 >= abs(translation.y) else {
+                print("[flip] pan ignored: vertical")
                 pan.isEnabled = false
                 pan.isEnabled = true
                 return
             }
             finishNow()
-            guard var turn = prepare(forward: translation.x < 0, grabY: finger.y) else { return }
+            guard var turn = prepare(forward: translation.x < 0, grabY: finger.y) else {
+                print("[flip] pan: no page \(translation.x < 0 ? "forward" : "backward")")
+                pan.isEnabled = false
+                pan.isEnabled = true
+                return
+            }
             turn.tracking = true
             turn.fingerStartX = finger.x - translation.x
             turn.amount = amount(for: turn, fingerX: finger.x)
-            present(turn)
-        case .changed:
-            guard var turn, turn.tracking else { return }
-            turn.amount = amount(for: turn, fingerX: finger.x)
-            turn.grabY = finger.y
             present(turn)
         case .ended, .cancelled, .failed:
             guard var turn, turn.tracking else { return }
@@ -99,6 +116,7 @@ final class PageFlipDriver: NSObject {
             let projected = turn.amount + rate * 0.22
             let completes = turn.reversed ? projected <= 0.72 : projected >= 0.28
             let target = completes ? turn.landedAmount : turn.restingAmount
+            print("[flip] pan released at \(turn.amount) rate \(rate) → \(completes ? "lands" : "falls back")")
             turn.spring = FlipSpring(value: turn.amount, velocity: max(-8, min(8, rate)), target: target)
             self.turn = turn
             startDisplayLink()
@@ -108,8 +126,9 @@ final class PageFlipDriver: NSObject {
     }
 
     /// Ends the turn in flight without animation: a leaf already on its way over lands, a leaf
-    /// still under the finger falls back.
-    func finishNow() {
+    /// still under the finger falls back. `announce` false when the caller is about to show a
+    /// location of its own (a jump), so the landed one is not reported over it.
+    func finishNow(announce: Bool = true) {
         guard let turn else { return }
         stopDisplayLink()
         let landing: Bool
@@ -120,7 +139,7 @@ final class PageFlipDriver: NSObject {
         } else {
             landing = true // frozen for a screenshot
         }
-        finish(turn, landed: landing)
+        finish(turn, landed: landing, announce: announce ? .now : .never)
     }
 
     // MARK: Scene
@@ -139,7 +158,7 @@ final class PageFlipDriver: NSObject {
     /// beneath on each side. A spread turns like a book: the leaf's back is the page that lands
     /// face up on the other side. A single display is a pad of sheets printed on one side.
     private func prepare(forward: Bool, grabY: CGFloat?) -> Turn? {
-        guard let flipView = ensureView(), let current = host.currentSpread,
+        guard let flipView = ensureView(), let current = host.currentSpread, let originLocation = current.location,
               let destination = host.adjacentSpread(forward: forward), let location = destination.location else { return nil }
         let started = CFAbsoluteTimeGetCurrent()
         destination.loadViewIfNeeded()
@@ -158,34 +177,42 @@ final class PageFlipDriver: NSObject {
         let scene: FlipScene
         let reversed: Bool
         if layout.isSpread {
-            let inset = frames[1].minX - frames[0].maxX
+            // The leaf is hinged at the spine, the centre of the gutter, and reaches the page's outer
+            // edge; the half gutter next to the spine is blank margin on both faces. Turned over it
+            // covers the facing page exactly.
+            let gap = frames[1].minX - frames[0].maxX
+            let spine = frames[0].maxX + gap / 2
+            let inset = gap / 2
             if forward {
-                scene = FlipScene(leafFrame: frames[1], hinge: frames[1].minX, flip: 1, backInset: inset,
+                let leaf = CGRect(x: spine, y: frames[1].minY, width: frames[1].maxX - spine, height: frames[1].height)
+                scene = FlipScene(leafFrame: leaf, hinge: spine, flip: 1, inset: inset,
                                   front: texture(current, 1), back: texture(destination, 0), ghostBack: false,
                                   under: [(frames[0], texture(current, 0)), (frames[1], texture(destination, 1))],
                                   palette: palette)
             } else {
-                scene = FlipScene(leafFrame: frames[0], hinge: frames[0].maxX, flip: -1, backInset: inset,
+                let leaf = CGRect(x: frames[0].minX, y: frames[0].minY, width: spine - frames[0].minX, height: frames[0].height)
+                scene = FlipScene(leafFrame: leaf, hinge: spine, flip: -1, inset: inset,
                                   front: texture(current, 0), back: texture(destination, 1), ghostBack: false,
                                   under: [(frames[1], texture(current, 1)), (frames[0], texture(destination, 0))],
                                   palette: palette)
             }
             reversed = false
         } else if forward {
-            scene = FlipScene(leafFrame: frames[0], hinge: frames[0].minX, flip: 1, backInset: 0,
+            scene = FlipScene(leafFrame: frames[0], hinge: frames[0].minX, flip: 1, inset: 0,
                               front: texture(current, 0), back: nil, ghostBack: true,
                               under: [(frames[0], texture(destination, 0))], palette: palette)
             reversed = false
         } else {
-            scene = FlipScene(leafFrame: frames[0], hinge: frames[0].minX, flip: 1, backInset: 0,
+            scene = FlipScene(leafFrame: frames[0], hinge: frames[0].minX, flip: 1, inset: 0,
                               front: texture(destination, 0), back: nil, ghostBack: true,
                               under: [(frames[0], texture(current, 0))], palette: palette)
             reversed = true
         }
         let ms = (CFAbsoluteTimeGetCurrent() - started) * 1000
         log.debug("prepared \(forward ? "forward" : "backward") turn in \(ms, format: .fixed(precision: 1)) ms")
-        return Turn(destination: destination, location: location, forward: forward, reversed: reversed, scene: scene,
-                    amount: reversed ? 1 : 0, grabY: grabY ?? scene.leafFrame.midY)
+        return Turn(origin: current, originLocation: originLocation, destination: destination, location: location,
+                    forward: forward, reversed: reversed, scene: scene, amount: reversed ? 1 : 0,
+                    grabY: grabY ?? scene.leafFrame.midY)
     }
 
     /// The finger carries the free edge: it is wherever it rested plus the finger's travel.
@@ -210,18 +237,42 @@ final class PageFlipDriver: NSObject {
         if wasHidden {
             flipView.isHidden = false
             flipView.draw()
+            // The destination goes into the pager now, under the opaque leaf, so its pages are
+            // drawn while the leaf is in the air and landing is nothing but uncovering them.
+            DispatchQueue.main.async { [weak self] in self?.installDestination() }
         } else {
             flipView.setNeedsDisplay()
         }
     }
 
-    private func finish(_ turn: Turn, landed: Bool) {
+    private func installDestination() {
+        guard var turn, !turn.installed else { return }
+        host.install(spread: turn.destination, location: turn.location, forward: turn.forward)
+        turn.installed = true
+        self.turn = turn
+    }
+
+    enum Announce { case never, now, afterLanding }
+
+    /// Uncovers the pager. Landed: the destination is in place (installed now if the turn was
+    /// cut short) and the new location is announced, by default a frame later so the save and
+    /// the neighbours' pagination never land in the leaf's last frame. Fell back: the origin
+    /// spread goes back in.
+    private func finish(_ turn: Turn, landed: Bool, announce: Announce) {
         if landed {
-            host.commit(spread: turn.destination, location: turn.location, forward: turn.forward)
-            host.viewIfLoaded?.layoutIfNeeded()
+            if !turn.installed { host.install(spread: turn.destination, location: turn.location, forward: turn.forward) }
+        } else if turn.installed {
+            host.install(spread: turn.origin, location: turn.originLocation, forward: !turn.forward)
         }
         flipView?.isHidden = true
         self.turn = nil
+        guard landed else { return }
+        switch announce {
+        case .never: break
+        case .now: host.announce(location: turn.location)
+        case .afterLanding:
+            DispatchQueue.main.async { [weak self] in self?.host.announce(location: turn.location) }
+        }
     }
 
     // MARK: Animation
@@ -251,7 +302,7 @@ final class PageFlipDriver: NSObject {
             stopDisplayLink()
             turn.amount = spring.target
             present(turn)
-            finish(turn, landed: spring.target == turn.landedAmount)
+            finish(turn, landed: spring.target == turn.landedAmount, announce: .afterLanding)
         } else {
             turn.amount = min(1, max(0, spring.value))
             present(turn)

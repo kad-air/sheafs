@@ -101,8 +101,8 @@ nonisolated struct FlipSpring: Equatable, Sendable {
     var value: Double
     var velocity: Double
     var target: Double
-    /// Stiffness; the spring settles in roughly 6.6 / omega seconds.
-    var omega: Double = 12
+    /// Stiffness; the spring settles in roughly 7.6 / omega seconds.
+    var omega: Double = 14
 
     mutating func step(_ dt: Double) {
         let x0 = value - target
@@ -112,5 +112,6 @@ nonisolated struct FlipSpring: Equatable, Sendable {
         velocity = (velocity - omega * k * dt) * decay
     }
 
-    var isSettled: Bool { abs(value - target) < 0.0015 && abs(velocity) < 0.02 }
+    /// Within half a point of the edge's travel, so the uncovering is invisible.
+    var isSettled: Bool { abs(value - target) < 0.0005 && abs(velocity) < 0.01 }
 }

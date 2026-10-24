@@ -19,7 +19,7 @@ struct FlipUniforms {
     float leafX, leafY, leafWidth, leafHeight;   // the leaf's frame when flat, window points
     float hinge, flip;                           // hinge x; +1 the leaf extends right of it, -1 left
     float flat, radius, tilt, grabY;             // the curl (sheet units), axis tilt, the held row
-    float backInset, hasBack;                    // gutter the back skips; 0 = ghost, 1 = a page, 2 = blank paper
+    float inset, hasBack;                        // blank margin from the hinge to the printed page (half the gutter); 0 = ghost back, 1 = a page, 2 = blank paper
     float under0X, under0Y, under0Width, under0Height, under0On;
     float under1X, under1Y, under1Width, under1Height, under1On;
     float paperR, paperG, paperB, isDark;
@@ -50,10 +50,12 @@ static float overhang(float2 s, float w, float h) {
     return max(0.0, -min(min(s.x, w - s.x), min(s.y, h - s.y)));
 }
 
-static half3 sampleFront(texture2d<half> front, float2 s, constant FlipUniforms &u) {
-    float x = s.x / u.leafWidth;
-    float2 uv = float2(u.flip > 0 ? x : 1 - x, s.y / u.leafHeight);
-    return front.sample(pageSampler, uv).rgb;
+// The leaf runs from the spine to the page's outer edge; the printed page starts `inset` in.
+static half3 sampleFront(texture2d<half> front, float2 s, half3 paper, constant FlipUniforms &u) {
+    float t = (s.x - u.inset) / (u.leafWidth - u.inset);
+    float x = u.flip > 0 ? t : 1 - t;
+    if (x < 0 || x > 1) return paper;
+    return front.sample(pageSampler, float2(x, s.y / u.leafHeight)).rgb;
 }
 
 // The back of the leaf: the page that lands face up on the other side, or, for a single page
@@ -61,12 +63,12 @@ static half3 sampleFront(texture2d<half> front, float2 s, constant FlipUniforms 
 static half3 sampleBack(texture2d<half> front, texture2d<half> back, float2 s, half3 paper, constant FlipUniforms &u) {
     if (u.hasBack > 1.5) return paper;
     if (u.hasBack > 0.5) {
-        float t = (s.x - u.backInset) / u.leafWidth;
+        float t = (s.x - u.inset) / (u.leafWidth - u.inset);
         float x = u.flip > 0 ? 1 - t : t;
         if (x < 0 || x > 1) return paper;
         return back.sample(pageSampler, float2(x, s.y / u.leafHeight)).rgb;
     }
-    half3 through = sampleFront(front, s, u);
+    half3 through = sampleFront(front, s, paper, u);
     return mix(paper, through, half(0.11));
 }
 
@@ -122,7 +124,7 @@ fragment half4 flipFragment(FlipVertexOut in [[stage_in]],
     // The part still lying flat, this side of the axis.
     if (xi <= 0) {
         float cov = coverage(sheet, w, h);
-        if (cov > 0) color = mix(color, sampleFront(front, sheet, u), half(cov));
+        if (cov > 0) color = mix(color, sampleFront(front, sheet, paper, u), half(cov));
     }
 
     // The shadow the lifted bend throws on the page beneath, beyond its silhouette.
@@ -147,7 +149,7 @@ fragment half4 flipFragment(FlipVertexOut in [[stage_in]],
             color *= half(1 - mix(edgeShade, edgeShade * 0.3, u.isDark));
         }
         float cov = coverage(near, w, h);
-        if (cov > 0) color = mix(color, sampleFront(front, near, u) * half(shadeFront(theta, u.isDark)), half(cov));
+        if (cov > 0) color = mix(color, sampleFront(front, near, paper, u) * half(shadeFront(theta, u.isDark)), half(cov));
 
         float theta2 = M_PI_F - theta;
         float2 far = pivot + n * (R * theta2) + t * eta;

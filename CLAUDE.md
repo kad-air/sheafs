@@ -112,7 +112,7 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     `PageView.render(in:)`. `PageFlipDriver` builds the scene for a turn (a spread turns like a
     book: the leaf's back is the page that lands face up on the other side; a single display is a
     pad printed on one side), follows the pan or runs the spring on a CADisplayLink, and calls
-    `PagerController.commit(spread:location:forward:)` when the leaf has landed. `SheafsTests`
+    `PagerController.install(spread:…)` under the opaque leaf as the turn starts and `announce(location:)` a frame after it lands (the save and the prefetch never share the landing frame). `SheafsTests`
     pins the physics against numerical integration.
   - `Catalog/` — OPDS browser (catalog list, add/edit, feed browser with pagination/search,
     entry detail + download → `LibraryStore.importBook`).

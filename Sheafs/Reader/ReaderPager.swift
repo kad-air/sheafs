@@ -203,7 +203,12 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         endHandle.tintColor = palette.link
         guard session.isReady, !layout.pageFrames.isEmpty, session.style != nil else { return }
         appliedStyle = session.style
-        if layoutChanged || paletteChanged || styleChanged { flip.invalidateTextures() }
+        if layoutChanged || paletteChanged || styleChanged {
+            flip.finishNow()
+            flip.invalidateTextures()
+        }
+        // A turn in flight owns the pager; it announces its location when the leaf lands.
+        guard !flip.isActive else { return }
         if layoutChanged || paletteChanged || styleChanged || displayedLocation == nil || displayedLocation != location {
             show(location: location, animated: animated && !layoutChanged)
             autoFlipForScreenshots()
@@ -241,7 +246,7 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
     func show(location: ReadingLocation, animated: Bool, direction: UIPageViewController.NavigationDirection = .forward) {
         guard let chapter = session.paginatedChapter(location.spineIndex, anchor: location.textOffset) else { return }
         clearSelection()
-        flip.finishNow()
+        flip.finishNow(announce: false)
         let page = chapter.pageIndex(containing: location.textOffset)
         let spread = makeSpread(anchoredAt: PageSlot(spineIndex: location.spineIndex, page: page))
         displayedLocation = spread.location
@@ -273,10 +278,15 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         return target as? SpreadViewController
     }
 
-    /// Makes `spread` the visible one without animation (the flip has already shown the turn).
-    func commit(spread: SpreadViewController, location: ReadingLocation, forward: Bool) {
+    /// Puts `spread` in the pager without animation (the flip shows the turn, over it).
+    func install(spread: SpreadViewController, location: ReadingLocation, forward: Bool) {
         displayedLocation = location
         pager.setViewControllers([spread], direction: forward ? .forward : .reverse, animated: false)
+        view.layoutIfNeeded()
+    }
+
+    /// Reports a landed turn's location (saves the position) and lays out the neighbours.
+    func announce(location: ReadingLocation) {
         onLocationChange?(location)
         session.prefetch(around: location.spineIndex)
     }
@@ -398,7 +408,10 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
     }
 
     @objc private func handleFlipPan(_ gesture: UIPanGestureRecognizer) {
-        if gesture.state == .began { clearSelection() }
+        if gesture.state == .began {
+            print("[flip] pan began; flips=\(flipsPages) scrollEnabled=\(scrollView?.isScrollEnabled ?? false)")
+            clearSelection()
+        }
         flip.handlePan(gesture)
     }
 
