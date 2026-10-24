@@ -3,9 +3,11 @@
 #   1. no personal names, emails or secrets in the tree              (grep)
 #   2. reference data is fresh: the Python second sources regenerate byte-identical JSON
 #   3. SheafsKit unit tests (EPUB/ZIP vs Python zipfile, converter vs validated path algorithm,
-#      partial MD5 vs an independent digest, OPDS vs ElementTree)    (swift test, on the Mac)
-#   4. the app builds for the iPhone Duo simulator                   (xcodegen + xcodebuild)
+#      partial MD5 vs an independent digest, OPDS vs ElementTree)    (swift test, on the Mac),
+#      after every Swift file in the tree parses                     (scripts/swift-parse)
+#   4. the app builds for the iPhone Duo simulator                   (xcodegen + xcodebuild; NO_APP=1 skips 4-5)
 #   5. the app's own unit tests on the simulator                     (xcodebuild test; SKIP_SIM_TESTS=1 skips)
+# DESTINATION overrides step 4's destination (CI: 'generic/platform=iOS Simulator', no runtime needed).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 LOG=$(mktemp -d)
@@ -36,11 +38,19 @@ for gen in gen_epub_reference:epub-reference gen_chapter_reference:chapter-refer
   cmp -s "$FIX/$json.json" "$LOG/$json.before.json" || fail "$FIX/$json.json changed when regenerated (commit the new one, or the generator is nondeterministic)"
 done
 
-step "3/5 SheafsKit tests (swift test)"
+step "3/5 Swift syntax (every file) + SheafsKit tests (swift test)"
+run "scripts/swift-parse" swift-parse.log bash -c "scripts/swift-parse --selftest && scripts/swift-parse"
+tail -1 "$LOG/swift-parse.log"
 run "swift test" swift-test.log bash -c "cd Packages/SheafsKit && swift test 2>&1"
 grep -E "Test run with [0-9]+ tests? .*passed|Executed [0-9]+ tests, with 0 failures" "$LOG/swift-test.log" >/dev/null \
   || { tail -n 30 "$LOG/swift-test.log" >&2; fail "swift test did not report a passing run"; }
 grep -E "Test run with [0-9]+ tests?" "$LOG/swift-test.log" | tail -1
+
+if [[ -n ${NO_APP:-} ]]; then
+  step "4-5/5 app build and tests skipped (NO_APP=1)"
+  echo "CHECK OK, without the app ($((SECONDS - START)) s)"
+  exit 0
+fi
 
 step "4/5 app build (iPhone Duo simulator)"
 command -v xcodegen >/dev/null || fail "xcodegen not found (brew install xcodegen)"
@@ -49,7 +59,7 @@ run "xcodegen generate" xcodegen.log xcodegen generate --quiet
 DD=${DERIVED_DATA:-/tmp/sheafs-derived}
 SIM=${SIM:-iPhone Duo}   # any iOS 27.1 iPhone Duo simulator; SIM="Sheafs Duo" keeps the shared one free
 run "xcodebuild build" build.log xcodebuild -project Sheafs.xcodeproj -scheme Sheafs \
-  -destination "platform=iOS Simulator,name=$SIM" -derivedDataPath "$DD" -quiet build
+  -destination "${DESTINATION:-platform=iOS Simulator,name=$SIM}" -derivedDataPath "$DD" -quiet build
 if grep -E "^/.*\.swift:[0-9]+:[0-9]+: warning:" "$LOG/build.log" >/dev/null; then
   grep -E "warning:" "$LOG/build.log" | head -20 >&2
   fail "the build has warnings in our sources (fix them; warnings are errors here)"

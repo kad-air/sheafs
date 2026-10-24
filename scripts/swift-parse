@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Syntax-check every Swift file in the tree with `swiftc -parse`: no SDK, no Xcode project, so it
+# runs on any machine with a Swift toolchain (CI included). It catches a stray `}` or a broken
+# merge in the app target even where the iOS SDK isn't available to build it. It does not
+# type-check: scripts/check's app build does that.
+#
+#   scripts/swift-parse              parse the tree
+#   scripts/swift-parse --selftest   assert a known-broken snippet fails and a good one passes
+set -uo pipefail
+cd "$(dirname "$0")/.."
+
+if command -v swiftc >/dev/null 2>&1; then swiftc=(swiftc)
+elif [ "$(uname)" = Darwin ] && xcrun --find swiftc >/dev/null 2>&1; then swiftc=(xcrun swiftc)
+else echo "swift-parse: FAIL, no swiftc found"; exit 1
+fi
+echo "swift-parse: $("${swiftc[@]}" --version 2>&1 | grep -m1 -i 'swift version')"
+
+if [ "${1:-}" = --selftest ]; then
+  t=$(mktemp -d); trap 'rm -rf "$t"' EXIT
+  printf 'struct A {\n    func f() {}\n}\n}\n' > "$t/bad.swift"
+  printf 'struct A {\n    func f() {}\n}\n' > "$t/good.swift"
+  if "${swiftc[@]}" -parse "$t/bad.swift" >/dev/null 2>&1; then
+    echo "swift-parse selftest: FAIL, a stray '}' parsed clean"; exit 1
+  fi
+  if ! "${swiftc[@]}" -parse "$t/good.swift"; then
+    echo "swift-parse selftest: FAIL, a valid file did not parse"; exit 1
+  fi
+  echo "swift-parse selftest: ok"
+  exit 0
+fi
+
+# main.swift has top-level code, which only parses as a file of its own; everything else parses
+# together, the way the targets compile it.
+files=(); mains=()
+while IFS= read -r -d '' f; do
+  case "$f" in */main.swift) mains+=("$f") ;; *) files+=("$f") ;; esac
+done < <(find . -name '*.swift' -not -path './.git/*' -not -path '*/.build/*' -not -path './build/*' \
+           -not -path './DerivedData/*' -print0 | sort -z)
+
+if [ ${#files[@]} -lt 50 ]; then
+  echo "swift-parse: FAIL, found only ${#files[@]} Swift files (expected 80+)"; exit 1
+fi
+
+rc=0
+"${swiftc[@]}" -parse "${files[@]}" || rc=1
+for f in ${mains[@]+"${mains[@]}"}; do "${swiftc[@]}" -parse "$f" || rc=1; done
+n=$(( ${#files[@]} + ${#mains[@]} ))
+if [ $rc -eq 0 ]; then echo "swift-parse: $n files parse"; else echo "swift-parse: FAIL"; fi
+exit $rc
