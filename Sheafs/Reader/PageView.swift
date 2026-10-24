@@ -11,6 +11,8 @@ final class PageView: UIView {
     var head = "" { didSet { setNeedsDisplay() } }
     /// The page number.
     var folio = "" { didSet { setNeedsDisplay() } }
+    /// Camera holes in this view's coordinates; the running head keeps clear of them.
+    var occlusions: [CGRect] = [] { didSet { setNeedsDisplay() } }
     var marginFont = UIFont.preferredFont(forTextStyle: .footnote)
 
     override init(frame: CGRect) {
@@ -39,17 +41,38 @@ final class PageView: UIView {
         para.alignment = .center
         para.lineBreakMode = .byTruncatingTail
         let attrs: [NSAttributedString.Key: Any] = [.font: marginFont, .foregroundColor: palette.secondary, .paragraphStyle: para]
-        let width = bounds.width - textInsets.left - textInsets.right
         let lineHeight = marginFont.lineHeight + 2
         if !head.isEmpty {
-            // Sits in the top band, just above the text.
-            let y = max(6, textInsets.top - lineHeight - 10)
-            (head as NSString).draw(in: CGRect(x: textInsets.left, y: y, width: width, height: lineHeight), withAttributes: attrs)
+            let frame = Self.headFrame(bounds: bounds, textInsets: textInsets, lineHeight: lineHeight, occlusions: occlusions)
+            (head as NSString).draw(in: frame, withAttributes: attrs)
         }
         if !folio.isEmpty {
-            let y = bounds.height - textInsets.bottom + 12
-            (folio as NSString).draw(in: CGRect(x: textInsets.left, y: y, width: width, height: lineHeight), withAttributes: attrs)
+            let frame = Self.folioFrame(bounds: bounds, textInsets: textInsets, lineHeight: lineHeight)
+            (folio as NSString).draw(in: frame, withAttributes: attrs)
         }
+    }
+
+    /// Where the running head goes: centred over the text in the band above it, narrowed
+    /// symmetrically so it stays clear of a camera hole in that band (the cover display's hole
+    /// sits at the top right, in the vertical bar's strip).
+    nonisolated static func headFrame(bounds: CGRect, textInsets: UIEdgeInsets, lineHeight: CGFloat,
+                                      occlusions: [CGRect]) -> CGRect {
+        let y = max(4, textInsets.top - lineHeight - 6)
+        var left = textInsets.left
+        var right = bounds.width - textInsets.right
+        let center = (left + right) / 2
+        for hole in occlusions where hole.minY < y + lineHeight && hole.maxY > y {
+            if hole.midX >= center { right = min(right, hole.minX - 8) } else { left = max(left, hole.maxX + 8) }
+        }
+        let half = max(0, min(center - left, right - center))
+        return CGRect(x: center - half, y: y, width: half * 2, height: lineHeight)
+    }
+
+    /// Where the folio goes: centred under the text, inside the footer band, above the home
+    /// indicator's zone (the page frame already excludes it).
+    nonisolated static func folioFrame(bounds: CGRect, textInsets: UIEdgeInsets, lineHeight: CGFloat) -> CGRect {
+        let width = bounds.width - textInsets.left - textInsets.right
+        return CGRect(x: textInsets.left, y: bounds.height - textInsets.bottom + 8, width: width, height: lineHeight)
     }
 
     override var accessibilityLabel: String? {

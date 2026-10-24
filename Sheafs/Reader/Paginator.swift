@@ -118,10 +118,22 @@ final class PaginatedChapter {
 
         private func cut(pageHeight: CGFloat, backward: Bool) {
             layoutManager.ensureLayout(for: container)
-            var lines: [(glyphs: NSRange, rect: CGRect)] = []
+            // A line's fragment rect carries its trailing line spacing (and the paragraph spacing
+            // after a paragraph's last line); a page only has to hold the glyphs, so the last line
+            // of a page is judged by its glyph bottom, not by the spacing under it.
+            var lines: [(glyphs: NSRange, rect: CGRect, bottom: CGFloat)] = []
             let all = layoutManager.glyphRange(for: container)
-            layoutManager.enumerateLineFragments(forGlyphRange: all) { rect, _, _, glyphRange, _ in
-                lines.append((glyphRange, rect))
+            let text = textStorage.mutableString
+            layoutManager.enumerateLineFragments(forGlyphRange: all) { [layoutManager, textStorage] rect, usedRect, _, glyphRange, _ in
+                let chars = layoutManager.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil)
+                var trailing: CGFloat = 0
+                if chars.length > 0,
+                   let style = textStorage.attribute(.paragraphStyle, at: chars.location, effectiveRange: nil) as? NSParagraphStyle {
+                    trailing = style.lineSpacing
+                    let end = NSMaxRange(chars)
+                    if end >= text.length || text.character(at: end - 1) == 0x0A { trailing += style.paragraphSpacing }
+                }
+                lines.append((glyphRange, rect, min(usedRect.maxY, rect.maxY - trailing)))
             }
             guard !lines.isEmpty else {
                 pageRanges = [NSRange(location: 0, length: 0)]
@@ -135,7 +147,7 @@ final class PaginatedChapter {
                 var end = lines.count - 1
                 var start = end
                 while start >= 0 {
-                    let fits = lines[end].rect.maxY - lines[start].rect.minY <= pageHeight
+                    let fits = lines[end].bottom - lines[start].rect.minY <= pageHeight
                     if fits || start == end {
                         start -= 1
                     } else {
@@ -149,7 +161,7 @@ final class PaginatedChapter {
                 var start = 0
                 var end = start
                 while end < lines.count {
-                    let fits = lines[end].rect.maxY - lines[start].rect.minY <= pageHeight
+                    let fits = lines[end].bottom - lines[start].rect.minY <= pageHeight
                     if fits || end == start {
                         end += 1
                     } else {

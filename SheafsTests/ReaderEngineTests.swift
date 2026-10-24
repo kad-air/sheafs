@@ -134,16 +134,41 @@ struct ReaderEngineTests {
         #expect(layout.pageFrames[0].height == expectedHeight)
     }
 
-    @Test func activeCameraOcclusionWidensTheHeadBand() {
-        let layout = PageLayout.compute(.init(size: CGSize(width: 951, height: 669),
-                                              safeArea: EdgeInsets(top: 0, leading: 0, bottom: 20, trailing: 84),
-                                              division: nil, divisionIsActive: false,
-                                              occlusions: [CGRect(x: 200, y: 0, width: 60, height: 40)],
-                                              margin: 24, fontSize: 19, allowSpread: false))
-        // The frame stays at the top; the head band grows past the camera so the text starts below it.
+    @Test func coverCameraHoleStartsTheTextBelowItAndMovesTheHead() {
+        // What the Duo reports on its cover display (window coordinates): the hole and the strip it sits in.
+        let hole = CGRect(x: 399.67, y: 29.33, width: 37, height: 37)
+        let strip = CGRect(x: 382, y: 0, width: 84, height: 82)
+        let input = PageLayout.Input(size: CGSize(width: 466, height: 678),
+                                     safeArea: EdgeInsets(top: 0, leading: 0, bottom: 34, trailing: 84),
+                                     division: nil, divisionIsActive: false, occlusions: [hole, strip],
+                                     margin: 24, fontSize: 19, allowSpread: true, fullBleed: true)
+        let layout = PageLayout.compute(input)
         let zero: CGFloat = 0
         #expect(layout.pageFrames[0].minY == zero)
-        #expect(layout.textInsets.top >= 40)
+        // The text starts just below the hole, not below the whole strip (Books runs up to the hole).
+        #expect(layout.textInsets.top > hole.maxY)
+        #expect(layout.textInsets.top < strip.maxY)
+        #expect(layout.occlusions == [hole])
+        // The running head stays clear of the hole and above the text.
+        let lineHeight: CGFloat = 20
+        let head = PageView.headFrame(bounds: layout.pageFrames[0], textInsets: layout.textInsets,
+                                      lineHeight: lineHeight, occlusions: layout.occlusions)
+        #expect(!head.intersects(hole))
+        #expect(head.maxY <= layout.textInsets.top)
+        #expect(head.width > 250)
+        // The folio sits inside the page, above the home indicator's zone.
+        let folio = PageView.folioFrame(bounds: layout.pageFrames[0], textInsets: layout.textInsets, lineHeight: lineHeight)
+        #expect(folio.maxY <= layout.pageFrames[0].height)
+        #expect(folio.minY >= layout.pageFrames[0].height - layout.textInsets.bottom)
+        // The strip alone (no hole reported) is avoided as a whole.
+        var stripOnly = input
+        stripOnly.occlusions = [strip]
+        #expect(PageLayout.compute(stripOnly).textInsets.top > strip.maxY)
+        // A region away from the top (the cover camera's stale frame during a fold) changes nothing.
+        var low = input
+        low.occlusions = [CGRect(x: 29, y: 400, width: 37, height: 37)]
+        #expect(PageLayout.compute(low).textInsets.top == PageLayout.headerHeight)
+        #expect(PageLayout.compute(low).occlusions.isEmpty)
     }
 
     @Test func libraryColumnsAreEvenOverAFold() {

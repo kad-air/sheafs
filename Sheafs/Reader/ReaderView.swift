@@ -28,6 +28,7 @@ struct ReaderView: View {
     @State private var showContents = false
     @State private var showAppearance = false
     @State private var layoutInput: PageLayout.Input?
+    @State private var regions: WindowRegions?
     @State private var footnote: Footnote?
     @State private var remotePrompt: RemotePrompt?
     @State private var pagerProxy = PagerProxy()
@@ -133,57 +134,67 @@ struct ReaderView: View {
                 ProgressView()
             }
         }
+        .modifier(GeometryProbe(label: "reader"))
     }
 
     private func pages(_ session: BookSession) -> some View {
-        // The proxy lives inside the safe area, so its size excludes the bars and its regions are
-        // relative to that inset origin. The layout works in window coordinates: expand the size by
-        // the insets and shift the regions by them.
+        // The proxy lives inside the safe area, so its size excludes the bars; the layout works in
+        // window coordinates (the size plus the insets). The reserved regions come from the
+        // full-window reader in the background, see `WindowRegions`.
         GeometryReader { proxy in
             let insets = proxy.safeAreaInsets
             let full = CGSize(width: proxy.size.width + insets.leading + insets.trailing,
                               height: proxy.size.height + insets.top + insets.bottom)
             let shift = CGPoint(x: insets.leading, y: insets.top)
-            let division = proxy.reservedRegions(kind: .division, options: [.includeInactive]).first?
-                .frame.offsetBy(dx: shift.x, dy: shift.y)
-            let active = !proxy.reservedRegions(kind: .division).isEmpty
-            let occlusions = proxy.reservedRegions(kind: .occlusion).map { $0.frame.offsetBy(dx: shift.x, dy: shift.y) }
-            // Both displays read full width under the bars' strip; the bars overlay on tap.
-            let fresh = PageLayout.Input(size: full, safeArea: insets, division: division,
-                                         divisionIsActive: active, occlusions: occlusions,
-                                         margin: settings.margin, fontSize: settings.fontSize, allowSpread: true,
-                                         fullBleed: true)
-            let layout = PageLayout.compute(effectiveInput(for: fresh))
-            ZStack(alignment: .topLeading) {
-                ReaderPager(session: session, layout: layout, style: style, palette: palette,
-                            location: session.location, tapTurnsPages: settings.tapToTurn, proxy: pagerProxy,
-                            onLocationChange: { location in
-                                session.location = location
-                                persist(location)
-                                if chromeVisible { withAnimation { chromeVisible = false } }
-                            },
-                            onTap: handle(tap:))
-                if let deck = layout.deckFrame {
-                    ReaderDeck(session: session, palette: palette, proxy: pagerProxy,
-                               showContents: $showContents, showAppearance: $showAppearance) { location in
-                        jump(to: location)
+            if let regions {
+                // Both displays read full width under the bars' strip; the bars overlay on tap.
+                let fresh = PageLayout.Input(size: full, safeArea: insets, division: regions.division,
+                                             divisionIsActive: regions.divisionIsActive, occlusions: regions.occlusions,
+                                             margin: settings.margin, fontSize: settings.fontSize, allowSpread: true,
+                                             fullBleed: true)
+                let layout = PageLayout.compute(effectiveInput(for: fresh))
+                ZStack(alignment: .topLeading) {
+                    ReaderPager(session: session, layout: layout, style: style, palette: palette,
+                                location: session.location, tapTurnsPages: settings.tapToTurn, proxy: pagerProxy,
+                                onLocationChange: { location in
+                                    session.location = location
+                                    persist(location)
+                                    if chromeVisible { withAnimation { chromeVisible = false } }
+                                },
+                                onTap: handle(tap:))
+                    if let deck = layout.deckFrame {
+                        ReaderDeck(session: session, palette: palette, proxy: pagerProxy,
+                                   showContents: $showContents, showAppearance: $showAppearance) { location in
+                            jump(to: location)
+                        }
+                        .frame(width: deck.width, height: deck.height)
+                        .offset(x: deck.minX, y: deck.minY)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
-                    .frame(width: deck.width, height: deck.height)
-                    .offset(x: deck.minX, y: deck.minY)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
-            }
-            .frame(width: full.width, height: full.height, alignment: .topLeading)
-            .offset(x: -shift.x, y: -shift.y)
-            .onChange(of: fresh, initial: true) { _, new in
-                // A fold, unfold or rotation while the bars are up: drop the bars so the stored
-                // insets are the reading ones, not the bars'.
-                if chromeVisible, let frozen = layoutInput, frozen.size != new.size {
-                    chromeVisible = false
+                .frame(width: full.width, height: full.height, alignment: .topLeading)
+                .offset(x: -shift.x, y: -shift.y)
+                .onChange(of: fresh, initial: true) { _, new in
+                    // A fold, unfold or rotation while the bars are up: drop the bars so the stored
+                    // insets are the reading ones, not the bars'.
+                    if chromeVisible, let frozen = layoutInput, frozen.size != new.size {
+                        chromeVisible = false
+                    }
+                    if !chromeVisible || layoutInput?.size != new.size { layoutInput = new }
+                    let used = PageLayout.compute(effectiveInput(for: new))
+                    print("[layout] size=\(new.size) safe=\(new.safeArea) division=\(String(describing: new.division)) " +
+                          "active=\(new.divisionIsActive) occlusions=\(new.occlusions) → pages=\(used.pageFrames) " +
+                          "textInsets=\(used.textInsets) holes=\(used.occlusions)")
                 }
-                if !chromeVisible || layoutInput?.size != new.size { layoutInput = new }
+                .animation(.smooth, value: layout.deckFrame != nil)
             }
-            .animation(.smooth, value: layout.deckFrame != nil)
+        }
+        .background {
+            GeometryReader { window in
+                let fresh = WindowRegions(proxy: window)
+                Color.clear.onChange(of: fresh, initial: true) { _, new in regions = new }
+            }
+            .ignoresSafeArea()
         }
     }
 

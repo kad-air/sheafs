@@ -84,7 +84,7 @@ display and inner-landscape), `toolbarVisibility(_:for: .statusBar)`, `ToolbarOv
 - book pose (active vertical division) → spread with the gutter = the division frame + 2 pt;
 - tabletop/laptop (active horizontal division) → the page on the upper half, `ReaderDeck` (progress,
   prev/next, contents, text size, appearance) on the lower half;
-- an active occlusion touching the top edge (inner camera) pushes the page down.
+- a camera hole in the top quarter of the page (the cover display's) pushes the text below it.
 Both pages of a spread share one text size, so one pagination serves both. The reading position is
 the first character of the RIGHT-hand page of a spread (the left page shows what came just before,
 or is blank at the very start). Pagination is ANCHORED: the first layout of a chapter after a
@@ -101,9 +101,19 @@ rest), and the chrome strip says "136 of 594 · 18 pages left in chapter".
 window coordinates (`proxy.size` + insets, regions shifted by the insets) and the pager is a full-
 window view offset back by the insets. The system keeps an 84 pt trailing inset for the vertical
 bar even with the status bar hidden. Both displays read FULL BLEED under that strip and the bars
-overlay the page on tap (`fullBleed`); the only thing avoided is the cover display's camera, which
-the system reports as an active occlusion region: the running-head band grows to its bottom edge so
-the text starts below it (Books does the same).
+overlay the page on tap (`fullBleed`); the only thing avoided is the cover display's camera hole.
+🔴 Reserved regions come from a SEPARATE full-window reader (`WindowRegions`, a background
+`GeometryReader` with `ignoresSafeArea`, stored in `@State`): the DEVICE reports only the regions
+that intersect the reader's frame, and the hole sits in the strip outside the safe area, so the
+inset reader saw none; the SIMULATOR reports every region regardless, which hid this until the first
+device test ("letters lost in the camera hole"). The cover display reports the camera twice, in
+window coordinates: the hole (400, 29, 37 × 37) and the strip around it (382, 0, 84 × 82; 174 tall
+while the chrome is up). `PageLayout.cameraHoles` keeps the holes in the top quarter that do not
+house another region, the text starts 2 pt below the hole (Books runs right up to it), and the
+running head (`PageView.headFrame`) narrows symmetrically to stay clear of it. Folio band 30 pt, the
+folio centred ~50 pt above the display's bottom edge, like Books; the page frame stops at the home
+indicator's zone. Page breaks are judged by a line's GLYPH bottom (`Paginator`), not its fragment
+rect, which carries the trailing line/paragraph spacing: otherwise the last line that fits is dropped.
 🔴 While the chrome is visible the layout keeps the chrome-hidden SAFE AREAS (`ReaderView.
 effectiveInput`) but still follows fold/camera/size — otherwise the bars' insets would repaginate
 under the reader's eyes on every tap; the bars overlay the page instead. A size change (fold,

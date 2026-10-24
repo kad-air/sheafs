@@ -9,6 +9,8 @@ struct PageLayout: Equatable {
     var textInsets: UIEdgeInsets
     /// The region below a horizontal active fold (tabletop pose) left free for controls, if any.
     var deckFrame: CGRect?
+    /// Camera holes to keep the margins clear of, in the reader's coordinate space.
+    var occlusions: [CGRect] = []
 
     var isSpread: Bool { pageFrames.count == 2 }
     var pageViewSize: CGSize { pageFrames.first?.size ?? .zero }
@@ -33,9 +35,23 @@ struct PageLayout: Equatable {
         var fullBleed = false
     }
 
-    /// Bands for the folio and the running head.
-    static let footerHeight: CGFloat = 40
+    /// Bands for the folio and the running head (Books: folio centred 50 pt above the display's
+    /// bottom edge on the cover display, 16 pt above the home indicator's zone).
+    static let footerHeight: CGFloat = 30
     static let headerHeight: CGFloat = 36
+
+    /// The occlusions the page must keep clear of: those in the top quarter of the content that are
+    /// not merely the housing around another one. The cover display reports its camera twice, as
+    /// the hole (37 pt square) and as the strip around it (84 × 82 pt); Books runs the text right
+    /// up to the hole, so only the hole counts.
+    static func cameraHoles(in occlusions: [CGRect], content: CGRect) -> [CGRect] {
+        occlusions.filter { region in
+            let hit = region.intersection(content)
+            guard !hit.isNull, !hit.isEmpty, region.minY < content.minY + content.height / 4 else { return false }
+            let housesAnother = occlusions.contains { other in other != region && region.contains(other) }
+            return !housesAnother
+        }
+    }
 
     static func compute(_ input: Input) -> PageLayout {
         var content = CGRect(origin: .zero, size: input.size).inset(by: UIEdgeInsets(
@@ -43,17 +59,14 @@ struct PageLayout: Equatable {
             bottom: input.safeArea.bottom, right: input.fullBleed ? 0 : input.safeArea.trailing))
         content = content.standardized
         guard content.width > 60, content.height > 60 else {
-            return PageLayout(pageFrames: [content], textInsets: .zero, deckFrame: nil)
+            return PageLayout(pageFrames: [content], textInsets: .zero, deckFrame: nil, occlusions: [])
         }
 
-        // A camera (an active occlusion) reaching into the page from the top widens the head band
-        // so the text starts below it; the frame itself stays put.
+        // A camera hole in the top part of the page widens the head band so the text starts just
+        // below it; the frame itself stays put and the running head moves aside (`PageView.headFrame`).
+        let holes = cameraHoles(in: input.occlusions, content: content)
         var topBand = headerHeight
-        for region in input.occlusions {
-            let hit = region.intersection(content)
-            guard !hit.isNull, !hit.isEmpty, hit.minY <= content.minY + 1 else { continue }
-            topBand = max(topBand, hit.maxY - content.minY + 6)
-        }
+        for hole in holes { topBand = max(topBand, hole.maxY - content.minY + 2) }
         let insets = UIEdgeInsets(top: topBand, left: input.margin, bottom: footerHeight, right: input.margin)
         var deck: CGRect?
 
@@ -85,13 +98,31 @@ struct PageLayout: Equatable {
             let width = min(leftWidth, rightWidth)
             let left = CGRect(x: gutter.minX - width, y: content.minY, width: width, height: content.height)
             let right = CGRect(x: gutter.maxX, y: content.minY, width: width, height: content.height)
-            return PageLayout(pageFrames: [left, right], textInsets: insets, deckFrame: deck)
+            return PageLayout(pageFrames: [left, right], textInsets: insets, deckFrame: deck, occlusions: holes)
         }
 
         // Single page: cap the measure so long lines stay readable on wide screens.
         let maxMeasure = input.fontSize * 38 + input.margin * 2
         let width = min(content.width, maxMeasure)
         let frame = CGRect(x: content.midX - width / 2, y: content.minY, width: width, height: content.height)
-        return PageLayout(pageFrames: [frame], textInsets: insets, deckFrame: deck)
+        return PageLayout(pageFrames: [frame], textInsets: insets, deckFrame: deck, occlusions: holes)
+    }
+}
+
+/// The reserved regions of the window, in window coordinates. They must come from a reader that
+/// spans the whole window, safe area included: the device reports only the regions that intersect
+/// the reader's frame, and the cover display's camera sits in the vertical bar's strip, outside
+/// the safe area (the simulator reports every region regardless, which hid this).
+struct WindowRegions: Equatable {
+    var division: CGRect?
+    var divisionIsActive: Bool
+    var occlusions: [CGRect]
+
+    init(proxy: GeometryProxy) {
+        let origin = proxy.frame(in: .global).origin
+        func inWindow(_ rect: CGRect) -> CGRect { rect.offsetBy(dx: origin.x, dy: origin.y) }
+        division = proxy.reservedRegions(kind: .division, options: [.includeInactive]).first.map { inWindow($0.frame) }
+        divisionIsActive = !proxy.reservedRegions(kind: .division).isEmpty
+        occlusions = proxy.reservedRegions(kind: .occlusion).map { inWindow($0.frame) }
     }
 }
