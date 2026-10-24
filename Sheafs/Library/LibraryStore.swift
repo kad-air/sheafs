@@ -175,6 +175,7 @@ final class LibraryStore {
     /// reloads it only when what it shows changed (progress is rounded to whole percents).
     func publishRecentBook() {
         guard let shelf = RecentBookShelf.shared else {
+            print("[widget] app group \(RecentBookShelf.appGroup) unavailable")
             log.error("widget: app group \(RecentBookShelf.appGroup, privacy: .public) unavailable")
             return
         }
@@ -183,6 +184,7 @@ final class LibraryStore {
             RecentBook(id: $0.id, title: $0.title, author: $0.author,
                        progress: ($0.progress * 100).rounded() / 100, hasCover: $0.hasCover)
         }
+        print("[widget] publish: shelf=\(shelf.directory.path) book=\(recent?.title ?? "none") progress=\(recent?.progress ?? -1) published=\(hasPublished)")
         if hasPublished, publishedRecent == recent { return }
         let coverChanged = !hasPublished || recent?.id != publishedRecent?.id
         var cover: Data?
@@ -195,8 +197,10 @@ final class LibraryStore {
             publishedRecent = recent
             hasPublished = true
             WidgetCenter.shared.reloadTimelines(ofKind: RecentBookShelf.widgetKind)
+            print("[widget] wrote \(shelf.bookURL.path) cover=\(cover?.count ?? -1) bytes; on disk: \(shelf.read()?.title ?? "UNREADABLE")")
             log.info("widget: now \(recent?.title ?? "empty", privacy: .public) \(recent?.progress ?? 0)")
         } catch {
+            print("[widget] write failed: \(error)")
             log.error("widget: write failed: \(error)")
         }
     }

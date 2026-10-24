@@ -240,6 +240,13 @@ while the bars are up hides them first. Known gap: a Live Activity animating in 
 1.5 s on a display gets learned as a hole until the next display change.
 
 ## Landmines
+- 🔴 With the app group entitlement, SwiftData's default `ModelConfiguration` keeps `default.store`
+  in the GROUP container (`Library/Application Support` there), not the app's own: the first launch
+  of 0.2 (11) copied the library over; the pre-widget copy is still in the app container, stale.
+  Removing the app group (or renaming it) would silently open that old copy or an empty library.
+- `devicectl device info files --domain-type appGroupDataContainer` does NOT list files at the
+  group container's root (`recent-book.json` was there and readable but never shown); read the
+  `[widget] …` lines from `devicectl device process launch --console` instead.
 - The reader forces a colour scheme only for a FIXED theme (`ReaderPalette.forcedColorScheme`; nil for
   Automatic). It resolves the palette from the environment's `colorScheme`, which a forced
   `preferredColorScheme` overrides for the whole presentation, so forcing one for Automatic latched the
