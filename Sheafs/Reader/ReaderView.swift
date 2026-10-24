@@ -46,6 +46,7 @@ struct ReaderView: View {
     @State private var pushTask: Task<Void, Never>?
     @State private var sliderValue: Double = 0
     @State private var isScrubbing = false
+    @State private var trail = ReturnTrail()
 
     private let log = Logger(subsystem: "io.sheafs.reader", category: "reader")
 
@@ -191,6 +192,7 @@ struct ReaderView: View {
                                 marks: annotations.map(\.mark), highlightColor: settings.highlightColor, pageTurn: settings.pageTurn, proxy: pagerProxy,
                                 onLocationChange: { location in
                                     session.location = location
+                                    trail.arrived(at: location, samePage: samePage)
                                     persist(location)
                                     if chromeVisible { withAnimation { chromeVisible = false } }
                                 },
@@ -205,7 +207,14 @@ struct ReaderView: View {
                         .offset(x: deck.minX, y: deck.minY)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
+                    if !chromeVisible, !showQuickAppearance, let page = layout.pageFrames.last {
+                        backButton(session)
+                            // Over the folio of the page that holds the position (the right page of a spread).
+                            .position(x: page.midX, y: page.maxY - PageLayout.footerHeight / 2 + 2)
+                            .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                    }
                 }
+                .animation(.snappy, value: trail)
                 .frame(width: full.width, height: full.height, alignment: .topLeading)
                 .offset(x: -shift.x, y: -shift.y)
                 .onChange(of: fresh, initial: true) { _, new in
@@ -280,6 +289,9 @@ struct ReaderView: View {
 
     private func progressStrip(_ session: BookSession) -> some View {
         VStack(spacing: 6) {
+            if !trail.isEmpty {
+                backButton(session)
+            }
             Slider(value: Binding(
                 get: { isScrubbing ? sliderValue : session.progress(for: session.location) },
                 set: { sliderValue = $0 }
@@ -402,10 +414,47 @@ struct ReaderView: View {
         }
     }
 
+    /// Every jump (link, contents, note, slider, synced position) remembers where it left from,
+    /// so the "Back to page N" button can return there.
     private func jump(to location: ReadingLocation) {
         guard let session else { return }
-        session.location = session.clamp(location)
+        let from = session.location
+        let target = session.clamp(location)
+        trail.leave(from, page: folio(of: from, session: session), for: target, samePage: samePage)
+        log.info("jump \(from.spineIndex):\(from.textOffset) → \(target.spineIndex):\(target.textOffset) trail=\(trail.stops.count)")
+        session.location = target
+        persist(target)
+    }
+
+    private func goBack() {
+        guard let session, let place = trail.back() else { return }
+        log.info("back to \(place.spineIndex):\(place.textOffset) trail=\(trail.stops.count)")
+        session.location = session.clamp(place)
         persist(session.location)
+    }
+
+    /// Two locations on the same page of the current pagination.
+    private func samePage(_ a: ReadingLocation, _ b: ReadingLocation) -> Bool {
+        guard a.spineIndex == b.spineIndex else { return false }
+        guard a.textOffset != b.textOffset else { return true }
+        guard let chapter = session?.laidOutChapter(a.spineIndex) else { return false }
+        return chapter.pageIndex(containing: a.textOffset) == chapter.pageIndex(containing: b.textOffset)
+    }
+
+    @ViewBuilder
+    private func backButton(_ session: BookSession) -> some View {
+        if !trail.isEmpty {
+            BackToPageButton(label: trail.lastPage.map { "Back to page \($0)" } ?? "Back", onBack: goBack) {
+                trail.clear()
+            }
+        }
+    }
+
+    /// The book-wide number the folio shows for `location`, from the layout on screen (never lays
+    /// one out: see `BookSession.laidOutChapter`).
+    private func folio(of location: ReadingLocation, session: BookSession) -> Int? {
+        guard let chapter = session.laidOutChapter(location.spineIndex) else { return nil }
+        return session.bookPages(spineIndex: location.spineIndex, page: chapter.pageIndex(containing: location.textOffset)).page
     }
 
     private func persist(_ location: ReadingLocation) {
