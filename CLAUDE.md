@@ -131,7 +131,8 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     (Duo, iOS 27.1: 0.0, 0.05, 0.15, 0.2…), so a put-back never lands exactly on the reference:
     build 7 put back after EVERY press and read each landing as a press the other way (pages
     turned at random). The volume view sits ON screen (origin, 1 pt, alpha 0.01): off-screen it no
-    longer hid the system volume HUD on iOS 27. `ReaderView.volumeButtonsArmed` runs it only while the scene is
+    longer hid the system volume HUD on iOS 27; on screen it does (confirmed on the Duo, keep it
+    there). `ReaderView.volumeButtonsArmed` runs it only while the scene is
     active, the book is ready, the regions are known and no sheet is up, and arming RETRIES until
     the pager is in a window (it appears after the regions; arming once gave up silently). Stop
     restores the user's volume. `VolumeButtonTests` pins the press logic. The simulator can't
