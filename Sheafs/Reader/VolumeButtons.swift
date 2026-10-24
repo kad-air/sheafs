@@ -24,8 +24,25 @@ final class VolumeButtonPager {
     private(set) var isRunning = false
     private let log = Logger(subsystem: "io.sheafs.reader", category: "volume")
 
-    /// The volume view builds its slider lazily (once it is in a window), so look it up each time.
-    private var slider: UISlider? { volumeView?.subviews.lazy.compactMap { $0 as? UISlider }.first }
+    /// The volume view's slider: searched for in its subtree each time, else the one it had when it
+    /// was made (Readest keeps that one, which works on devices). On the iOS 27.1 simulator the
+    /// view swaps its slider for a label once it is in a window (no volume route there); the
+    /// `[volume] view made / start` lines log the tree both times, to see what a device does.
+    private var slider: UISlider? { volumeView.flatMap(Self.firstSlider(in:)) ?? madeSlider }
+    private var madeSlider: UISlider?
+
+    /// The volume view's subview classes, nested, for the log.
+    private static func tree(_ view: UIView) -> String {
+        let children = view.subviews.map(tree).joined(separator: ", ")
+        return String(describing: type(of: view)) + (children.isEmpty ? "" : "[\(children)]")
+    }
+
+    private static func firstSlider(in view: UIView) -> UISlider? {
+        for subview in view.subviews {
+            if let slider = subview as? UISlider ?? firstSlider(in: subview) { return slider }
+        }
+        return nil
+    }
 
     /// Starts listening; the hidden volume view goes into `host`'s window.
     func start(host: UIView, onPress: @escaping (Press) -> Void) {
@@ -44,13 +61,15 @@ final class VolumeButtonPager {
         view.isUserInteractionEnabled = false
         (host.window ?? host).addSubview(view)
         volumeView = view
+        madeSlider = Self.firstSlider(in: view)
+        log.notice("[volume] view made: \(Self.tree(view), privacy: .public)")
         // outputVolume is only current a moment after the session activates.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
             guard let self, isRunning else { return }
             originalVolume = session.outputVolume
             let reference = PressReader.reference(for: originalVolume)
             reader = PressReader(previous: originalVolume, reference: reference)
-            log.notice("[volume] start: volume=\(self.originalVolume, privacy: .public) reference=\(reference, privacy: .public) slider=\(self.slider != nil, privacy: .public)")
+            log.notice("[volume] start: volume=\(self.originalVolume, privacy: .public) reference=\(reference, privacy: .public) slider=\(self.slider != nil, privacy: .public) view=\(self.volumeView.map(Self.tree) ?? "nil", privacy: .public)")
             observation = session.observe(\.outputVolume, options: [.new]) { [weak self] _, change in
                 guard let volume = change.newValue else { return }
                 DispatchQueue.main.async { self?.volumeChanged(volume) }
@@ -68,6 +87,7 @@ final class VolumeButtonPager {
         slider?.value = originalVolume
         let view = volumeView
         volumeView = nil
+        madeSlider = nil
         onPress = nil
         // Let the slider's restore reach the system before the view (and the session) go.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {

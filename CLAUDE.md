@@ -120,8 +120,8 @@ regions (see Duo behaviour below), so check layout changes on the phone.
   - `Reader/VolumeButtons` — `VolumeButtonPager` (setting `volumeButtonsTurn`, off by default):
     down = next page, up = previous. An active `.playback` + `.mixWithOthers` session makes
     `outputVolume` observable; `PressReader` reads a press as a step from the PREVIOUS reading,
-    and a hidden off-screen `MPVolumeView`'s slider (looked up lazily: it builds its subviews in a
-    window) puts the volume back to a reference (the user's, kept within 0.125…0.875 so both
+    and a hidden off-screen `MPVolumeView`'s slider (searched for in its subtree each time, else the
+    one it had when made; on the simulator it swaps the slider for a label once in a window) puts the volume back to a reference (the user's, kept within 0.125…0.875 so both
     directions read; the reference reading within 0.5 s of a put-back is not a press; the view
     also hides the HUD). 🔴 Comparing against the fixed reference instead turned pages backward
     whenever the put-back failed. `ReaderView.volumeButtonsArmed` runs it only while the scene is
