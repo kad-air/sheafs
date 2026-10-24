@@ -1,0 +1,2434 @@
+{
+  "epubs": {
+    "alice-epub3.epub": {
+      "documents": [
+        {
+          "ids": [],
+          "nonEmptyParagraphCount": 0,
+          "paragraphCount": 0,
+          "path": "OEBPS/wrap0000.xhtml",
+          "samples": [],
+          "spineIndex": 0,
+          "title": "\"Cover\""
+        },
+        {
+          "ids": [
+            "pg-header",
+            "pg-header-authlist",
+            "pg-header-heading",
+            "pg-machine-header",
+            "pg-start-separator",
+            "pg-title-no-subtitle",
+            "pgepubid00000",
+            "pgepubid00001",
+            "pgepubid00002"
+          ],
+          "nonEmptyParagraphCount": 6,
+          "paragraphCount": 6,
+          "path": "OEBPS/4040227324556390537_11-h-0.htm.xhtml",
+          "samples": [
+            {
+              "index": 0,
+              "path": "/body/header[1]/div[2]/p[1]",
+              "text": "Title : Alice's Adventures in Wonderland"
+            },
+            {
+              "index": 5,
+              "path": "/body/header[1]/div[2]/p[5]",
+              "text": "Credits : Arthur DiBianca and David Widger"
+            }
+          ],
+          "spineIndex": 1,
+          "title": "Alice\u2019s Adventures in Wonderland"
+        },
+        {
+          "ids": [
+            "chap01",
+            "pgepubid00003"
+          ],
+          "nonEmptyParagraphCount": 26,
+          "paragraphCount": 26,
+          "path": "OEBPS/4040227324556390537_11-h-1.htm.xhtml",
+          "samples": [
+            {
+              "index": 0,
+              "path": "/body/div[1]/p[1]",
+              "text": "Alice was beginning to get very tired of sitting by her sister on the bank, and of having nothing to do: once or twice she had peeped into the book her sister was reading, but it had no pictures or conversations in it, \u201cand what is the use of a book,\u201d thought Alice \u201cwithout pictures or conversations?\u201d"
+            },
+            {
+              "index": 25,
+              "path": "/body/div[1]/p[26]",
+              "text": "* * * * * * * * * * * * * * * * * * * *"
+            }
+          ],
+          "spineIndex": 2,
+          "title": "CHAPTER I. Down the Rabbit-Hole"
+        },
+        {
+          "ids": [
+            "chap02",
+            "pgepubid00004"
+          ],
+          "nonEmptyParagraphCount": 24,
+          "paragraphCount": 24,
+          "path": "OEBPS/4040227324556390537_11-h-2.htm.xhtml",
+          "samples": [
+            {
+              "index": 0,
+              "path": "/body/div[1]/p[1]",
+              "text": "\u201cCuriouser and curiouser!\u201d cried Alice (she was so much surprised, that for the moment she quite forgot how to speak good English); \u201cnow I\u2019m opening out like the largest telescope that ever was! Good-bye, feet!\u201d (for when she looked down at her feet, they seemed to be almost out of sight, they were getting so far off). \u201cOh, my poor little feet, I wonder who will put on your shoes and stockings for you now, dears? I\u2019m sure I shan\u2019t be able! I shall be a great deal too far off to trouble myself about you: you must manage the best way you can;\u2014but I must be kind to them,\u201d thought Alice, \u201cor perhaps they won\u2019t walk the way I want to go! Let me see: I\u2019ll give them a new pair of boots every Christmas.\u201d"
+            },
+            {
+              "index": 23,
+              "path": "/body/div[1]/p[24]",
+              "text": "It was high time to go, for the pool was getting quite crowded with the birds and animals that had fallen into it: there were a Duck and a Dodo, a Lory and an Eaglet, and several other curious creatures. Alice led the way, and the whole party swam to the shore."
+            }
+          ],
+          "spineIndex": 3,
+          "title": "CHAPTER II. The Pool of Tears"
+        },
+        {
+          "ids": [
+            "chap03",
+            "pgepubid00005"
+          ],
+          "nonEmptyParagraphCount": 47,
+          "paragraphCount": 47,
+          "path": "OEBPS/4040227324556390537_11-h-3.htm.xhtml",
+          "samples": [
+            {
+              "index": 0,
+              "path": "/body/div[1]/p[1]",
+              "text": "They were indeed a queer-looking party that assembled on the bank\u2014the birds with draggled feathers, the animals with their fur clinging close to them, and all dripping wet, cross, and uncomfortable."
+            },
+            {
+              "index": 37,
+              "path": "/body/div[1]/p[38]",
+              "text": "\u201cI shall do nothing of the sort,\u201d said the Mouse, getting up and walking away. \u201cYou insult me by talking such nonsense!\u201d"
+            },
+            {
+              "index": 46,
+              "path": "/body/div[1]/p[47]",
+              "text": "\u201cI wish I hadn\u2019t mentioned Dinah!\u201d she said to herself in a melancholy tone. \u201cNobody seems to like her, down here, and I\u2019m sure she\u2019s the best cat in the world! Oh, my dear Dinah! I wonder if I shall ever see you any more!\u201d And here poor Alice began to cry again, for she felt very lonely and low-spirited. In a little while, however, she again heard a little pattering of footsteps in the distance, and she looked up eagerly, half hoping that the Mouse had changed his mind, and was coming back to finish his story."
+            }
+          ],
+          "spineIndex": 4,
+          "title": "CHAPTER III. A Caucus-Race and a Long Tale"
+        },
+        {
+          "ids": [
+            "chap04",
+            "pgepubid00006"
+          ],
+          "nonEmptyParagraphCount": 42,
+          "paragraphCount": 42,
+          "path": "OEBPS/4040227324556390537_11-h-4.htm.xhtml",
+          "samples": [
+            {
+              "index": 0,
+              "path": "/body/div[1]/p[1]",
+              "text": "It was the White Rabbit, trotting slowly back again, and looking anxiously about as it went, as if it had lost something; and she heard it muttering to itself \u201cThe Duchess! The Duchess! Oh my dear paws! Oh my fur and whiskers! She\u2019ll get me executed, as sure as ferrets are ferrets! Where can I have dropped them, I wonder?\u201d Alice guessed in a moment that it was looking for the fan and the pair of white kid gloves, and she very good-naturedly began hunting about for them, but they were nowhere to be seen\u2014everything seemed to have changed since her swim in the pool, and the great hall, with the glass table and the little door, had vanished completely."
+            },
+            {
+              "index": 37,
+              "path": "/body/div[1]/p[38]",
+              "text": "Hardly knowing what she did, she picked up a little bit of stick, and held it out to the puppy; whereupon the puppy jumped into the air off all its feet at once, with a yelp of delight, and rushed at the stick, and made believe to worry it; then Alice dodged behind a great thistle, to keep herself from being run over; and the moment she appeared on the other side, the puppy made another rush at the stick, and tumbled head over heels in its hurry to get hold of it; then Alice, thinking it was very like having a game of play with a cart-horse, and expecting every moment to be trampled under its feet, ran round the thistle again; then the puppy began a series of short charges at the stick, running a very little way forwards each time and a long way back, and barking hoarsely all the while, till at last it sat down a good way off, panting, with its tongue hanging out of its mouth, and its great eyes half shut."
+            },
+            {
+              "index": 41,
+              "path": "/body/div[1]/p[42]",
+              "text": "She stretched herself up on tiptoe, and peeped over the edge of the mushroom, and her eyes immediately met those of a large blue caterpillar, that was sitting on the top with its arms folded, quietly smoking a long hookah, and taking not the smallest notice of her or of anything else."
+            }
+          ],
+          "spineIndex": 5,
+          "title": "CHAPTER IV. The Rabbit Sends in a Little Bill"
+        },
+        {
+          "ids": [
+            "chap05",
+            "pgepubid00007"
+          ],
+          "nonEmptyParagraphCount": 69,
+          "paragraphCount": 69,
+          "path": "OEBPS/4040227324556390537_11-h-5.htm.xhtml",
+          "samples": [
+            {
+              "index": 0,
+              "path": "/body/div[1]/p[1]",
+              "text": "The Caterpillar and Alice looked at each other for some time in silence: at last the Caterpillar took the hookah out of its mouth, and addressed her in a languid, sleepy voice."
+            },
+            {
+              "index": 37,
+              "path": "/body/div[1]/p[38]",
+              "text": "\u201cIt is a very good height indeed!\u201d said the Caterpillar angrily, rearing itself upright as it spoke (it was exactly three inches high)."
+            },
+            {
+              "index": 68,
+              "path": "/body/div[1]/p[69]",
+              "text": "It was so long since she had been anything near the right size, that it felt quite strange at first; but she got used to it in a few minutes, and began talking to herself, as usual. \u201cCome, there\u2019s half my plan done now! How puzzling all these changes are! I\u2019m never sure what I\u2019m going to be, from one minute to another! However, I\u2019ve got back to my right size: the next thing is, to get into that beautiful garden\u2014how is that to be done, I wonder?\u201d As she said this, she came suddenly upon an open place, with a little house in it about four feet high. \u201cWhoever lives there,\u201d thought Alice, \u201cit\u2019ll never do to come upon them this size: why, I should frighten them out of their wits!\u201d So she began nibbling at the righthand bit again, and did not venture to go near the house till she had brought herself down to nine inches high."
+            }
+          ],
+          "spineIndex": 6,
+          "title": "CHAPTER V. Advice from a Caterpillar"
+        },
+        {
+          "ids": [
+            "chap06",
+            "pgepubid00008"
+          ],
+          "nonEmptyParagraphCount": 80,
+          "paragraphCount": 80,
+          "path": "OEBPS/4040227324556390537_11-h-6.htm.xhtml",
+          "samples": [
+            {
+              "index": 0,
+              "path": "/body/div[1]/p[1]",
+              "text": "For a minute or two she stood looking at the house, and wondering what to do next, when suddenly a footman in livery came running out of the wood\u2014(she considered him to be a footman because he was in livery: otherwise, judging by his face only, she would have called him a fish)\u2014and rapped loudly at the door with his knuckles. It was opened by another footman in livery, with a round face, and large eyes like a frog; and both footmen, Alice noticed, had powdered hair that curled all over their heads. She felt very curious to know what it was all about, and crept a little way out of the wood to listen."
+            },
+            {
+              "index": 37,
+              "path": "/body/div[1]/p[38]",
+              "text": "\u201cWow! wow! wow!\u201d"
+            },
+            {
+              "index": 74,
+              "path": "/body/div[1]/p[75]",
+              "text": "Alice waited a little, half expecting to see it again, but it did not appear, and after a minute or two she walked on in the direction in which the March Hare was said to live. \u201cI\u2019ve seen hatters before,\u201d she said to herself; \u201cthe March Hare will be much the most interesting, and perhaps as this is May it won\u2019t be raving mad\u2014at least not so mad as it was in March.\u201d As she said this, she looked up, and there was the Cat again, sitting on a branch of a tree."
+            },
+            {
+              "index": 79,
+              "path": "/body/div[1]/p[80]",
+              "text": "She had not gone much farther before she came in sight of the house of the March Hare: she thought it must be the right house, because the chimneys were shaped like ears and the roof was thatched with fur. It was so large a house, that she did not like to go nearer till she had nibbled some more of the lefthand bit of mushroom, and raised herself to about two feet high: even then she walked up towards it rather timidly, saying to herself \u201cSuppose it should be raving mad after all! I almost wish I\u2019d gone to see the Hatter instead!\u201d"
+            }
+          ],
+          "spineIndex": 7,
+          "title": "CHAPTER VI. Pig and Pepper"
+        },
+        {
+          "ids": [
+            "chap07",
+            "pgepubid00009"
+          ],
+          "nonEmptyParagraphCount": 105,
+          "paragraphCount": 105,
+          "path": "OEBPS/4040227324556390537_11-h-7.htm.xhtml",
+          "samples": [
+            {
+              "index": 0,
+              "path": "/body/div[1]/p[1]",
+              "text": "There was a table set out under a tree in front of the house, and the March Hare and the Hatter were having tea at it: a Dormouse was sitting between them, fast asleep, and the other two were using it as a cushion, resting their elbows on it, and talking over its head. \u201cVery uncomfortable for the Dormouse,\u201d thought Alice; \u201conly, as it\u2019s asleep, I suppose it doesn\u2019t mind.\u201d"
+            },
+            {
+              "index": 37,
+              "path": "/body/div[1]/p[38]",
+              "text": "Alice sighed wearily. \u201cI think you might do something better with the time,\u201d she said, \u201cthan waste it in asking riddles that have no answers.\u201d"
+            },
+            {
+              "index": 74,
+              "path": "/body/div[1]/p[75]",
+              "text": "Alice tried to fancy to herself what such an extraordinary way of living would be like, but it puzzled her too much, so she went on: \u201cBut why did they live at the bottom of a well?\u201d"
+            },
+            {
+              "index": 104,
+              "path": "/body/div[1]/p[105]",
+              "text": "Once more she found herself in the long hall, and close to the little glass table. \u201cNow, I\u2019ll manage better this time,\u201d she said to herself, and began by taking the little golden key, and unlocking the door that led into the garden. Then she went to work nibbling at the mushroom (she had kept a piece of it in her pocket) till she was about a foot high: then she walked down the little passage: and then \u2014she found herself at last in the beautiful garden, among the bright flower-beds and the cool fountains."
+            }
+          ],
+          "spineIndex": 8,
+          "title": "CHAPTER VII. A Mad Tea-Party"
+        },
+        {
+          "ids": [
+            "chap08",
+            "pgepubid00010"
+          ],
+          "nonEmptyParagraphCount": 71,
+          "paragraphCount": 71,
+          "path": "OEBPS/4040227324556390537_11-h-8.htm.xhtml",
+          "samples": [
+            {
+              "index": 0,
+              "path": "/body/div[1]/p[1]",
+              "text": "A large rose-tree stood near the entrance of the garden: the roses growing on it were white, but there were three gardeners at it, busily painting them red. Alice thought this a very curious thing, and she went nearer to watch them, and just as she came up to them she heard one of them say, \u201cLook out now, Five! Don\u2019t go splashing paint over me like that!\u201d"
+            },
+            {
+              "index": 37,
+              "path": "/body/div[1]/p[38]",
+              "text": "\u201cDid you say \u2018What a pity!\u2019?\u201d the Rabbit asked."
+            },
+            {
+              "index": 70,
+              "path": "/body/div[1]/p[71]",
+              "text": "The Cat\u2019s head began fading away the moment he was gone, and, by the time he had come back with the Duchess, it had entirely disappeared; so the King and the executioner ran wildly up and down looking for it, while the rest of the party went back to the game."
+            }
+          ],
+          "spineIndex": 9,
+          "title": "CHAPTER VIII. The Queen\u2019s Croquet-Ground"
+        },
+        {
+          "ids": [
+            "chap09",
+            "pgepubid00011"
+          ],
+          "nonEmptyParagraphCount": 92,
+          "paragraphCount": 92,
+          "path": "OEBPS/4040227324556390537_11-h-9.htm.xhtml",
+          "samples": [
+            {
+              "index": 0,
+              "path": "/body/div[1]/p[1]",
+              "text": "\u201cYou can\u2019t think how glad I am to see you again, you dear old thing!\u201d said the Duchess, as she tucked her arm affectionately into Alice\u2019s, and they walked off together."
+            },
+            {
+              "index": 37,
+              "path": "/body/div[1]/p[38]",
+              "text": "\u201cNo,\u201d said Alice. \u201cI don\u2019t even know what a Mock Turtle is.\u201d"
+            },
+            {
+              "index": 74,
+              "path": "/body/div[1]/p[75]",
+              "text": "The Gryphon lifted up both its paws in surprise. \u201cWhat! Never heard of uglifying!\u201d it exclaimed. \u201cYou know what to beautify is, I suppose?\u201d"
+            },
+            {
+              "index": 91,
+              "path": "/body/div[1]/p[92]",
+              "text": "\u201cThat\u2019s enough about lessons,\u201d the Gryphon interrupted in a very decided tone: \u201ctell her something about the games now.\u201d"
+            }
+          ],
+          "spineIndex": 10,
+          "title": "CHAPTER IX. The Mock Turtle\u2019s Story"
+        },
+        {
+          "ids": [
+            "chap10",
+            "pgepubid00012"
+          ],
+          "nonEmptyParagraphCount": 76,
+          "paragraphCount": 76,
+          "path": "OEBPS/4040227324556390537_11-h-10.htm.xhtml",
+          "samples": [
+            {
+              "index": 0,
+              "path": "/body/div[1]/p[1]",
+              "text": "The Mock Turtle sighed deeply, and drew the back of one flapper across his eyes. He looked at Alice, and tried to speak, but for a minute or two sobs choked his voice. \u201cSame as if he had a bone in his throat,\u201d said the Gryphon: and it set to work shaking him and punching him in the back. At last the Mock Turtle recovered his voice, and, with tears running down his cheeks, he went on again:\u2014"
+            },
+            {
+              "index": 37,
+              "path": "/body/div[1]/p[38]",
+              "text": "Alice looked down at them, and considered a little before she gave her answer. \u201cThey\u2019re done with blacking, I believe.\u201d"
+            },
+            {
+              "index": 74,
+              "path": "/body/div[1]/p[75]",
+              "text": "\u201cWhat trial is it?\u201d Alice panted as she ran; but the Gryphon only answered \u201cCome on!\u201d and ran the faster, while more and more faintly came, carried on the breeze that followed them, the melancholy words:\u2014"
+            },
+            {
+              "index": 75,
+              "path": "/body/div[1]/p[76]",
+              "text": "\u201cSoo\u2014oop of the e\u2014e\u2014evening, Beautiful, beautiful Soup!\u201d"
+            }
+          ],
+          "spineIndex": 11,
+          "title": "CHAPTER X. The Lobster Quadrille"
+        },
+        {
+          "ids": [
+            "chap11",
+            "pgepubid00013"
+          ],
+          "nonEmptyParagraphCount": 74,
+          "paragraphCount": 74,
+          "path": "OEBPS/4040227324556390537_11-h-11.htm.xhtml",
+          "samples": [
+            {
+              "index": 0,
+              "path": "/body/div[1]/p[1]",
+              "text": "The King and Queen of Hearts were seated on their throne when they arrived, with a great crowd assembled about them\u2014all sorts of little birds and beasts, as well as the whole pack of cards: the Knave was standing before them, in chains, with a soldier on each side to guard him; and near the King was the White Rabbit, with a trumpet in one hand, and a scroll of parchment in the other. In the very middle of the court was a table, with a large dish of tarts upon it: they looked so good, that it made Alice quite hungry to look at them\u2014\u201cI wish they\u2019d get the trial done,\u201d she thought, \u201cand hand round the refreshments!\u201d But there seemed to be no chance of this, so she began looking at everything about her, to pass away the time."
+            },
+            {
+              "index": 37,
+              "path": "/body/div[1]/p[38]",
+              "text": "\u201cThe twinkling of the what? \u201d said the King."
+            },
+            {
+              "index": 73,
+              "path": "/body/div[1]/p[74]",
+              "text": "Alice watched the White Rabbit as he fumbled over the list, feeling very curious to see what the next witness would be like, \u201c\u2014for they haven\u2019t got much evidence yet ,\u201d she said to herself. Imagine her surprise, when the White Rabbit read out, at the top of his shrill little voice, the name \u201cAlice!\u201d"
+            }
+          ],
+          "spineIndex": 12,
+          "title": "CHAPTER XI. Who Stole the Tarts?"
+        },
+        {
+          "ids": [
+            "chap12",
+            "pgepubid00014"
+          ],
+          "nonEmptyParagraphCount": 66,
+          "paragraphCount": 66,
+          "path": "OEBPS/4040227324556390537_11-h-12.htm.xhtml",
+          "samples": [
+            {
+              "index": 0,
+              "path": "/body/div[1]/p[1]",
+              "text": "\u201cHere!\u201d cried Alice, quite forgetting in the flurry of the moment how large she had grown in the last few minutes, and she jumped up in such a hurry that she tipped over the jury-box with the edge of her skirt, upsetting all the jurymen on to the heads of the crowd below, and there they lay sprawling about, reminding her very much of a globe of goldfish she had accidentally upset the week before."
+            },
+            {
+              "index": 37,
+              "path": "/body/div[1]/p[38]",
+              "text": "The White Rabbit put on his spectacles. \u201cWhere shall I begin, please your Majesty?\u201d he asked."
+            },
+            {
+              "index": 65,
+              "path": "/body/div[1]/p[66]",
+              "text": "Lastly, she pictured to herself how this same little sister of hers would, in the after-time, be herself a grown woman; and how she would keep, through all her riper years, the simple and loving heart of her childhood: and how she would gather about her other little children, and make their eyes bright and eager with many a strange tale, perhaps even with the dream of Wonderland of long ago: and how she would feel with all their simple sorrows, and find a pleasure in all their simple joys, remembering her own child-life, and the happy summer days."
+            }
+          ],
+          "spineIndex": 13,
+          "title": "CHAPTER XII. Alice\u2019s Evidence"
+        },
+        {
+          "ids": [
+            "pg-end-separator",
+            "pg-footer",
+            "pg-footer-heading",
+            "project-gutenberg-license"
+          ],
+          "nonEmptyParagraphCount": 0,
+          "paragraphCount": 0,
+          "path": "OEBPS/4040227324556390537_11-h-13.htm.xhtml",
+          "samples": [],
+          "spineIndex": 14,
+          "title": "THE FULL PROJECT GUTENBERG\u2122 LICENSE"
+        }
+      ]
+    },
+    "hub-fixture.epub": {
+      "documents": [
+        {
+          "ids": [],
+          "nonEmptyParagraphCount": 900,
+          "paragraphCount": 900,
+          "path": "OEBPS/ch1.xhtml",
+          "samples": [
+            {
+              "index": 0,
+              "path": "/body/p[1]",
+              "text": "word0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28 word29 word30 word31 word32 word33 word34 word35 word36 word37 word38 word39 word40 word41 word42 word43 word44 word45 word46 word47 word48 word49 word50 word51 word52 word53 word54 word55 word56 word57 word58 word59 word60 word61 word62 word63 word64 word65 word66 word67 word68 word69 word70 word71 word72 word73 word74 word75 word76 word77 word78 word79 word80 word81 word82 word83 word84 word85 word86 word87 word88 word89 word90 word91 word92 word93 word94 word95 word96 word97 word98 word99 word100 word101 word102 word103 word104 word105 word106 word107 word108 word109 word110 word111 word112 word113 word114 word115 word116 word117 word118 word119 word120 word121 word122 word123 word124 word125 word126 word127 word128 word129 word130 word131 word132 word133 word134 word135 word136 word137 word138 word139 word140 word141 word142 word143 word144 word145 word146 word147 word148 word149 word150 word151 word152 word153 word154 word155 word156 word157 word158 word159 word160 word161 word162 word163 word164 word165 word166 word167 word168 word169 word170 word171 word172 word173 word174 word175 word176 word177 word178 word179 word180 word181 word182 word183 word184 word185 word186 word187 word188 word189 word190 word191 word192 word193 word194 word195 word196 word197 word198 word199"
+            },
+            {
+              "index": 37,
+              "path": "/body/p[38]",
+              "text": "word0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28 word29 word30 word31 word32 word33 word34 word35 word36 word37 word38 word39 word40 word41 word42 word43 word44 word45 word46 word47 word48 word49 word50 word51 word52 word53 word54 word55 word56 word57 word58 word59 word60 word61 word62 word63 word64 word65 word66 word67 word68 word69 word70 word71 word72 word73 word74 word75 word76 word77 word78 word79 word80 word81 word82 word83 word84 word85 word86 word87 word88 word89 word90 word91 word92 word93 word94 word95 word96 word97 word98 word99 word100 word101 word102 word103 word104 word105 word106 word107 word108 word109 word110 word111 word112 word113 word114 word115 word116 word117 word118 word119 word120 word121 word122 word123 word124 word125 word126 word127 word128 word129 word130 word131 word132 word133 word134 word135 word136 word137 word138 word139 word140 word141 word142 word143 word144 word145 word146 word147 word148 word149 word150 word151 word152 word153 word154 word155 word156 word157 word158 word159 word160 word161 word162 word163 word164 word165 word166 word167 word168 word169 word170 word171 word172 word173 word174 word175 word176 word177 word178 word179 word180 word181 word182 word183 word184 word185 word186 word187 word188 word189 word190 word191 word192 word193 word194 word195 word196 word197 word198 word199"
+            },
+            {
+              "index": 74,
+              "path": "/body/p[75]",
+              "text": "word0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28 word29 word30 word31 word32 word33 word34 word35 word36 word37 word38 word39 word40 word41 word42 word43 word44 word45 word46 word47 word48 word49 word50 word51 word52 word53 word54 word55 word56 word57 word58 word59 word60 word61 word62 word63 word64 word65 word66 word67 word68 word69 word70 word71 word72 word73 word74 word75 word76 word77 word78 word79 word80 word81 word82 word83 word84 word85 word86 word87 word88 word89 word90 word91 word92 word93 word94 word95 word96 word97 word98 word99 word100 word101 word102 word103 word104 word105 word106 word107 word108 word109 word110 word111 word112 word113 word114 word115 word116 word117 word118 word119 word120 word121 word122 word123 word124 word125 word126 word127 word128 word129 word130 word131 word132 word133 word134 word135 word136 word137 word138 word139 word140 word141 word142 word143 word144 word145 word146 word147 word148 word149 word150 word151 word152 word153 word154 word155 word156 word157 word158 word159 word160 word161 word162 word163 word164 word165 word166 word167 word168 word169 word170 word171 word172 word173 word174 word175 word176 word177 word178 word179 word180 word181 word182 word183 word184 word185 word186 word187 word188 word189 word190 word191 word192 word193 word194 word195 word196 word197 word198 word199"
+            },
+            {
+              "index": 111,
+              "path": "/body/p[112]",
+              "text": "word0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28 word29 word30 word31 word32 word33 word34 word35 word36 word37 word38 word39 word40 word41 word42 word43 word44 word45 word46 word47 word48 word49 word50 word51 word52 word53 word54 word55 word56 word57 word58 word59 word60 word61 word62 word63 word64 word65 word66 word67 word68 word69 word70 word71 word72 word73 word74 word75 word76 word77 word78 word79 word80 word81 word82 word83 word84 word85 word86 word87 word88 word89 word90 word91 word92 word93 word94 word95 word96 word97 word98 word99 word100 word101 word102 word103 word104 word105 word106 word107 word108 word109 word110 word111 word112 word113 word114 word115 word116 word117 word118 word119 word120 word121 word122 word123 word124 word125 word126 word127 word128 word129 word130 word131 word132 word133 word134 word135 word136 word137 word138 word139 word140 word141 word142 word143 word144 word145 word146 word147 word148 word149 word150 word151 word152 word153 word154 word155 word156 word157 word158 word159 word160 word161 word162 word163 word164 word165 word166 word167 word168 word169 word170 word171 word172 word173 word174 word175 word176 word177 word178 word179 word180 word181 word182 word183 word184 word185 word186 word187 word188 word189 word190 word191 word192 word193 word194 word195 word196 word197 word198 word199"
+            },
+            {
+              "index": 148,
+              "path": "/body/p[149]",
+              "text": "word0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28 word29 word30 word31 word32 word33 word34 word35 word36 word37 word38 word39 word40 word41 word42 word43 word44 word45 word46 word47 word48 word49 word50 word51 word52 word53 word54 word55 word56 word57 word58 word59 word60 word61 word62 word63 word64 word65 word66 word67 word68 word69 word70 word71 word72 word73 word74 word75 word76 word77 word78 word79 word80 word81 word82 word83 word84 word85 word86 word87 word88 word89 word90 word91 word92 word93 word94 word95 word96 word97 word98 word99 word100 word101 word102 word103 word104 word105 word106 word107 word108 word109 word110 word111 word112 word113 word114 word115 word116 word117 word118 word119 word120 word121 word122 word123 word124 word125 word126 word127 word128 word129 word130 word131 word132 word133 word134 word135 word136 word137 word138 word139 word140 word141 word142 word143 word144 word145 word146 word147 word148 word149 word150 word151 word152 word153 word154 word155 word156 word157 word158 word159 word160 word161 word162 word163 word164 word165 word166 word167 word168 word169 word170 word171 word172 word173 word174 word175 word176 word177 word178 word179 word180 word181 word182 word183 word184 word185 word186 word187 word188 word189 word190 word191 word192 word193 word194 word195 word196 word197 word198 word199"
+            },
+            {
+              "index": 185,
+              "path": "/body/p[186]",
+              "text": "word0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28 word29 word30 word31 word32 word33 word34 word35 word36 word37 word38 word39 word40 word41 word42 word43 word44 word45 word46 word47 word48 word49 word50 word51 word52 word53 word54 word55 word56 word57 word58 word59 word60 word61 word62 word63 word64 word65 word66 word67 word68 word69 word70 word71 word72 word73 word74 word75 word76 word77 word78 word79 word80 word81 word82 word83 word84 word85 word86 word87 word88 word89 word90 word91 word92 word93 word94 word95 word96 word97 word98 word99 word100 word101 word102 word103 word104 word105 word106 word107 word108 word109 word110 word111 word112 word113 word114 word115 word116 word117 word118 word119 word120 word121 word122 word123 word124 word125 word126 word127 word128 word129 word130 word131 word132 word133 word134 word135 word136 word137 word138 word139 word140 word141 word142 word143 word144 word145 word146 word147 word148 word149 word150 word151 word152 word153 word154 word155 word156 word157 word158 word159 word160 word161 word162 word163 word164 word165 word166 word167 word168 word169 word170 word171 word172 word173 word174 word175 word176 word177 word178 word179 word180 word181 word182 word183 word184 word185 word186 word187 word188 word189 word190 word191 word192 word193 word194 word195 word196 word197 word198 word199"
+            },
+            {
+              "index": 222,
+              "path": "/body/p[223]",
+              "text": "word0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28 word29 word30 word31 word32 word33 word34 word35 word36 word37 word38 word39 word40 word41 word42 word43 word44 word45 word46 word47 word48 word49 word50 word51 word52 word53 word54 word55 word56 word57 word58 word59 word60 word61 word62 word63 word64 word65 word66 word67 word68 word69 word70 word71 word72 word73 word74 word75 word76 word77 word78 word79 word80 word81 word82 word83 word84 word85 word86 word87 word88 word89 word90 word91 word92 word93 word94 word95 word96 word97 word98 word99 word100 word101 word102 word103 word104 word105 word106 word107 word108 word109 word110 word111 word112 word113 word114 word115 word116 word117 word118 word119 word120 word121 word122 word123 word124 word125 word126 word127 word128 word129 word130 word131 word132 word133 word134 word135 word136 word137 word138 word139 word140 word141 word142 word143 word144 word145 word146 word147 word148 word149 word150 word151 word152 word153 word154 word155 word156 word157 word158 word159 word160 word161 word162 word163 word164 word165 word166 word167 word168 word169 word170 word171 word172 word173 word174 word175 word176 word177 word178 word179 word180 word181 word182 word183 word184 word185 word186 word187 word188 word189 word190 word191 word192 word193 word194 word195 word196 word197 word198 word199"
+            },
+            {
+              "index": 259,
+              "path": "/body/p[260]",
+              "text": "word0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28 word29 word30 word31 word32 word33 word34 word35 word36 word37 word38 word39 word40 word41 word42 word43 word44 word45 word46 word47 word48 word49 word50 word51 word52 word53 word54 word55 word56 word57 word58 word59 word60 word61 word62 word63 word64 word65 word66 word67 word68 word69 word70 word71 word72 word73 word74 word75 word76 word77 word78 word79 word80 word81 word82 word83 word84 word85 word86 word87 word88 word89 word90 word91 word92 word93 word94 word95 word96 word97 word98 word99 word100 word101 word102 word103 word104 word105 word106 word107 word108 word109 word110 word111 word112 word113 word114 word115 word116 word117 word118 word119 word120 word121 word122 word123 word124 word125 word126 word127 word128 word129 word130 word131 word132 word133 word134 word135 word136 word137 word138 word139 word140 word141 word142 word143 word144 word145 word146 word147 word148 word149 word150 word151 word152 word153 word154 word155 word156 word157 word158 word159 word160 word161 word162 word163 word164 word165 word166 word167 word168 word169 word170 word171 word172 word173 word174 word175 word176 word177 word178 word179 word180 word181 word182 word183 word184 word185 word186 word187 word188 word189 word190 word191 word192 word193 word194 word195 word196 word197 word198 word199"
+            },
+            {
+              "index": 296,
+              "path": "/body/p[297]",
+              "text": "word0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28 word29 word30 word31 word32 word33 word34 word35 word36 word37 word38 word39 word40 word41 word42 word43 word44 word45 word46 word47 word48 word49 word50 word51 word52 word53 word54 word55 word56 word57 word58 word59 word60 word61 word62 word63 word64 word65 word66 word67 word68 word69 word70 word71 word72 word73 word74 word75 word76 word77 word78 word79 word80 word81 word82 word83 word84 word85 word86 word87 word88 word89 word90 word91 word92 word93 word94 word95 word96 word97 word98 word99 word100 word101 word102 word103 word104 word105 word106 word107 word108 word109 word110 word111 word112 word113 word114 word115 word116 word117 word118 word119 word120 word121 word122 word123 word124 word125 word126 word127 word128 word129 word130 word131 word132 word133 word134 word135 word136 word137 word138 word139 word140 word141 word142 word143 word144 word145 word146 word147 word148 word149 word150 word151 word152 word153 word154 word155 word156 word157 word158 word159 word160 word161 word162 word163 word164 word165 word166 word167 word168 word169 word170 word171 word172 word173 word174 word175 word176 word177 word178 word179 word180 word181 word182 word183 word184 word185 word186 word187 word188 word189 word190 word191 word192 word193 word194 word195 word196 word197 word198 word199"
+            },
+            {
+              "index": 333,
+              "path": "/body/p[334]",
+              "text": "word0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28 word29 word30 word31 word32 word33 word34 word35 word36 word37 word38 word39 word40 word41 word42 word43 word44 word45 word46 word47 word48 word49 word50 word51 word52 word53 word54 word55 word56 word57 word58 word59 word60 word61 word62 word63 word64 word65 word66 word67 word68 word69 word70 word71 word72 word73 word74 word75 word76 word77 word78 word79 word80 word81 word82 word83 word84 word85 word86 word87 word88 word89 word90 word91 word92 word93 word94 word95 word96 word97 word98 word99 word100 word101 word102 word103 word104 word105 word106 word107 word108 word109 word110 word111 word112 word113 word114 word115 word116 word117 word118 word119 word120 word121 word122 word123 word124 word125 word126 word127 word128 word129 word130 word131 word132 word133 word134 word135 word136 word137 word138 word139 word140 word141 word142 word143 word144 word145 word146 word147 word148 word149 word150 word151 word152 word153 word154 word155 word156 word157 word158 word159 word160 word161 word162 word163 word164 word165 word166 word167 word168 word169 word170 word171 word172 word173 word174 word175 word176 word177 word178 word179 word180 word181 word182 word183 word184 word185 word186 word187 word188 word189 word190 word191 word192 word193 word194 word195 word196 word197 word198 word199"
+            },
+            {
+              "index": 370,
+              "path": "/body/p[371]",
+              "text": "word0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28 word29 word30 word31 word32 word33 word34 word35 word36 word37 word38 word39 word40 word41 word42 word43 word44 word45 word46 word47 word48 word49 word50 word51 word52 word53 word54 word55 word56 word57 word58 word59 word60 word61 word62 word63 word64 word65 word66 word67 word68 word69 word70 word71 word72 word73 word74 word75 word76 word77 word78 word79 word80 word81 word82 word83 word84 word85 word86 word87 word88 word89 word90 word91 word92 word93 word94 word95 word96 word97 word98 word99 word100 word101 word102 word103 word104 word105 word106 word107 word108 word109 word110 word111 word112 word113 word114 word115 word116 word117 word118 word119 word120 word121 word122 word123 word124 word125 word126 word127 word128 word129 word130 word131 word132 word133 word134 word135 word136 word137 word138 word139 word140 word141 word142 word143 word144 word145 word146 word147 word148 word149 word150 word151 word152 word153 word154 word155 word156 word157 word158 word159 word160 word161 word162 word163 word164 word165 word166 word167 word168 word169 word170 word171 word172 word173 word174 word175 word176 word177 word178 word179 word180 word181 word182 word183 word184 word185 word186 word187 word188 word189 word190 word191 word192 word193 word194 word195 word196 word197 word198 word199"
+            },
+            {
+              "index": 407,
+              "path": "/body/p[408]",
+              "text": "word0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28 word29 word30 word31 word32 word33 word34 word35 word36 word37 word38 word39 word40 word41 word42 word43 word44 word45 word46 word47 word48 word49 word50 word51 word52 word53 word54 word55 word56 word57 word58 word59 word60 word61 word62 word63 word64 word65 word66 word67 word68 word69 word70 word71 word72 word73 word74 word75 word76 word77 word78 word79 word80 word81 word82 word83 word84 word85 word86 word87 word88 word89 word90 word91 word92 word93 word94 word95 word96 word97 word98 word99 word100 word101 word102 word103 word104 word105 word106 word107 word108 word109 word110 word111 word112 word113 word114 word115 word116 word117 word118 word119 word120 word121 word122 word123 word124 word125 word126 word127 word128 word129 word130 word131 word132 word133 word134 word135 word136 word137 word138 word139 word140 word141 word142 word143 word144 word145 word146 word147 word148 word149 word150 word151 word152 word153 word154 word155 word156 word157 word158 word159 word160 word161 word162 word163 word164 word165 word166 word167 word168 word169 word170 word171 word172 word173 word174 word175 word176 word177 word178 word179 word180 word181 word182 word183 word184 word185 word186 word187 word188 word189 word190 word191 word192 word193 word194 word195 word196 word197 word198 word199"
+            },
+            {
+              "index": 444,
+              "path": "/body/p[445]",
+              "text": "word0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28 word29 word30 word31 word32 word33 word34 word35 word36 word37 word38 word39 word40 word41 word42 word43 word44 word45 word46 word47 word48 word49 word50 word51 word52 word53 word54 word55 word56 word57 word58 word59 word60 word61 word62 word63 word64 word65 word66 word67 word68 word69 word70 word71 word72 word73 word74 word75 word76 word77 word78 word79 word80 word81 word82 word83 word84 word85 word86 word87 word88 word89 word90 word91 word92 word93 word94 word95 word96 word97 word98 word99 word100 word101 word102 word103 word104 word105 word106 word107 word108 word109 word110 word111 word112 word113 word114 word115 word116 word117 word118 word119 word120 word121 word122 word123 word124 word125 word126 word127 word128 word129 word130 word131 word132 word133 word134 word135 word136 word137 word138 word139 word140 word141 word142 word143 word144 word145 word146 word147 word148 word149 word150 word151 word152 word153 word154 word155 word156 word157 word158 word159 word160 word161 word162 word163 word164 word165 word166 word167 word168 word169 word170 word171 word172 word173 word174 word175 word176 word177 word178 word179 word180 word181 word182 word183 word184 word185 word186 word187 word188 word189 word190 word191 word192 word193 word194 word195 word196 word197 word198 word199"
+            },
+            {
+              "index": 481,
+              "path": "/body/p[482]",
+              "text": "word0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28 word29 word30 word31 word32 word33 word34 word35 word36 word37 word38 word39 word40 word41 word42 word43 word44 word45 word46 word47 word48 word49 word50 word51 word52 word53 word54 word55 word56 word57 word58 word59 word60 word61 word62 word63 word64 word65 word66 word67 word68 word69 word70 word71 word72 word73 word74 word75 word76 word77 word78 word79 word80 word81 word82 word83 word84 word85 word86 word87 word88 word89 word90 word91 word92 word93 word94 word95 word96 word97 word98 word99 word100 word101 word102 word103 word104 word105 word106 word107 word108 word109 word110 word111 word112 word113 word114 word115 word116 word117 word118 word119 word120 word121 word122 word123 word124 word125 word126 word127 word128 word129 word130 word131 word132 word133 word134 word135 word136 word137 word138 word139 word140 word141 word142 word143 word144 word145 word146 word147 word148 word149 word150 word151 word152 word153 word154 word155 word156 word157 word158 word159 word160 word161 word162 word163 word164 word165 word166 word167 word168 word169 word170 word171 word172 word173 word174 word175 word176 word177 word178 word179 word180 word181 word182 word183 word184 word185 word186 word187 word188 word189 word190 word191 word192 word193 word194 word195 word196 word197 word198 word199"
+            },
+            {
+              "index": 518,
+              "path": "/body/p[519]",
+              "text": "word0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28 word29 word30 word31 word32 word33 word34 word35 word36 word37 word38 word39 word40 word41 word42 word43 word44 word45 word46 word47 word48 word49 word50 word51 word52 word53 word54 word55 word56 word57 word58 word59 word60 word61 word62 word63 word64 word65 word66 word67 word68 word69 word70 word71 word72 word73 word74 word75 word76 word77 word78 word79 word80 word81 word82 word83 word84 word85 word86 word87 word88 word89 word90 word91 word92 word93 word94 word95 word96 word97 word98 word99 word100 word101 word102 word103 word104 word105 word106 word107 word108 word109 word110 word111 word112 word113 word114 word115 word116 word117 word118 word119 word120 word121 word122 word123 word124 word125 word126 word127 word128 word129 word130 word131 word132 word133 word134 word135 word136 word137 word138 word139 word140 word141 word142 word143 word144 word145 word146 word147 word148 word149 word150 word151 word152 word153 word154 word155 word156 word157 word158 word159 word160 word161 word162 word163 word164 word165 word166 word167 word168 word169 word170 word171 word172 word173 word174 word175 word176 word177 word178 word179 word180 word181 word182 word183 word184 word185 word186 word187 word188 word189 word190 word191 word192 word193 word194 word195 word196 word197 word198 word199"
+            },
+            {
+              "index": 555,
+              "path": "/body/p[556]",
+              "text": "word0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28 word29 word30 word31 word32 word33 word34 word35 word36 word37 word38 word39 word40 word41 word42 word43 word44 word45 word46 word47 word48 word49 word50 word51 word52 word53 word54 word55 word56 word57 word58 word59 word60 word61 word62 word63 word64 word65 word66 word67 word68 word69 word70 word71 word72 word73 word74 word75 word76 word77 word78 word79 word80 word81 word82 word83 word84 word85 word86 word87 word88 word89 word90 word91 word92 word93 word94 word95 word96 word97 word98 word99 word100 word101 word102 word103 word104 word105 word106 word107 word108 word109 word110 word111 word112 word113 word114 word115 word116 word117 word118 word119 word120 word121 word122 word123 word124 word125 word126 word127 word128 word129 word130 word131 word132 word133 word134 word135 word136 word137 word138 word139 word140 word141 word142 word143 word144 word145 word146 word147 word148 word149 word150 word151 word152 word153 word154 word155 word156 word157 word158 word159 word160 word161 word162 word163 word164 word165 word166 word167 word168 word169 word170 word171 word172 word173 word174 word175 word176 word177 word178 word179 word180 word181 word182 word183 word184 word185 word186 word187 word188 word189 word190 word191 word192 word193 word194 word195 word196 word197 word198 word199"
+            },
+            {
+              "index": 592,
+              "path": "/body/p[593]",
+              "text": "word0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28 word29 word30 word31 word32 word33 word34 word35 word36 word37 word38 word39 word40 word41 word42 word43 word44 word45 word46 word47 word48 word49 word50 word51 word52 word53 word54 word55 word56 word57 word58 word59 word60 word61 word62 word63 word64 word65 word66 word67 word68 word69 word70 word71 word72 word73 word74 word75 word76 word77 word78 word79 word80 word81 word82 word83 word84 word85 word86 word87 word88 word89 word90 word91 word92 word93 word94 word95 word96 word97 word98 word99 word100 word101 word102 word103 word104 word105 word106 word107 word108 word109 word110 word111 word112 word113 word114 word115 word116 word117 word118 word119 word120 word121 word122 word123 word124 word125 word126 word127 word128 word129 word130 word131 word132 word133 word134 word135 word136 word137 word138 word139 word140 word141 word142 word143 word144 word145 word146 word147 word148 word149 word150 word151 word152 word153 word154 word155 word156 word157 word158 word159 word160 word161 word162 word163 word164 word165 word166 word167 word168 word169 word170 word171 word172 word173 word174 word175 word176 word177 word178 word179 word180 word181 word182 word183 word184 word185 word186 word187 word188 word189 word190 word191 word192 word193 word194 word195 word196 word197 word198 word199"
+            },
+            {
+              "index": 629,
+              "path": "/body/p[630]",
+              "text": "word0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28 word29 word30 word31 word32 word33 word34 word35 word36 word37 word38 word39 word40 word41 word42 word43 word44 word45 word46 word47 word48 word49 word50 word51 word52 word53 word54 word55 word56 word57 word58 word59 word60 word61 word62 word63 word64 word65 word66 word67 word68 word69 word70 word71 word72 word73 word74 word75 word76 word77 word78 word79 word80 word81 word82 word83 word84 word85 word86 word87 word88 word89 word90 word91 word92 word93 word94 word95 word96 word97 word98 word99 word100 word101 word102 word103 word104 word105 word106 word107 word108 word109 word110 word111 word112 word113 word114 word115 word116 word117 word118 word119 word120 word121 word122 word123 word124 word125 word126 word127 word128 word129 word130 word131 word132 word133 word134 word135 word136 word137 word138 word139 word140 word141 word142 word143 word144 word145 word146 word147 word148 word149 word150 word151 word152 word153 word154 word155 word156 word157 word158 word159 word160 word161 word162 word163 word164 word165 word166 word167 word168 word169 word170 word171 word172 word173 word174 word175 word176 word177 word178 word179 word180 word181 word182 word183 word184 word185 word186 word187 word188 word189 word190 word191 word192 word193 word194 word195 word196 word197 word198 word199"
+            },
+            {
+              "index": 666,
+              "path": "/body/p[667]",
+              "text": "word0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28 word29 word30 word31 word32 word33 word34 word35 word36 word37 word38 word39 word40 word41 word42 word43 word44 word45 word46 word47 word48 word49 word50 word51 word52 word53 word54 word55 word56 word57 word58 word59 word60 word61 word62 word63 word64 word65 word66 word67 word68 word69 word70 word71 word72 word73 word74 word75 word76 word77 word78 word79 word80 word81 word82 word83 word84 word85 word86 word87 word88 word89 word90 word91 word92 word93 word94 word95 word96 word97 word98 word99 word100 word101 word102 word103 word104 word105 word106 word107 word108 word109 word110 word111 word112 word113 word114 word115 word116 word117 word118 word119 word120 word121 word122 word123 word124 word125 word126 word127 word128 word129 word130 word131 word132 word133 word134 word135 word136 word137 word138 word139 word140 word141 word142 word143 word144 word145 word146 word147 word148 word149 word150 word151 word152 word153 word154 word155 word156 word157 word158 word159 word160 word161 word162 word163 word164 word165 word166 word167 word168 word169 word170 word171 word172 word173 word174 word175 word176 word177 word178 word179 word180 word181 word182 word183 word184 word185 word186 word187 word188 word189 word190 word191 word192 word193 word194 word195 word196 word197 word198 word199"
+            },
+            {
+              "index": 703,
+              "path": "/body/p[704]",
+              "text": "word0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28 word29 word30 word31 word32 word33 word34 word35 word36 word37 word38 word39 word40 word41 word42 word43 word44 word45 word46 word47 word48 word49 word50 word51 word52 word53 word54 word55 word56 word57 word58 word59 word60 word61 word62 word63 word64 word65 word66 word67 word68 word69 word70 word71 word72 word73 word74 word75 word76 word77 word78 word79 word80 word81 word82 word83 word84 word85 word86 word87 word88 word89 word90 word91 word92 word93 word94 word95 word96 word97 word98 word99 word100 word101 word102 word103 word104 word105 word106 word107 word108 word109 word110 word111 word112 word113 word114 word115 word116 word117 word118 word119 word120 word121 word122 word123 word124 word125 word126 word127 word128 word129 word130 word131 word132 word133 word134 word135 word136 word137 word138 word139 word140 word141 word142 word143 word144 word145 word146 word147 word148 word149 word150 word151 word152 word153 word154 word155 word156 word157 word158 word159 word160 word161 word162 word163 word164 word165 word166 word167 word168 word169 word170 word171 word172 word173 word174 word175 word176 word177 word178 word179 word180 word181 word182 word183 word184 word185 word186 word187 word188 word189 word190 word191 word192 word193 word194 word195 word196 word197 word198 word199"
+            },
+            {
+              "index": 740,
+              "path": "/body/p[741]",
+              "text": "word0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28 word29 word30 word31 word32 word33 word34 word35 word36 word37 word38 word39 word40 word41 word42 word43 word44 word45 word46 word47 word48 word49 word50 word51 word52 word53 word54 word55 word56 word57 word58 word59 word60 word61 word62 word63 word64 word65 word66 word67 word68 word69 word70 word71 word72 word73 word74 word75 word76 word77 word78 word79 word80 word81 word82 word83 word84 word85 word86 word87 word88 word89 word90 word91 word92 word93 word94 word95 word96 word97 word98 word99 word100 word101 word102 word103 word104 word105 word106 word107 word108 word109 word110 word111 word112 word113 word114 word115 word116 word117 word118 word119 word120 word121 word122 word123 word124 word125 word126 word127 word128 word129 word130 word131 word132 word133 word134 word135 word136 word137 word138 word139 word140 word141 word142 word143 word144 word145 word146 word147 word148 word149 word150 word151 word152 word153 word154 word155 word156 word157 word158 word159 word160 word161 word162 word163 word164 word165 word166 word167 word168 word169 word170 word171 word172 word173 word174 word175 word176 word177 word178 word179 word180 word181 word182 word183 word184 word185 word186 word187 word188 word189 word190 word191 word192 word193 word194 word195 word196 word197 word198 word199"
+            },
+            {
+              "index": 777,
+              "path": "/body/p[778]",
+              "text": "word0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28 word29 word30 word31 word32 word33 word34 word35 word36 word37 word38 word39 word40 word41 word42 word43 word44 word45 word46 word47 word48 word49 word50 word51 word52 word53 word54 word55 word56 word57 word58 word59 word60 word61 word62 word63 word64 word65 word66 word67 word68 word69 word70 word71 word72 word73 word74 word75 word76 word77 word78 word79 word80 word81 word82 word83 word84 word85 word86 word87 word88 word89 word90 word91 word92 word93 word94 word95 word96 word97 word98 word99 word100 word101 word102 word103 word104 word105 word106 word107 word108 word109 word110 word111 word112 word113 word114 word115 word116 word117 word118 word119 word120 word121 word122 word123 word124 word125 word126 word127 word128 word129 word130 word131 word132 word133 word134 word135 word136 word137 word138 word139 word140 word141 word142 word143 word144 word145 word146 word147 word148 word149 word150 word151 word152 word153 word154 word155 word156 word157 word158 word159 word160 word161 word162 word163 word164 word165 word166 word167 word168 word169 word170 word171 word172 word173 word174 word175 word176 word177 word178 word179 word180 word181 word182 word183 word184 word185 word186 word187 word188 word189 word190 word191 word192 word193 word194 word195 word196 word197 word198 word199"
+            },
+            {
+              "index": 814,
+              "path": "/body/p[815]",
+              "text": "word0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28 word29 word30 word31 word32 word33 word34 word35 word36 word37 word38 word39 word40 word41 word42 word43 word44 word45 word46 word47 word48 word49 word50 word51 word52 word53 word54 word55 word56 word57 word58 word59 word60 word61 word62 word63 word64 word65 word66 word67 word68 word69 word70 word71 word72 word73 word74 word75 word76 word77 word78 word79 word80 word81 word82 word83 word84 word85 word86 word87 word88 word89 word90 word91 word92 word93 word94 word95 word96 word97 word98 word99 word100 word101 word102 word103 word104 word105 word106 word107 word108 word109 word110 word111 word112 word113 word114 word115 word116 word117 word118 word119 word120 word121 word122 word123 word124 word125 word126 word127 word128 word129 word130 word131 word132 word133 word134 word135 word136 word137 word138 word139 word140 word141 word142 word143 word144 word145 word146 word147 word148 word149 word150 word151 word152 word153 word154 word155 word156 word157 word158 word159 word160 word161 word162 word163 word164 word165 word166 word167 word168 word169 word170 word171 word172 word173 word174 word175 word176 word177 word178 word179 word180 word181 word182 word183 word184 word185 word186 word187 word188 word189 word190 word191 word192 word193 word194 word195 word196 word197 word198 word199"
+            },
+            {
+              "index": 851,
+              "path": "/body/p[852]",
+              "text": "word0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28 word29 word30 word31 word32 word33 word34 word35 word36 word37 word38 word39 word40 word41 word42 word43 word44 word45 word46 word47 word48 word49 word50 word51 word52 word53 word54 word55 word56 word57 word58 word59 word60 word61 word62 word63 word64 word65 word66 word67 word68 word69 word70 word71 word72 word73 word74 word75 word76 word77 word78 word79 word80 word81 word82 word83 word84 word85 word86 word87 word88 word89 word90 word91 word92 word93 word94 word95 word96 word97 word98 word99 word100 word101 word102 word103 word104 word105 word106 word107 word108 word109 word110 word111 word112 word113 word114 word115 word116 word117 word118 word119 word120 word121 word122 word123 word124 word125 word126 word127 word128 word129 word130 word131 word132 word133 word134 word135 word136 word137 word138 word139 word140 word141 word142 word143 word144 word145 word146 word147 word148 word149 word150 word151 word152 word153 word154 word155 word156 word157 word158 word159 word160 word161 word162 word163 word164 word165 word166 word167 word168 word169 word170 word171 word172 word173 word174 word175 word176 word177 word178 word179 word180 word181 word182 word183 word184 word185 word186 word187 word188 word189 word190 word191 word192 word193 word194 word195 word196 word197 word198 word199"
+            },
+            {
+              "index": 888,
+              "path": "/body/p[889]",
+              "text": "word0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28 word29 word30 word31 word32 word33 word34 word35 word36 word37 word38 word39 word40 word41 word42 word43 word44 word45 word46 word47 word48 word49 word50 word51 word52 word53 word54 word55 word56 word57 word58 word59 word60 word61 word62 word63 word64 word65 word66 word67 word68 word69 word70 word71 word72 word73 word74 word75 word76 word77 word78 word79 word80 word81 word82 word83 word84 word85 word86 word87 word88 word89 word90 word91 word92 word93 word94 word95 word96 word97 word98 word99 word100 word101 word102 word103 word104 word105 word106 word107 word108 word109 word110 word111 word112 word113 word114 word115 word116 word117 word118 word119 word120 word121 word122 word123 word124 word125 word126 word127 word128 word129 word130 word131 word132 word133 word134 word135 word136 word137 word138 word139 word140 word141 word142 word143 word144 word145 word146 word147 word148 word149 word150 word151 word152 word153 word154 word155 word156 word157 word158 word159 word160 word161 word162 word163 word164 word165 word166 word167 word168 word169 word170 word171 word172 word173 word174 word175 word176 word177 word178 word179 word180 word181 word182 word183 word184 word185 word186 word187 word188 word189 word190 word191 word192 word193 word194 word195 word196 word197 word198 word199"
+            },
+            {
+              "index": 899,
+              "path": "/body/p[900]",
+              "text": "word0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28 word29 word30 word31 word32 word33 word34 word35 word36 word37 word38 word39 word40 word41 word42 word43 word44 word45 word46 word47 word48 word49 word50 word51 word52 word53 word54 word55 word56 word57 word58 word59 word60 word61 word62 word63 word64 word65 word66 word67 word68 word69 word70 word71 word72 word73 word74 word75 word76 word77 word78 word79 word80 word81 word82 word83 word84 word85 word86 word87 word88 word89 word90 word91 word92 word93 word94 word95 word96 word97 word98 word99 word100 word101 word102 word103 word104 word105 word106 word107 word108 word109 word110 word111 word112 word113 word114 word115 word116 word117 word118 word119 word120 word121 word122 word123 word124 word125 word126 word127 word128 word129 word130 word131 word132 word133 word134 word135 word136 word137 word138 word139 word140 word141 word142 word143 word144 word145 word146 word147 word148 word149 word150 word151 word152 word153 word154 word155 word156 word157 word158 word159 word160 word161 word162 word163 word164 word165 word166 word167 word168 word169 word170 word171 word172 word173 word174 word175 word176 word177 word178 word179 word180 word181 word182 word183 word184 word185 word186 word187 word188 word189 word190 word191 word192 word193 word194 word195 word196 word197 word198 word199"
+            }
+          ],
+          "spineIndex": 0,
+          "title": "1"
+        }
+      ]
+    },
+    "pride-epub2.epub": {
+      "documents": [
+        {
+          "ids": [],
+          "nonEmptyParagraphCount": 0,
+          "paragraphCount": 0,
+          "path": "OEBPS/wrap0000.html",
+          "samples": [],
+          "spineIndex": 0,
+          "title": "\"Cover\""
+        },
+        {
+          "ids": [
+            "Chapter_I",
+            "LIST_OF_ILLUSTRATIONS",
+            "PREFACE",
+            "id-7969235646995505742",
+            "img_images_colophon.png",
+            "img_images_front.png",
+            "img_images_i_003.jpg",
+            "img_images_i_008.png",
+            "img_images_i_010.jpg",
+            "img_images_i_026.jpg",
+            "img_images_i_030.jpg",
+            "img_images_peacock-1894.png",
+            "page_1",
+            "page_2",
+            "page_iv",
+            "page_ix",
+            "page_v",
+            "page_vii",
+            "page_x",
+            "page_xi",
+            "page_xii",
+            "page_xiii",
+            "page_xiv",
+            "page_xix",
+            "page_xv",
+            "page_xvi",
+            "page_xvii",
+            "page_xviii",
+            "page_xx",
+            "page_xxi",
+            "page_xxii",
+            "page_xxiii",
+            "page_xxiv",
+            "page_xxv",
+            "pg-header",
+            "pg-header-authlist",
+            "pg-header-heading",
+            "pg-machine-header",
+            "pg-start-separator",
+            "pg-title-no-subtitle",
+            "pgepubid00000",
+            "pgepubid00001",
+            "pgepubid00002",
+            "pgepubid00003",
+            "pgepubid00004",
+            "pgepubid00005",
+            "pgepubid00006",
+            "pgepubid00007",
+            "pgepubid00008",
+            "pgepubid00009",
+            "pgepubid00010",
+            "pgepubid00011",
+            "pgepubid00012",
+            "pgepubid00013",
+            "pgepubid00014",
+            "pgepubid00015",
+            "pgepubid00016",
+            "pgepubid00017",
+            "pgepubid00018",
+            "pgepubid00019",
+            "pgepubid00020",
+            "pgepubid00021",
+            "pgepubid00022",
+            "pgepubid00023"
+          ],
+          "nonEmptyParagraphCount": 34,
+          "paragraphCount": 35,
+          "path": "OEBPS/1306980130634175271_1342-h-0.htm.html",
+          "samples": [
+            {
+              "index": 0,
+              "path": "/body/div[1]/div[2]/p[1]",
+              "text": "Title : Pride and Prejudice"
+            },
+            {
+              "index": 34,
+              "path": "/body/p[26]",
+              "text": "\u201c You want to tell me, and I have no objection to hearing it.\u201d"
+            }
+          ],
+          "spineIndex": 1,
+          "title": "PRIDE. and PREJUDICE"
+        },
+        {
+          "ids": [
+            "CHAPTER_II",
+            "CHAPTER_III",
+            "CHAPTER_IV",
+            "CHAPTER_V",
+            "CHAPTER_VI",
+            "ebm_caption0",
+            "ebm_caption1",
+            "ebm_caption2",
+            "ebm_caption3",
+            "ebm_caption4",
+            "ebm_caption5",
+            "img_images_i_031.jpg",
+            "img_images_i_034.jpg",
+            "img_images_i_035_a.jpg",
+            "img_images_i_035_b.png",
+            "img_images_i_038.jpg",
+            "img_images_i_039_a.jpg",
+            "img_images_i_039_b.png",
+            "img_images_i_041.jpg",
+            "img_images_i_044.jpg",
+            "img_images_i_047_a.jpg",
+            "img_images_i_047_b.png",
+            "img_images_i_051_a.jpg",
+            "img_images_i_051_b.png",
+            "img_images_i_053.jpg",
+            "img_images_i_055.jpg",
+            "img_images_i_056_a.jpg",
+            "img_images_i_056_b.png",
+            "page_10",
+            "page_11",
+            "page_12",
+            "page_13",
+            "page_14",
+            "page_15",
+            "page_16",
+            "page_17",
+            "page_18",
+            "page_19",
+            "page_20",
+            "page_21",
+            "page_22",
+            "page_23",
+            "page_24",
+            "page_25",
+            "page_26",
+            "page_27",
+            "page_28",
+            "page_29",
+            "page_3",
+            "page_30",
+            "page_31",
+            "page_4",
+            "page_5",
+            "page_6",
+            "page_7",
+            "page_8",
+            "page_9",
+            "pgepubid00024",
+            "pgepubid00025",
+            "pgepubid00026",
+            "pgepubid00027",
+            "pgepubid00028",
+            "pgepubid00029",
+            "pgepubid00030",
+            "pgepubid00031",
+            "pgepubid00032",
+            "pgepubid00033",
+            "pgepubid00034",
+            "pgepubid00035",
+            "pgepubid00036",
+            "pgepubid00037",
+            "pgepubid00038",
+            "pgepubid00039",
+            "pgepubid00040",
+            "pgepubid00041",
+            "pgepubid00042",
+            "pgepubid00043",
+            "pgepubid00044",
+            "pgepubid00045",
+            "pgepubid00046",
+            "pgepubid00047",
+            "pgepubid00048",
+            "pgepubid00049",
+            "pgepubid00050",
+            "pgepubid00051",
+            "pgepubid00052",
+            "pgepubid00053",
+            "pgepubid00054",
+            "pgepubid00055",
+            "pgepubid00056"
+          ],
+          "nonEmptyParagraphCount": 140,
+          "paragraphCount": 142,
+          "path": "OEBPS/1306980130634175271_1342-h-1.htm.html",
+          "samples": [
+            {
+              "index": 0,
+              "path": "/body/div[1]/div[1]/p[1]",
+              "text": "\u201cHe came down to see the place\u201d"
+            },
+            {
+              "index": 37,
+              "path": "/body/p[34]",
+              "text": "Mrs. Bennet deigned not to make any reply; but, unable to contain herself, began scolding one of her daughters."
+            },
+            {
+              "index": 74,
+              "path": "/body/div[5]/div[1]/p[1]",
+              "text": "\u201cShe is tolerable\u201d"
+            },
+            {
+              "index": 111,
+              "path": "/body/div[6]/div[1]/p[2]",
+              "text": "[ Copyright 1894 by George Allen. ]"
+            },
+            {
+              "index": 141,
+              "path": "/body/p[131]",
+              "text": "\u201cBut if he does it any more, I shall certainly let him know that I see what he is about. He has a very satirical eye, and if I do not begin by being impertinent myself, I shall soon grow afraid of him.\u201d"
+            }
+          ],
+          "spineIndex": 2,
+          "title": "I hope Mr. Bingley will like it. CHAPTER II."
+        },
+        {
+          "ids": [
+            "CHAPTER_IX",
+            "CHAPTER_VII",
+            "CHAPTER_VIII",
+            "CHAPTER_X",
+            "ebm_caption6",
+            "ebm_caption7",
+            "ebm_caption8",
+            "img_images_i_060.jpg",
+            "img_images_i_065_a.jpg",
+            "img_images_i_065_b.png",
+            "img_images_i_069.jpg",
+            "img_images_i_073.jpg",
+            "img_images_i_074_a.jpg",
+            "img_images_i_074_b.png",
+            "img_images_i_082_a.jpg",
+            "img_images_i_082_b.png",
+            "img_images_i_089_a.jpg",
+            "img_images_i_089_b.png",
+            "page_32",
+            "page_33",
+            "page_34",
+            "page_35",
+            "page_36",
+            "page_37",
+            "page_38",
+            "page_39",
+            "page_40",
+            "page_41",
+            "page_42",
+            "page_43",
+            "page_44",
+            "page_45",
+            "page_46",
+            "page_47",
+            "page_48",
+            "page_49",
+            "page_50",
+            "page_51",
+            "page_52",
+            "page_53",
+            "page_54",
+            "page_55",
+            "page_56",
+            "page_57",
+            "page_58",
+            "page_59",
+            "page_60",
+            "page_61",
+            "page_62",
+            "page_63",
+            "page_64",
+            "page_65",
+            "page_66",
+            "page_67",
+            "pgepubid00057",
+            "pgepubid00058",
+            "pgepubid00059",
+            "pgepubid00060",
+            "pgepubid00061",
+            "pgepubid00062",
+            "pgepubid00063",
+            "pgepubid00064",
+            "pgepubid00065",
+            "pgepubid00066",
+            "pgepubid00067",
+            "pgepubid00068",
+            "pgepubid00069",
+            "pgepubid00070",
+            "pgepubid00071",
+            "pgepubid00072",
+            "pgepubid00073",
+            "pgepubid00074",
+            "pgepubid00075",
+            "pgepubid00076",
+            "pgepubid00077",
+            "pgepubid00078",
+            "pgepubid00079",
+            "pgepubid00080",
+            "pgepubid00081",
+            "pgepubid00082",
+            "pgepubid00083",
+            "pgepubid00084",
+            "pgepubid00085",
+            "pgepubid00086",
+            "pgepubid00087",
+            "pgepubid00088",
+            "pgepubid00089",
+            "pgepubid00090",
+            "pgepubid00091",
+            "pgepubid00092",
+            "pgepubid00093"
+          ],
+          "nonEmptyParagraphCount": 243,
+          "paragraphCount": 244,
+          "path": "OEBPS/1306980130634175271_1342-h-2.htm.html",
+          "samples": [
+            {
+              "index": 0,
+              "path": "/body/div[1]/div[1]/p[1]",
+              "text": "\u201cThe entreaties of several\u201d [ Copyright 1894 by George Allen. ]"
+            },
+            {
+              "index": 37,
+              "path": "/body/p[37]",
+              "text": "\u201cNay, if you are so serious about it, I shall consider the matter as absolutely settled. You will have a charming mother-in-law, indeed, and of course she will be always at Pemberley with you.\u201d"
+            },
+            {
+              "index": 74,
+              "path": "/body/p[67]",
+              "text": "\u201cWell, my dear,\u201d said Mr. Bennet, when Elizabeth had read the note aloud, \u201cif your daughter should have a dangerous fit of illness\u2014if she should die\u2014it would be a comfort to know that it was all in pursuit of Mr. Bingley, and under your orders.\u201d"
+            },
+            {
+              "index": 111,
+              "path": "/body/p[103]",
+              "text": "With a renewal of tenderness, however, they repaired to her room on leaving the dining-parlour, and sat with her till summoned to coffee. She was still very poorly, and Elizabeth would not quit her at all, till late in the evening, when she had the comfort of seeing her asleep, and when it appeared to her rather right than pleasant that she should go down stairs herself. On entering the drawing-room, she found the whole party at loo, and was immediately invited to join them; but suspecting them to be playing high, she declined it, and making her sister the excuse, said she would amuse herself, for the short time she could stay below, with a book. Mr. Hurst looked at her with astonishment."
+            },
+            {
+              "index": 148,
+              "path": "/body/p[140]",
+              "text": "Miss Bingley was not so entirely satisfied with this reply as to continue the subject."
+            },
+            {
+              "index": 185,
+              "path": "/body/p[177]",
+              "text": "Lydia was a stout, well-grown girl of fifteen, with a fine complexion and good-humoured countenance; a favourite with her mother, whose affection had brought her into public at an early age. She had high animal spirits, and a sort of natural self-consequence, which the attentions of the officers, to whom her uncle\u2019s good dinners and her own easy manners recommended her, had increased into assurance. She was very equal, therefore, to address Mr. Bingley on the subject of the ball, and abruptly reminded him of his promise; adding, that it would be the most shameful thing in the world if he did not keep it. His answer to this sudden attack was delightful to her mother\u2019s ear."
+            },
+            {
+              "index": 222,
+              "path": "/body/p[214]",
+              "text": "\u201cYou expect me to account for opinions which you choose to call mine, but which I have never acknowledged. Allowing the case, however, to stand according to your representation, you must remember, Miss Bennet, that the friend who is supposed to desire his return to the house, and the delay of his plan, has merely desired it, asked it without offering one argument in favour of its propriety.\u201d"
+            },
+            {
+              "index": 243,
+              "path": "/body/p[235]",
+              "text": "\u201cI hope,\u201d said she, as they were walking together in the shrubbery the next day, \u201cyou will give your mother-in-law a few hints, when this desirable event takes place, as to the advantage of holding her tongue; and if you can compass it, to cure the younger girls of running after the officers. And, if I may mention so delicate a subject, endeavour to check that little something, bordering on conceit and impertinence, which your lady possesses.\u201d"
+            }
+          ],
+          "spineIndex": 3,
+          "title": "A note for Miss Bennet. CHAPTER VII."
+        },
+        {
+          "ids": [
+            "CHAPTER_XI",
+            "CHAPTER_XII",
+            "CHAPTER_XIII",
+            "CHAPTER_XIV",
+            "CHAPTER_XV",
+            "CHAPTER_XVI",
+            "ebm_caption10",
+            "ebm_caption9",
+            "img_images_i_096.jpg",
+            "img_images_i_098_a.jpg",
+            "img_images_i_098_b.png",
+            "img_images_i_104_a.jpg",
+            "img_images_i_104_b.png",
+            "img_images_i_107_a.jpg",
+            "img_images_i_107_b.png",
+            "img_images_i_113_a.jpg",
+            "img_images_i_113_b.png",
+            "img_images_i_116.jpg",
+            "img_images_i_118_a.jpg",
+            "img_images_i_118_b.png",
+            "img_images_i_124_a.jpg",
+            "img_images_i_124_b.png",
+            "page_68",
+            "page_69",
+            "page_70",
+            "page_71",
+            "page_72",
+            "page_73",
+            "page_74",
+            "page_75",
+            "page_76",
+            "page_77",
+            "page_78",
+            "page_79",
+            "page_80",
+            "page_81",
+            "page_82",
+            "page_83",
+            "page_84",
+            "page_85",
+            "page_86",
+            "page_87",
+            "page_88",
+            "page_89",
+            "page_90",
+            "page_91",
+            "page_92",
+            "page_93",
+            "page_94",
+            "page_95",
+            "page_96",
+            "page_97",
+            "pgepubid00094",
+            "pgepubid00095",
+            "pgepubid00096",
+            "pgepubid00097",
+            "pgepubid00098",
+            "pgepubid00099",
+            "pgepubid00100",
+            "pgepubid00101",
+            "pgepubid00102",
+            "pgepubid00103",
+            "pgepubid00104",
+            "pgepubid00105",
+            "pgepubid00106",
+            "pgepubid00107",
+            "pgepubid00108",
+            "pgepubid00109",
+            "pgepubid00110",
+            "pgepubid00111",
+            "pgepubid00112",
+            "pgepubid00113",
+            "pgepubid00114",
+            "pgepubid00115",
+            "pgepubid00116",
+            "pgepubid00117",
+            "pgepubid00118",
+            "pgepubid00119",
+            "pgepubid00120",
+            "pgepubid00121",
+            "pgepubid00122",
+            "pgepubid00123",
+            "pgepubid00124",
+            "pgepubid00125",
+            "pgepubid00126"
+          ],
+          "nonEmptyParagraphCount": 119,
+          "paragraphCount": 119,
+          "path": "OEBPS/1306980130634175271_1342-h-3.htm.html",
+          "samples": [
+            {
+              "index": 0,
+              "path": "/body/div[1]/div[1]/div[1]/p[1]",
+              "text": "\u201cNo, no; stay where you are\u201d"
+            },
+            {
+              "index": 37,
+              "path": "/body/p[36]",
+              "text": "Elizabeth turned away to hide a smile."
+            },
+            {
+              "index": 74,
+              "path": "/body/p[69]",
+              "text": "\u201cHe must be an oddity, I think,\u201d said she. \u201cI cannot make him out. There is something very pompous in his style. And what can he mean by apologizing for being next in the entail? We cannot suppose he would help it, if he could. Can he be a sensible man, sir?\u201d"
+            },
+            {
+              "index": 111,
+              "path": "/body/p[105]",
+              "text": "In another minute Mr. Bingley, but without seeming to have noticed what passed, took leave and rode on with his friend."
+            },
+            {
+              "index": 118,
+              "path": "/body/p[112]",
+              "text": "In describing to her all the grandeur of Lady Catherine and her mansion, with occasional digressions in praise of his own humble abode, and the improvements it was receiving, he was happily employed until the gentlemen joined them; and he found in Mrs. Philips a very attentive listener, whose opinion of his consequence increased with what she heard, and who was resolving to retail it all among her neighbours as soon as she could. To the girls, who could not listen to their cousin, and who had nothing to do but to wish for an instrument, and examine their own indifferent imitations of china on the mantel-piece, the interval of waiting appeared very long. It was over at last, however. The gentlemen did approach: and when Mr. Wickham walked into the room, Elizabeth felt that she had neither been seeing him before, nor thinking of him since, with the smallest degree of unreasonable admiration. The officers of the \u2014\u2014shire were in general a very creditable, gentlemanlike set and the best of them were of the present party; but Mr. Wickham was as far beyond them all in person, countenance, air, and walk, as they were superior to the broad-faced stuffy uncle Philips, breathing port wine, who followed them into the room."
+            }
+          ],
+          "spineIndex": 4,
+          "title": "Piling up the fire. CHAPTER XI."
+        },
+        {
+          "ids": [
+            "CHAPTER_XVII",
+            "CHAPTER_XVIII",
+            "ebm_caption11",
+            "ebm_caption12",
+            "img_images_i_126.jpg",
+            "img_images_i_137_a.jpg",
+            "img_images_i_137_b.png",
+            "img_images_i_142_a.jpg",
+            "img_images_i_142_b.png",
+            "img_images_i_147.jpg",
+            "page_100",
+            "page_101",
+            "page_102",
+            "page_103",
+            "page_104",
+            "page_105",
+            "page_106",
+            "page_107",
+            "page_108",
+            "page_109",
+            "page_110",
+            "page_111",
+            "page_112",
+            "page_113",
+            "page_114",
+            "page_115",
+            "page_116",
+            "page_117",
+            "page_118",
+            "page_119",
+            "page_120",
+            "page_121",
+            "page_122",
+            "page_123",
+            "page_124",
+            "page_125",
+            "page_126",
+            "page_127",
+            "page_128",
+            "page_129",
+            "page_130",
+            "page_131",
+            "page_132",
+            "page_98",
+            "page_99",
+            "pgepubid00127",
+            "pgepubid00128",
+            "pgepubid00129",
+            "pgepubid00130",
+            "pgepubid00131",
+            "pgepubid00132",
+            "pgepubid00133",
+            "pgepubid00134",
+            "pgepubid00135",
+            "pgepubid00136",
+            "pgepubid00137",
+            "pgepubid00138",
+            "pgepubid00139",
+            "pgepubid00140",
+            "pgepubid00141",
+            "pgepubid00142",
+            "pgepubid00143",
+            "pgepubid00144",
+            "pgepubid00145",
+            "pgepubid00146",
+            "pgepubid00147",
+            "pgepubid00148",
+            "pgepubid00149",
+            "pgepubid00150",
+            "pgepubid00151",
+            "pgepubid00152",
+            "pgepubid00153",
+            "pgepubid00154",
+            "pgepubid00155",
+            "pgepubid00156",
+            "pgepubid00157",
+            "pgepubid00158",
+            "pgepubid00159",
+            "pgepubid00160",
+            "pgepubid00161"
+          ],
+          "nonEmptyParagraphCount": 153,
+          "paragraphCount": 153,
+          "path": "OEBPS/1306980130634175271_1342-h-4.htm.html",
+          "samples": [
+            {
+              "index": 0,
+              "path": "/body/div[1]/div[1]/p[1]",
+              "text": "\u201cThe officers of the \u2014\u2014shire\u201d"
+            },
+            {
+              "index": 37,
+              "path": "/body/p[36]",
+              "text": "\u201cHow strange!\u201d cried Elizabeth. \u201cHow abominable! I wonder that the very pride of this Mr. Darcy has not made him just to you. If from no better motive, that he should not have been too proud to be dishonest,\u2014for dishonesty I must call it.\u201d"
+            },
+            {
+              "index": 74,
+              "path": "/body/p[73]",
+              "text": "T ILL Elizabeth entered the drawing-room at Netherfield, and looked in vain for Mr. Wickham among the cluster of red coats there assembled, a doubt of his being present had never occurred to her. The certainty of meeting him had not been checked by any of those recollections that might not unreasonably have alarmed her. She had dressed with more than usual care, and prepared in the highest spirits for the conquest of all that remained unsubdued of his heart, trusting that it was not more than might be won in the course of the evening. But in an instant arose the dreadful suspicion of his being purposely omitted, for Mr. Darcy\u2019s pleasure, in the Bingleys\u2019 invitation to the officers; and though this was not exactly the case, the absolute fact of his absence was pronounced by his friend Mr. Denny, to whom Lydia eagerly applied, and who told them that Wickham had been obliged to go to town on business the day before, and was not yet returned; adding, with a significant smile,\u2014"
+            },
+            {
+              "index": 111,
+              "path": "/body/p[108]",
+              "text": "\u201cIt is particularly incumbent on those who never change their opinion, to be secure of judging properly at first.\u201d"
+            },
+            {
+              "index": 148,
+              "path": "/body/p[145]",
+              "text": "The rest of the evening brought her little amusement. She was teased by Mr. Collins, who continued most perseveringly by her side; and though he could not prevail with her to dance with him again, put it out of her power to dance with others. In vain did she entreat him to stand up with somebody else, and offered to introduce him to any young lady in the room. He assured her that, as to dancing, he was perfectly indifferent to it; that his chief object was, by delicate attentions, to recommend himself to her; and that he should therefore make a point of remaining close to her the whole evening. There was no arguing upon such a project. She owed her greatest relief to her friend Miss Lucas, who often joined them, and good-naturedly engaged Mr. Collins\u2019s conversation to herself."
+            },
+            {
+              "index": 152,
+              "path": "/body/p[149]",
+              "text": "Mrs. Bennet was perfectly satisfied; and quitted the house under the delightful persuasion that, allowing for the necessary preparations of settlements, new carriages, and wedding clothes, she should undoubtedly see her daughter settled at Netherfield in the course of three or four months. Of having another daughter married to Mr. Collins she thought with equal certainty, and with considerable, though not equal, pleasure. Elizabeth was the least dear to her of all her children; and though the man and the match were quite good enough for her , the worth of each was eclipsed by Mr. Bingley and Netherfield."
+            }
+          ],
+          "spineIndex": 5,
+          "title": "delighted to see their dear friend again. CHAPTER XVII."
+        },
+        {
+          "ids": [
+            "CHAPTER_XIX",
+            "CHAPTER_XX",
+            "CHAPTER_XXI",
+            "CHAPTER_XXII",
+            "CHAPTER_XXIII",
+            "ebm_caption13",
+            "ebm_caption14",
+            "ebm_caption15",
+            "img_images_i_161_a.jpg",
+            "img_images_i_161_b.png",
+            "img_images_i_168_a.jpg",
+            "img_images_i_168_b.png",
+            "img_images_i_172.jpg",
+            "img_images_i_175_a.jpg",
+            "img_images_i_175_b.png",
+            "img_images_i_177.jpg",
+            "img_images_i_183_a.jpg",
+            "img_images_i_183_b.png",
+            "img_images_i_185.jpg",
+            "img_images_i_190_a.jpg",
+            "img_images_i_190_b.png",
+            "page_133",
+            "page_134",
+            "page_135",
+            "page_136",
+            "page_137",
+            "page_138",
+            "page_139",
+            "page_140",
+            "page_141",
+            "page_142",
+            "page_143",
+            "page_144",
+            "page_145",
+            "page_146",
+            "page_147",
+            "page_148",
+            "page_149",
+            "page_150",
+            "page_151",
+            "page_152",
+            "page_153",
+            "page_154",
+            "page_155",
+            "page_156",
+            "page_157",
+            "page_158",
+            "page_159",
+            "page_160",
+            "page_161",
+            "page_162",
+            "page_163",
+            "page_164",
+            "page_165",
+            "page_166",
+            "pgepubid00162",
+            "pgepubid00163",
+            "pgepubid00164",
+            "pgepubid00165",
+            "pgepubid00166",
+            "pgepubid00167",
+            "pgepubid00168",
+            "pgepubid00169",
+            "pgepubid00170",
+            "pgepubid00171",
+            "pgepubid00172",
+            "pgepubid00173",
+            "pgepubid00174",
+            "pgepubid00175",
+            "pgepubid00176",
+            "pgepubid00177",
+            "pgepubid00178",
+            "pgepubid00179",
+            "pgepubid00180",
+            "pgepubid00181",
+            "pgepubid00182",
+            "pgepubid00183",
+            "pgepubid00184",
+            "pgepubid00185",
+            "pgepubid00186",
+            "pgepubid00187",
+            "pgepubid00188",
+            "pgepubid00189",
+            "pgepubid00190",
+            "pgepubid00191",
+            "pgepubid00192",
+            "pgepubid00193",
+            "pgepubid00194",
+            "pgepubid00195",
+            "pgepubid00196",
+            "pgepubid00197"
+          ],
+          "nonEmptyParagraphCount": 125,
+          "paragraphCount": 125,
+          "path": "OEBPS/1306980130634175271_1342-h-5.htm.html",
+          "samples": [
+            {
+              "index": 0,
+              "path": "/body/p[1]",
+              "text": "T HE next day opened a new scene at Longbourn. Mr. Collins made his declaration in form. Having resolved to do it without loss of time, as his leave of absence extended only to the following Saturday, and having no feelings of diffidence to make it distressing to himself even at the moment, he set about it in a very orderly manner, with all the observances which he supposed a regular part of the business. On finding Mrs. Bennet, Elizabeth, and one of the younger girls together, soon after breakfast, he addressed the mother in these words,\u2014"
+            },
+            {
+              "index": 37,
+              "path": "/body/p[38]",
+              "text": "Elizabeth replied that it was."
+            },
+            {
+              "index": 74,
+              "path": "/body/p[72]",
+              "text": "\u201cMost willingly.\u201d"
+            },
+            {
+              "index": 111,
+              "path": "/body/p[107]",
+              "text": "\u201cGood Lord! Sir William, how can you tell such a story? Do not you know that Mr. Collins wants to marry Lizzy?\u201d"
+            },
+            {
+              "index": 124,
+              "path": "/body/p[120]",
+              "text": "Mr. Collins returned most punctually on the Monday fortnight, but his reception at Longbourn was not quite so gracious as it had been on his first introduction. He was too happy, however, to need much attention; and, luckily for the others, the business of love-making relieved them from a great deal of his company. The chief of every day was spent by him at Lucas Lodge, and he sometimes returned to Longbourn only in time to make an apology for his absence before the family went to bed."
+            }
+          ],
+          "spineIndex": 6,
+          "title": "\u201cto assure you in the most animated language.\u201d CHAPTER XIX."
+        },
+        {
+          "ids": [
+            "CHAPTER_XXIV",
+            "CHAPTER_XXV",
+            "CHAPTER_XXVI",
+            "CHAPTER_XXVII",
+            "CHAPTER_XXVIII",
+            "ebm_caption16",
+            "ebm_caption17",
+            "img_images_i_195.jpg",
+            "img_images_i_197_a.jpg",
+            "img_images_i_197_b.png",
+            "img_images_i_204_a.jpg",
+            "img_images_i_204_b.png",
+            "img_images_i_206.jpg",
+            "img_images_i_210_a.jpg",
+            "img_images_i_210_b.png",
+            "img_images_i_218_a.jpg",
+            "img_images_i_218_b.png",
+            "img_images_i_223_a.jpg",
+            "img_images_i_223_b.png",
+            "page_167",
+            "page_168",
+            "page_169",
+            "page_170",
+            "page_171",
+            "page_172",
+            "page_173",
+            "page_174",
+            "page_175",
+            "page_176",
+            "page_177",
+            "page_178",
+            "page_179",
+            "page_180",
+            "page_181",
+            "page_182",
+            "page_183",
+            "page_184",
+            "page_185",
+            "page_186",
+            "page_187",
+            "page_188",
+            "page_189",
+            "page_190",
+            "page_191",
+            "page_192",
+            "page_193",
+            "page_194",
+            "page_195",
+            "page_196",
+            "page_197",
+            "page_198",
+            "pgepubid00198",
+            "pgepubid00199",
+            "pgepubid00200",
+            "pgepubid00201",
+            "pgepubid00202",
+            "pgepubid00203",
+            "pgepubid00204",
+            "pgepubid00205",
+            "pgepubid00206",
+            "pgepubid00207",
+            "pgepubid00208",
+            "pgepubid00209",
+            "pgepubid00210",
+            "pgepubid00211",
+            "pgepubid00212",
+            "pgepubid00213",
+            "pgepubid00214",
+            "pgepubid00215",
+            "pgepubid00216",
+            "pgepubid00217",
+            "pgepubid00218",
+            "pgepubid00219",
+            "pgepubid00220",
+            "pgepubid00221",
+            "pgepubid00222",
+            "pgepubid00223",
+            "pgepubid00224",
+            "pgepubid00225",
+            "pgepubid00226",
+            "pgepubid00227",
+            "pgepubid00228",
+            "pgepubid00229",
+            "pgepubid00230",
+            "pgepubid00231",
+            "pgepubid00232",
+            "pgepubid00233"
+          ],
+          "nonEmptyParagraphCount": 128,
+          "paragraphCount": 128,
+          "path": "OEBPS/1306980130634175271_1342-h-6.htm.html",
+          "samples": [
+            {
+              "index": 0,
+              "path": "/body/div[1]/div[1]/p[1]",
+              "text": "\u201c Whenever she spoke in a low voice \u201d"
+            },
+            {
+              "index": 37,
+              "path": "/body/p[37]",
+              "text": "Mr. Bennet treated the matter differently. \u201cSo, Lizzy,\u201d said he, one day, \u201cyour sister is crossed in love, I find. I congratulate her. Next to being married, a girl likes to be crossed in love a little now and then. It is something to think of, and gives her a sort of distinction among her companions. When is your turn to come? You will hardly bear to be long outdone by Jane. Now is your time. Here are officers enough at Meryton to disappoint all the young ladies in the country. Let Wickham be your man. He is a pleasant fellow, and would jilt you creditably.\u201d"
+            },
+            {
+              "index": 74,
+              "path": "/body/p[72]",
+              "text": "Mr. Collins returned into Hertfordshire soon after it had been quitted by the Gardiners and Jane; but, as he took up his abode with the Lucases, his arrival was no great inconvenience to Mrs. Bennet. His marriage was now fast approaching; and she was at length so far resigned as to think it inevitable, and even repeatedly to say, in an ill-natured tone, that she \u201c wished they might be happy.\u201d Thursday was to be the wedding-day, and on Wednesday Miss Lucas paid her farewell visit; and when she rose to take leave, Elizabeth, ashamed of her mother\u2019s ungracious and reluctant good wishes, and sincerely affected herself, accompanied her out of the room. As they went down stairs together, Charlotte said,\u2014"
+            },
+            {
+              "index": 111,
+              "path": "/body/p[107]",
+              "text": "\u201cNo, Lizzy, that is what I do not choose. I should be sorry, you know, to think ill of a young man who has lived so long in Derbyshire.\u201d"
+            },
+            {
+              "index": 127,
+              "path": "/body/p[123]",
+              "text": "About the middle of the next day, as she was in her room getting ready for a walk, a sudden noise below seemed to speak the whole house in confusion; and, after listening a moment, she heard somebody running upstairs in a violent hurry, and calling loudly after her. She opened the door, and met Maria in the landing-place, who, breathless with agitation, cried out,\u2014"
+            }
+          ],
+          "spineIndex": 7,
+          "title": "CHAPTER XXIV."
+        },
+        {
+          "ids": [
+            "CHAPTER_XXIX",
+            "CHAPTER_XXX",
+            "CHAPTER_XXXI",
+            "CHAPTER_XXXII",
+            "ebm_caption18",
+            "ebm_caption19",
+            "ebm_caption20",
+            "img_images_i_227.jpg",
+            "img_images_i_229_a.jpg",
+            "img_images_i_229_b.png",
+            "img_images_i_238_a.jpg",
+            "img_images_i_238_b.png",
+            "img_images_i_240.jpg",
+            "img_images_i_242.jpg",
+            "img_images_i_244_a.jpg",
+            "img_images_i_244_b.png",
+            "img_images_i_250_a.jpg",
+            "img_images_i_250_b.png",
+            "page_199",
+            "page_200",
+            "page_201",
+            "page_202",
+            "page_203",
+            "page_204",
+            "page_205",
+            "page_206",
+            "page_207",
+            "page_208",
+            "page_209",
+            "page_210",
+            "page_211",
+            "page_212",
+            "page_213",
+            "page_214",
+            "page_215",
+            "page_216",
+            "page_217",
+            "page_218",
+            "page_219",
+            "page_220",
+            "page_221",
+            "page_222",
+            "page_223",
+            "page_224",
+            "page_225",
+            "pgepubid00234",
+            "pgepubid00235",
+            "pgepubid00236",
+            "pgepubid00237",
+            "pgepubid00238",
+            "pgepubid00239",
+            "pgepubid00240",
+            "pgepubid00241",
+            "pgepubid00242",
+            "pgepubid00243",
+            "pgepubid00244",
+            "pgepubid00245",
+            "pgepubid00246",
+            "pgepubid00247",
+            "pgepubid00248",
+            "pgepubid00249",
+            "pgepubid00250",
+            "pgepubid00251",
+            "pgepubid00252",
+            "pgepubid00253",
+            "pgepubid00254",
+            "pgepubid00255",
+            "pgepubid00256",
+            "pgepubid00257",
+            "pgepubid00258",
+            "pgepubid00259",
+            "pgepubid00260",
+            "pgepubid00261"
+          ],
+          "nonEmptyParagraphCount": 125,
+          "paragraphCount": 125,
+          "path": "OEBPS/1306980130634175271_1342-h-7.htm.html",
+          "samples": [
+            {
+              "index": 0,
+              "path": "/body/div[1]/div[1]/div[1]/p[1]",
+              "text": "\u201cIn Conversation with the ladies\u201d"
+            },
+            {
+              "index": 37,
+              "path": "/body/p[36]",
+              "text": "\u201cWe never had any governess.\u201d"
+            },
+            {
+              "index": 74,
+              "path": "/body/p[70]",
+              "text": "\u201cOf music! Then pray speak aloud. It is of all subjects my delight. I must have my share in the conversation, if you are speaking of music. There are few people in England, I suppose, who have more true enjoyment of music than myself, or a better natural taste. If I had ever learnt, I should have been a great proficient. And so would Anne, if her health had allowed her to apply. I am confident that she would have performed delightfully. How does Georgiana get on, Darcy?\u201d"
+            },
+            {
+              "index": 111,
+              "path": "/body/p[107]",
+              "text": "\u201cI believe she did\u2014and I am sure she could not have bestowed her kindness on a more grateful object.\u201d"
+            },
+            {
+              "index": 124,
+              "path": "/body/p[120]",
+              "text": "A short dialogue on the subject of the country ensued, on either side calm and concise\u2014and soon put an end to by the entrance of Charlotte and her sister, just returned from their walk. The t\u00eate-\u00e0-t\u00eate surprised them. Mr. Darcy related the mistake which had occasioned his intruding on Miss Bennet, and, after sitting a few minutes longer, without saying much to anybody, went away."
+            }
+          ],
+          "spineIndex": 8,
+          "title": "\u201cLady Catherine, said she, you have given me a treasure.\u201d CHAPTER XXIX."
+        },
+        {
+          "ids": [
+            "CHAPTER_XXXIII",
+            "CHAPTER_XXXIV",
+            "CHAPTER_XXXV",
+            "CHAPTER_XXXVI",
+            "ebm_caption21",
+            "img_images_i_254.jpg",
+            "img_images_i_257_a.jpg",
+            "img_images_i_257_b.png",
+            "img_images_i_264_a.jpg",
+            "img_images_i_264_b.png",
+            "img_images_i_272_a.jpg",
+            "img_images_i_272_b.png",
+            "img_images_i_282_a.jpg",
+            "img_images_i_282_b.png",
+            "page_226",
+            "page_227",
+            "page_228",
+            "page_229",
+            "page_230",
+            "page_231",
+            "page_232",
+            "page_233",
+            "page_234",
+            "page_235",
+            "page_236",
+            "page_237",
+            "page_238",
+            "page_239",
+            "page_240",
+            "page_241",
+            "page_242",
+            "page_243",
+            "page_244",
+            "page_245",
+            "page_246",
+            "page_247",
+            "page_248",
+            "page_249",
+            "page_250",
+            "page_251",
+            "page_252",
+            "page_253",
+            "page_254",
+            "page_255",
+            "page_256",
+            "pgepubid00262",
+            "pgepubid00263",
+            "pgepubid00264",
+            "pgepubid00265",
+            "pgepubid00266",
+            "pgepubid00267",
+            "pgepubid00268",
+            "pgepubid00269",
+            "pgepubid00270",
+            "pgepubid00271",
+            "pgepubid00272",
+            "pgepubid00273",
+            "pgepubid00274",
+            "pgepubid00275",
+            "pgepubid00276",
+            "pgepubid00277",
+            "pgepubid00278",
+            "pgepubid00279",
+            "pgepubid00280",
+            "pgepubid00281",
+            "pgepubid00282",
+            "pgepubid00283",
+            "pgepubid00284",
+            "pgepubid00285",
+            "pgepubid00286",
+            "pgepubid00287",
+            "pgepubid00288",
+            "pgepubid00289"
+          ],
+          "nonEmptyParagraphCount": 89,
+          "paragraphCount": 90,
+          "path": "OEBPS/1306980130634175271_1342-h-8.htm.html",
+          "samples": [
+            {
+              "index": 0,
+              "path": "/body/div[1]/div[1]/p[1]",
+              "text": "\u201cAccompanied by their aunt\u201d"
+            },
+            {
+              "index": 37,
+              "path": "/body/p[36]",
+              "text": "\u201cI understood that there were some very strong objections against the lady.\u201d"
+            },
+            {
+              "index": 74,
+              "path": "/body/p[73]",
+              "text": "\u201cYou could not have made me the offer of your hand in any possible way that would have tempted me to accept it.\u201d"
+            },
+            {
+              "index": 89,
+              "path": "/body/p[88]",
+              "text": "The extravagance and general profligacy which he scrupled not to lay to Mr. Wickham\u2019s charge exceedingly shocked her; the more so, as she could bring no proof of its injustice. She had never heard of him before his entrance into the \u2014\u2014shire militia, in which he had engaged at the persuasion of the young man, who, on meeting him accidentally in town, had there renewed a slight acquaintance. Of his former way of life, nothing had been known in Hertfordshire but what he told"
+            }
+          ],
+          "spineIndex": 9,
+          "title": "\u201cOn looking up.\u201d CHAPTER XXXIII."
+        },
+        {
+          "ids": [
+            "CHAPTER_XL",
+            "CHAPTER_XXXIX",
+            "CHAPTER_XXXVII",
+            "CHAPTER_XXXVIII",
+            "ebm_caption22",
+            "ebm_caption23",
+            "ebm_caption24",
+            "img_images_i_285.jpg",
+            "img_images_i_290_a.jpg",
+            "img_images_i_290_b.png",
+            "img_images_i_292.jpg",
+            "img_images_i_296_a.jpg",
+            "img_images_i_296_b.png",
+            "img_images_i_299.jpg",
+            "img_images_i_301_a.jpg",
+            "img_images_i_301_b.png",
+            "img_images_i_307_a.jpg",
+            "img_images_i_307_b.png",
+            "page_257",
+            "page_258",
+            "page_259",
+            "page_260",
+            "page_261",
+            "page_262",
+            "page_263",
+            "page_264",
+            "page_265",
+            "page_266",
+            "page_267",
+            "page_268",
+            "page_269",
+            "page_270",
+            "page_271",
+            "page_272",
+            "page_273",
+            "page_274",
+            "page_275",
+            "page_276",
+            "page_277",
+            "page_278",
+            "page_279",
+            "page_280",
+            "page_281",
+            "page_282",
+            "page_283",
+            "pgepubid00290",
+            "pgepubid00291",
+            "pgepubid00292",
+            "pgepubid00293",
+            "pgepubid00294",
+            "pgepubid00295",
+            "pgepubid00296",
+            "pgepubid00297",
+            "pgepubid00298",
+            "pgepubid00299",
+            "pgepubid00300",
+            "pgepubid00301",
+            "pgepubid00302",
+            "pgepubid00303",
+            "pgepubid00304",
+            "pgepubid00305",
+            "pgepubid00306",
+            "pgepubid00307",
+            "pgepubid00308",
+            "pgepubid00309",
+            "pgepubid00310",
+            "pgepubid00311",
+            "pgepubid00312",
+            "pgepubid00313",
+            "pgepubid00314",
+            "pgepubid00315",
+            "pgepubid00316",
+            "pgepubid00317",
+            "pgepubid00318"
+          ],
+          "nonEmptyParagraphCount": 105,
+          "paragraphCount": 105,
+          "path": "OEBPS/1306980130634175271_1342-h-9.htm.html",
+          "samples": [
+            {
+              "index": 0,
+              "path": "/body/div[1]/div[1]/div[1]/p[1]",
+              "text": "\u201cMeeting accidentally in Town\u201d"
+            },
+            {
+              "index": 37,
+              "path": "/body/p[34]",
+              "text": "\u201cIt gives me the greatest pleasure to hear that you have passed your time not disagreeably. We have certainly done our best; and most fortunately having it in our power to introduce you to very superior society, and from our connection with Rosings, the frequent means of varying the humble home scene, I think we may flatter ourselves that your Hunsford visit cannot have been entirely irksome. Our situation with regard to Lady Catherine\u2019s family is, indeed, the sort of extraordinary advantage and blessing which few can boast. You see on what a footing we are. You see how continually we are engaged there. In truth, I must acknowledge, that, with all the disadvantages of this humble parsonage, I should not think anyone abiding in it an object of compassion, while they are sharers of our intimacy at Rosings.\u201d"
+            },
+            {
+              "index": 74,
+              "path": "/body/p[70]",
+              "text": "To this, Mary very gravely replied, \u201cFar be it from me, my dear sister, to depreciate such pleasures. They would doubtless be congenial with the generality of female minds. But I confess they would have no charms for me . I should infinitely prefer a book.\u201d"
+            },
+            {
+              "index": 104,
+              "path": "/body/p[100]",
+              "text": "\u201cWell, Lizzy,\u201d said Mrs. Bennet, one day, \u201cwhat is your opinion now of this sad business of Jane\u2019s? For my part, I am determined never to speak of it again to anybody. I told my sister Philips so the other day. But I cannot find out that Jane saw anything of him in London. Well, he is a very undeserving young man\u2014and I do not suppose there is the least chance in the world of her ever getting him now. There is no talk of his coming to Netherfield again in the summer; and I have inquired of everybody, too, who is likely to know.\u201d"
+            }
+          ],
+          "spineIndex": 10,
+          "title": "\u201cHis parting obeisance.\u201d CHAPTER XXXVII."
+        },
+        {
+          "ids": [
+            "CHAPTER_XLI",
+            "CHAPTER_XLII",
+            "CHAPTER_XLIII",
+            "CHAPTER_XLIV",
+            "ebm_caption25",
+            "ebm_caption26",
+            "img_images_i_312.jpg",
+            "img_images_i_314_a.jpg",
+            "img_images_i_314_b.png",
+            "img_images_i_319.jpg",
+            "img_images_i_323_a.jpg",
+            "img_images_i_323_b.png",
+            "img_images_i_330_a.jpg",
+            "img_images_i_330_b.png",
+            "img_images_i_347_a.jpg",
+            "img_images_i_347_b.png",
+            "page_284",
+            "page_285",
+            "page_286",
+            "page_287",
+            "page_288",
+            "page_289",
+            "page_290",
+            "page_291",
+            "page_292",
+            "page_293",
+            "page_294",
+            "page_295",
+            "page_296",
+            "page_297",
+            "page_298",
+            "page_299",
+            "page_300",
+            "page_301",
+            "page_302",
+            "page_303",
+            "page_304",
+            "page_305",
+            "page_306",
+            "page_307",
+            "page_308",
+            "page_309",
+            "page_310",
+            "page_311",
+            "page_312",
+            "page_313",
+            "page_314",
+            "page_315",
+            "page_316",
+            "page_317",
+            "page_318",
+            "page_319",
+            "page_320",
+            "page_321",
+            "pgepubid00319",
+            "pgepubid00320",
+            "pgepubid00321",
+            "pgepubid00322",
+            "pgepubid00323",
+            "pgepubid00324",
+            "pgepubid00325",
+            "pgepubid00326",
+            "pgepubid00327",
+            "pgepubid00328",
+            "pgepubid00329",
+            "pgepubid00330",
+            "pgepubid00331",
+            "pgepubid00332",
+            "pgepubid00333",
+            "pgepubid00334",
+            "pgepubid00335",
+            "pgepubid00336",
+            "pgepubid00337",
+            "pgepubid00338",
+            "pgepubid00339",
+            "pgepubid00340",
+            "pgepubid00341",
+            "pgepubid00342",
+            "pgepubid00343",
+            "pgepubid00344",
+            "pgepubid00345",
+            "pgepubid00346",
+            "pgepubid00347",
+            "pgepubid00348",
+            "pgepubid00349",
+            "pgepubid00350",
+            "pgepubid00351",
+            "pgepubid00352",
+            "pgepubid00353",
+            "pgepubid00354",
+            "pgepubid00355",
+            "pgepubid00356",
+            "pgepubid00357"
+          ],
+          "nonEmptyParagraphCount": 155,
+          "paragraphCount": 156,
+          "path": "OEBPS/1306980130634175271_1342-h-10.htm.html",
+          "samples": [
+            {
+              "index": 0,
+              "path": "/body/div[1]/div[1]/div[1]/p[1]",
+              "text": "\u201cI am determined never to speak of it again\u201d"
+            },
+            {
+              "index": 37,
+              "path": "/body/p[35]",
+              "text": "On the very last day of the regiment\u2019s remaining in Meryton, he dined, with others of the officers, at Longbourn; and so little was Elizabeth disposed to part from him in good-humour, that, on his making some inquiry as to the manner in which her time had passed at Hunsford, she mentioned Colonel Fitzwilliam\u2019s and Mr. Darcy\u2019s having both spent three weeks at Rosings, and asked him if he were acquainted with the former."
+            },
+            {
+              "index": 74,
+              "path": "/body/p[72]",
+              "text": "The housekeeper came; a respectable looking elderly woman, much less fine, and more civil, than she had any notion of finding her. They followed her into the dining-parlour. It was a large, well-proportioned room, handsomely fitted up. Elizabeth, after slightly surveying it, went to a window to enjoy its prospect. The hill, crowned with wood, from which they had descended, receiving increased abruptness from the distance, was a beautiful object. Every disposition of the ground was good; and she looked on the whole scene, the river, the trees scattered on its banks, and the winding of the valley, as far as she could trace it, with delight. As they passed into other rooms, these objects were taking different positions; but from every window there were beauties to be seen. The rooms were lofty and handsome, and their furniture suitable to the fortune of their proprietor; but Elizabeth saw, with admiration of his taste, that it was neither gaudy nor uselessly fine,\u2014with less of splendour, and more real elegance, than the furniture of Rosings."
+            },
+            {
+              "index": 111,
+              "path": "/body/p[109]",
+              "text": "\u201cThat is not very likely; our authority was too good. \u201d"
+            },
+            {
+              "index": 148,
+              "path": "/body/p[146]",
+              "text": "The occurrences of the day were too full of interest to leave Elizabeth much attention for any of these new friends; and she could do nothing but think, and think with wonder, of Mr. Darcy\u2019s civility, and, above all, of his wishing her to be acquainted with his sister."
+            },
+            {
+              "index": 155,
+              "path": "/body/p[153]",
+              "text": "Elizabeth, on her side, had much to do. She wanted to ascertain the feelings of each of her visitors, she wanted to compose her own, and to make herself agreeable to all; and in the latter object, where she feared most to fail, she was most sure of success, for those to whom she endeavoured to give pleasure were pre-possessed in her favour. Bingley was ready, Georgiana was eager, and Darcy determined, to be pleased."
+            }
+          ],
+          "spineIndex": 11,
+          "title": "\u201cWhen Colonel Miller\u2019s regiment went away.\u201d CHAPTER XLI."
+        },
+        {
+          "ids": [
+            "CHAPTER_XLV",
+            "CHAPTER_XLVI",
+            "CHAPTER_XLVII",
+            "ebm_caption27",
+            "ebm_caption28",
+            "img_images_i_350.jpg",
+            "img_images_i_356_a.jpg",
+            "img_images_i_356_b.png",
+            "img_images_i_363_a.jpg",
+            "img_images_i_363_b.png",
+            "img_images_i_368.jpg",
+            "img_images_i_374_a.jpg",
+            "img_images_i_374_b.png",
+            "page_322",
+            "page_323",
+            "page_324",
+            "page_325",
+            "page_326",
+            "page_327",
+            "page_328",
+            "page_329",
+            "page_330",
+            "page_331",
+            "page_332",
+            "page_333",
+            "page_334",
+            "page_335",
+            "page_336",
+            "page_337",
+            "page_338",
+            "page_339",
+            "page_340",
+            "page_341",
+            "page_342",
+            "page_343",
+            "page_344",
+            "page_345",
+            "page_346",
+            "page_347",
+            "page_348",
+            "page_349",
+            "page_350",
+            "page_351",
+            "page_352",
+            "page_353",
+            "page_354",
+            "page_355",
+            "page_356",
+            "pgepubid00358",
+            "pgepubid00359",
+            "pgepubid00360",
+            "pgepubid00361",
+            "pgepubid00362",
+            "pgepubid00363",
+            "pgepubid00364",
+            "pgepubid00365",
+            "pgepubid00366",
+            "pgepubid00367",
+            "pgepubid00368",
+            "pgepubid00369",
+            "pgepubid00370",
+            "pgepubid00371",
+            "pgepubid00372",
+            "pgepubid00373",
+            "pgepubid00374",
+            "pgepubid00375",
+            "pgepubid00376",
+            "pgepubid00377",
+            "pgepubid00378",
+            "pgepubid00379",
+            "pgepubid00380",
+            "pgepubid00381",
+            "pgepubid00382",
+            "pgepubid00383",
+            "pgepubid00384",
+            "pgepubid00385",
+            "pgepubid00386",
+            "pgepubid00387",
+            "pgepubid00388",
+            "pgepubid00389",
+            "pgepubid00390",
+            "pgepubid00391",
+            "pgepubid00392",
+            "pgepubid00393"
+          ],
+          "nonEmptyParagraphCount": 127,
+          "paragraphCount": 127,
+          "path": "OEBPS/1306980130634175271_1342-h-11.htm.html",
+          "samples": [
+            {
+              "index": 0,
+              "path": "/body/div[1]/div[1]/div[1]/p[1]",
+              "text": "\u201cTo make herself agreeable to all\u201d"
+            },
+            {
+              "index": 37,
+              "path": "/body/p[36]",
+              "text": "\u201cBy this time, my dearest sister, you have received my hurried letter; I wish this may be more intelligible, but though not confined for time, my head is so bewildered that I cannot answer for being coherent. Dearest Lizzy, I hardly know what I would write, but I have bad news for you, and it cannot be delayed. Imprudent as a marriage between Mr. Wickham and our poor Lydia would be, we are now anxious to be assured it has taken place, for there is but too much reason to fear they are not gone to Scotland. Colonel Forster came yesterday, having left Brighton the day before, not many hours after the express. Though Lydia\u2019s short letter to Mrs. F. gave them to understand that they were going to Gretna Green, something was dropped by Denny expressing his belief that W. never intended to go there, or to marry Lydia at all, which was repeated to Colonel F., who, instantly taking the alarm, set off from B., intending to trace their route. He did trace them easily to Clapham, but no farther; for on entering that place, they removed into a hackney-coach, and dismissed the chaise that brought them from Epsom. All that is known after this is, that they were seen to continue the London road. I know not what to think. After making every possible inquiry on that side of London, Colonel F. came on into Hertfordshire, anxiously renewing them at all the turnpikes, and at the inns in Barnet and Hatfield, but without any success,\u2014no such people had been seen to pass through. With the kindest concern he came on to Longbourn, and broke his apprehensions to us in a manner most creditable to his heart. I am sincerely grieved for him and Mrs. F.; but no one can throw any blame on them. Our distress, my dear Lizzy, is very great. My father and mother believe the worst, but I cannot think so ill of him. Many circumstances might make it more eligible for them to be married privately in town than to pursue their first plan; and even if he could form such a design against a young woman of Lydi a\u2019s connections, which is not likely, can I suppose her so lost to everything? Impossible! I grieve to find, however, that Colonel F. is not disposed to depend upon their marriage: he shook his head when I expressed my hopes, and said he feared W. was not a man to be trusted. My poor mother is really ill, and keeps her room. Could she exert herself, it would be better, but this is not to be expected; and as to my father, I never in my life saw him so affected. Poor Kitty has anger for having concealed their attachment; but as it was a matter of confidence, one cannot wonder. I am truly glad, dearest Lizzy, that you have been spared something of these distressing scenes; but now, as the first shock is over, shall I own that I long for your return? I am not so selfish, however, as to press for it, if inconvenient. Adieu! I take up my pen again to do, what I have just told you I would not; but circumstances are such, that I cannot help earnestly begging you all to come here as soon as possible. I know my dear uncle and aunt so well, that I am not afraid of requesting it, though I have still something more to ask of the former. My father is going to London with Colonel Forster instantly, to try to discover her. What he means to do, I am sure I know not; but his excessive distress will not allow him to pursue any measure in the best and safest way, and Colonel Forster is obliged to be at Brighton again to-morrow evening. In such an exigence my uncle\u2019s advice and assistance would be everything in the world; he will immediately comprehend what I must feel, and I rely upon his goodness.\u201d"
+            },
+            {
+              "index": 74,
+              "path": "/body/p[72]",
+              "text": "\u201cBut can you think that Lydia is so lost to everything but love of him, as to consent to live with him on any other terms than marriage?\u201d"
+            },
+            {
+              "index": 111,
+              "path": "/body/p[109]",
+              "text": "\u201cColonel Forster did own that he had often suspected some partiality, especially on Lydia\u2019s side, but nothing to give him any alarm. I am so grieved for him. His behaviour was attentive and kind to the utmost. He was coming to us, in order to assure us of his concern, before he had any idea of their not being gone to Scotland: when that apprehension first got abroad, it hastened his journey.\u201d"
+            },
+            {
+              "index": 126,
+              "path": "/body/p[124]",
+              "text": "Jane then took it from her pocket-book, and gave it to Elizabeth. These were the contents:\u2014"
+            }
+          ],
+          "spineIndex": 12,
+          "title": "\u201cEngaged by the river.\u201d CHAPTER XLV."
+        },
+        {
+          "ids": [
+            "CHAPTER_L",
+            "CHAPTER_LI",
+            "CHAPTER_XLIX",
+            "CHAPTER_XLVIII",
+            "ebm_caption29",
+            "ebm_caption30",
+            "img_images_i_388_a.jpg",
+            "img_images_i_388_b.png",
+            "img_images_i_392.jpg",
+            "img_images_i_397_a.jpg",
+            "img_images_i_397_b.png",
+            "img_images_i_399.jpg",
+            "img_images_i_406_a.jpg",
+            "img_images_i_406_b.png",
+            "img_images_i_414_a.jpg",
+            "img_images_i_414_b.png",
+            "page_357",
+            "page_358",
+            "page_359",
+            "page_360",
+            "page_361",
+            "page_362",
+            "page_363",
+            "page_364",
+            "page_365",
+            "page_366",
+            "page_367",
+            "page_368",
+            "page_369",
+            "page_370",
+            "page_371",
+            "page_372",
+            "page_373",
+            "page_374",
+            "page_375",
+            "page_376",
+            "page_377",
+            "page_378",
+            "page_379",
+            "page_380",
+            "page_381",
+            "page_382",
+            "page_383",
+            "page_384",
+            "page_385",
+            "page_386",
+            "page_387",
+            "page_388",
+            "page_389",
+            "page_390",
+            "page_391",
+            "page_392",
+            "page_393",
+            "pgepubid00394",
+            "pgepubid00395",
+            "pgepubid00396",
+            "pgepubid00397",
+            "pgepubid00398",
+            "pgepubid00399",
+            "pgepubid00400",
+            "pgepubid00401",
+            "pgepubid00402",
+            "pgepubid00403",
+            "pgepubid00404",
+            "pgepubid00405",
+            "pgepubid00406",
+            "pgepubid00407",
+            "pgepubid00408",
+            "pgepubid00409",
+            "pgepubid00410",
+            "pgepubid00411",
+            "pgepubid00412",
+            "pgepubid00413",
+            "pgepubid00414",
+            "pgepubid00415",
+            "pgepubid00416",
+            "pgepubid00417",
+            "pgepubid00418",
+            "pgepubid00419",
+            "pgepubid00420",
+            "pgepubid00421",
+            "pgepubid00422",
+            "pgepubid00423",
+            "pgepubid00424",
+            "pgepubid00425",
+            "pgepubid00426",
+            "pgepubid00427",
+            "pgepubid00428",
+            "pgepubid00429",
+            "pgepubid00430",
+            "pgepubid00431",
+            "pgepubid00432"
+          ],
+          "nonEmptyParagraphCount": 169,
+          "paragraphCount": 169,
+          "path": "OEBPS/1306980130634175271_1342-h-12.htm.html",
+          "samples": [
+            {
+              "index": 0,
+              "path": "/body/div[1]/p[1]",
+              "text": "\u201cMy dear Harriet,"
+            },
+            {
+              "index": 37,
+              "path": "/body/p[29]",
+              "text": "\u201cYou may well warn me against such an evil. Human nature is so prone to fall into it! No, Lizzy, let me once in my life feel how much I have been to blame. I am not afraid of being overpowered by the impression. It will pass away soon enough.\u201d"
+            },
+            {
+              "index": 74,
+              "path": "/body/p[58]",
+              "text": "Most earnestly did she then entreat him to lose no more time before he wrote."
+            },
+            {
+              "index": 111,
+              "path": "/body/p[95]",
+              "text": "The good news quickly spread through the house; and with proportionate speed through the neighbourhood. It was borne in the latter with decent philosophy. To be sure, it would have been more for the advantage of conversation, had Miss Lydia Bennet come upon the town; or, as the happiest alternative, been secluded from the world in some distant farm-house. But there was much to be talked of, in marrying her; and the good-natured wishes for her well-doing, which had proceeded before from all the spiteful old ladies in Meryton, lost but little of their spirit in this change of circumstances, because with such a husband her misery was considered certain."
+            },
+            {
+              "index": 148,
+              "path": "/body/p[132]",
+              "text": "Their visitors were not to remain above ten days with them. Mr. Wickham had received his commission before he left London, and he was to join his regiment at the end of a fortnight."
+            },
+            {
+              "index": 168,
+              "path": "/body/p[152]",
+              "text": "Jane\u2019s delicate sense of honour would not allow her to speak to Elizabeth privately of what Lydia had let fall; Elizabeth was glad of it:\u2014till it appeared whether her inquiries would receive any satisfaction, she had rather be without a confidante."
+            }
+          ],
+          "spineIndex": 13,
+          "title": "\u201cThe Post.\u201d CHAPTER XLVIII."
+        },
+        {
+          "ids": [
+            "CHAPTER_LII",
+            "CHAPTER_LIII",
+            "CHAPTER_LIV",
+            "img_images_i_422_a.jpg",
+            "img_images_i_422_b.png",
+            "img_images_i_433_a.jpg",
+            "img_images_i_433_b.png",
+            "img_images_i_444_a.jpg",
+            "img_images_i_444_b.png",
+            "page_394",
+            "page_395",
+            "page_396",
+            "page_397",
+            "page_398",
+            "page_399",
+            "page_400",
+            "page_401",
+            "page_402",
+            "page_403",
+            "page_404",
+            "page_405",
+            "page_406",
+            "page_407",
+            "page_408",
+            "page_409",
+            "page_410",
+            "page_411",
+            "page_412",
+            "page_413",
+            "page_414",
+            "page_415",
+            "page_416",
+            "page_417",
+            "page_418",
+            "page_419",
+            "page_420",
+            "pgepubid00433",
+            "pgepubid00434",
+            "pgepubid00435",
+            "pgepubid00436",
+            "pgepubid00437",
+            "pgepubid00438",
+            "pgepubid00439",
+            "pgepubid00440",
+            "pgepubid00441",
+            "pgepubid00442",
+            "pgepubid00443",
+            "pgepubid00444",
+            "pgepubid00445",
+            "pgepubid00446",
+            "pgepubid00447",
+            "pgepubid00448",
+            "pgepubid00449",
+            "pgepubid00450",
+            "pgepubid00451",
+            "pgepubid00452",
+            "pgepubid00453",
+            "pgepubid00454",
+            "pgepubid00455",
+            "pgepubid00456",
+            "pgepubid00457",
+            "pgepubid00458",
+            "pgepubid00459"
+          ],
+          "nonEmptyParagraphCount": 126,
+          "paragraphCount": 126,
+          "path": "OEBPS/1306980130634175271_1342-h-13.htm.html",
+          "samples": [
+            {
+              "index": 0,
+              "path": "/body/p[1]",
+              "text": "E LIZABETH had the satisfaction of receiving an answer to her letter as soon as she possibly could. She was no sooner in possession of it, than hurrying into the little copse, where she was least likely to be interrupted, she sat down on one of the benches, and prepared to be happy; for the length of the letter convinced her that it did not contain a denial."
+            },
+            {
+              "index": 37,
+              "path": "/body/p[34]",
+              "text": "She held out her hand: he kissed it with affectionate gallantry, though he hardly knew how to look, and they entered the house."
+            },
+            {
+              "index": 74,
+              "path": "/body/p[71]",
+              "text": "The colour which had been driven from her face returned for half a minute with an additional glow, and a smile of delight added lustre to her eyes, as she thought for that space of time that his affection and wishes must still be unshaken; but she would not be secure."
+            },
+            {
+              "index": 111,
+              "path": "/body/p[108]",
+              "text": "She was in hopes that the evening would afford some opportunity of bringing them together; that the whole of the visit would not pass away without enabling them to enter into something more of conversation, than the mere ceremonious salutation attending his entrance. Anxious and uneasy, the period which passed in the drawing-room before the gentlemen came, was wearisome and dull to a degree that almost made her uncivil. She looked forward to their entrance as the point on which all her chance of pleasure for the evening must depend."
+            },
+            {
+              "index": 125,
+              "path": "/body/p[122]",
+              "text": "\u201cWell, girls,\u201d said she, as soon as they were left to themselves, \u201cwhat say you to the day? I think everything has passed off uncommonly well, I assure you. The dinner was as well dressed as any I ever saw. The venison was roasted to a turn\u2014and everybody said, they never saw so fat a haunch. The soup was fifty times better than what we had at the Lucases\u2019 last week; and even Mr. Darcy acknowledged that the partridges were remarkably well done; and I suppose he has two or three French cooks at least. And, my dear Jane, I never saw you look in greater beauty. Mrs. Long said so too, for I asked her whether you did not. And what do you think she said besides? \u2018Ah! Mrs. Bennet, we shall have her at Netherfield at last!\u2019 She did, indeed. I do think Mrs. Long is as good a creature as ever lived\u2014and her nieces are very pretty behaved girls, and not at all handsome: I like them prodigiously.\u201d"
+            }
+          ],
+          "spineIndex": 14,
+          "title": "\u201cI am sure she did not listen.\u201d CHAPTER LII."
+        },
+        {
+          "ids": [
+            "CHAPTER_LV",
+            "CHAPTER_LVI",
+            "CHAPTER_LVII",
+            "CHAPTER_LVIII",
+            "ebm_caption31",
+            "ebm_caption32",
+            "img_images_i_449.jpg",
+            "img_images_i_451_a.jpg",
+            "img_images_i_451_b.png",
+            "img_images_i_460_a.jpg",
+            "img_images_i_460_b.png",
+            "img_images_i_463.jpg",
+            "img_images_i_471_a.jpg",
+            "img_images_i_471_b.png",
+            "img_images_i_477_a.jpg",
+            "img_images_i_477_b.png",
+            "page_421",
+            "page_422",
+            "page_423",
+            "page_424",
+            "page_425",
+            "page_426",
+            "page_427",
+            "page_428",
+            "page_429",
+            "page_430",
+            "page_431",
+            "page_432",
+            "page_433",
+            "page_434",
+            "page_435",
+            "page_436",
+            "page_437",
+            "page_438",
+            "page_439",
+            "page_440",
+            "page_441",
+            "page_442",
+            "page_443",
+            "page_444",
+            "page_445",
+            "page_446",
+            "page_447",
+            "page_448",
+            "page_449",
+            "page_450",
+            "page_451",
+            "page_452",
+            "page_453",
+            "page_454",
+            "page_455",
+            "page_456",
+            "page_457",
+            "pgepubid00460",
+            "pgepubid00461",
+            "pgepubid00462",
+            "pgepubid00463",
+            "pgepubid00464",
+            "pgepubid00465",
+            "pgepubid00466",
+            "pgepubid00467",
+            "pgepubid00468",
+            "pgepubid00469",
+            "pgepubid00470",
+            "pgepubid00471",
+            "pgepubid00472",
+            "pgepubid00473",
+            "pgepubid00474",
+            "pgepubid00475",
+            "pgepubid00476",
+            "pgepubid00477",
+            "pgepubid00478",
+            "pgepubid00479",
+            "pgepubid00480",
+            "pgepubid00481",
+            "pgepubid00482",
+            "pgepubid00483",
+            "pgepubid00484",
+            "pgepubid00485",
+            "pgepubid00486",
+            "pgepubid00487",
+            "pgepubid00488",
+            "pgepubid00489",
+            "pgepubid00490",
+            "pgepubid00491",
+            "pgepubid00492",
+            "pgepubid00493",
+            "pgepubid00494",
+            "pgepubid00495",
+            "pgepubid00496"
+          ],
+          "nonEmptyParagraphCount": 209,
+          "paragraphCount": 211,
+          "path": "OEBPS/1306980130634175271_1342-h-14.htm.html",
+          "samples": [
+            {
+              "index": 0,
+              "path": "/body/div[1]/div[1]/p[1]",
+              "text": "\u201cM rs . Long and her nieces.\u201d"
+            },
+            {
+              "index": 37,
+              "path": "/body/p[37]",
+              "text": "\u201cAnd this,\u201d said she, \u201cis the end of all his friend\u2019s anxious circumspection! of all his sister\u2019s falsehood and contrivance! the happiest, wisest, and most reasonable end!\u201d"
+            },
+            {
+              "index": 74,
+              "path": "/body/p[74]",
+              "text": "\u201cIt is nothing in comparison of Rosings, my Lady, I dare say; but, I assure you, it is much larger than Sir William Lucas\u2019s.\u201d"
+            },
+            {
+              "index": 111,
+              "path": "/body/p[109]",
+              "text": "\u201cYes; and I had heard it before. But what is that to me? If there is no other objection to my marrying your nephew, I shall certainly not be kept from it by knowing that his mother and aunt wished him to marry Miss de Bourgh. You both did as much as you could in planning the marriage. Its completion depended on others. If Mr. Darcy is neither by honour nor inclination confined to his cousin, why is not he to make another choice? And if I am that choice, why may not I accept him?\u201d"
+            },
+            {
+              "index": 148,
+              "path": "/body/p[146]",
+              "text": "The surprise of the rest of the family, on hearing who their visitor had been, was very great: but they obligingly satisfied it with the same kind of supposition which had appeased Mrs. Bennet\u2019s curiosity; and Elizabeth was spared from much teasing on the subject."
+            },
+            {
+              "index": 185,
+              "path": "/body/p[183]",
+              "text": "\u201cThe letter shall certainly be burnt, if you believe it essential to the preservation of my regard; but, though we have both reason to think my opinions not entirely unalterable, they are not, I hope, quite so easily changed as that implies.\u201d"
+            },
+            {
+              "index": 210,
+              "path": "/body/p[208]",
+              "text": "Elizabeth longed to observe that Mr. Bingley had been a most delightful friend; so easily guided that his worth was invaluable; but she checked herself. She remembered that he had yet to learn to be laughed at, and it was rather too early to begin. In anticipating the happiness of Bingley, which of course was to be inferior only to his own, he continued the conversation till they reached the house. In the hall they parted."
+            }
+          ],
+          "spineIndex": 15,
+          "title": "\u201cLizzy, my dear, I want to speak to you.\u201d CHAPTER LV."
+        },
+        {
+          "ids": [
+            "CHAPTER_LIX",
+            "CHAPTER_LX",
+            "CHAPTER_LXI",
+            "img_images_i_486_a.jpg",
+            "img_images_i_486_b.png",
+            "img_images_i_495_a.jpg",
+            "img_images_i_495_b.png",
+            "img_images_i_501_a.jpg",
+            "img_images_i_501_b.png",
+            "img_images_i_505.jpg",
+            "page_458",
+            "page_459",
+            "page_460",
+            "page_461",
+            "page_462",
+            "page_463",
+            "page_464",
+            "page_465",
+            "page_466",
+            "page_467",
+            "page_468",
+            "page_469",
+            "page_470",
+            "page_471",
+            "page_472",
+            "page_473",
+            "page_474",
+            "page_475",
+            "page_476",
+            "pg-end-separator",
+            "pg-footer",
+            "pg-footer-heading",
+            "pgepubid00497",
+            "pgepubid00498",
+            "pgepubid00499",
+            "pgepubid00500",
+            "pgepubid00501",
+            "pgepubid00502",
+            "pgepubid00503",
+            "pgepubid00504",
+            "pgepubid00505",
+            "pgepubid00506",
+            "pgepubid00507",
+            "pgepubid00508",
+            "pgepubid00509",
+            "pgepubid00510",
+            "pgepubid00511",
+            "pgepubid00512",
+            "pgepubid00513",
+            "pgepubid00514",
+            "pgepubid00515",
+            "pgepubid00516",
+            "project-gutenberg-license"
+          ],
+          "nonEmptyParagraphCount": 92,
+          "paragraphCount": 92,
+          "path": "OEBPS/1306980130634175271_1342-h-15.htm.html",
+          "samples": [
+            {
+              "index": 0,
+              "path": "/body/p[1]",
+              "text": "\u201c M Y dear Lizzy, where can you have been walking to?\u201d was a question which Elizabeth received from Jane as soon as she entered the room, and from all the others when they sat down to table. She had only to say in reply, that they had wandered about till she was beyond her own knowledge. She coloured as she spoke; but neither that, nor anything else, awakened a suspicion of the truth."
+            },
+            {
+              "index": 37,
+              "path": "/body/p[38]",
+              "text": "To complete the favourable impression, she then told him what Mr. Darcy had voluntarily done for Lydia. He heard her with astonishment."
+            },
+            {
+              "index": 74,
+              "path": "/body/p[72]",
+              "text": "The joy which Miss Darcy expressed on receiving similar information was as sincere as her brother\u2019s in sending it. Four sides of paper were insufficient to contain all her delight, and all her earnest desire of being loved by her sister."
+            },
+            {
+              "index": 91,
+              "path": "/body/p[86]",
+              "text": "CHISWICK PRESS:\u2014CHARLES WHITTINGHAM AND CO. TOOKS COURT, CHANCERY LANE, LONDON."
+            }
+          ],
+          "spineIndex": 16,
+          "title": "\u201cUnable to utter a syllable.\u201d CHAPTER LIX."
+        }
+      ]
+    }
+  },
+  "sampleStride": 37
+}

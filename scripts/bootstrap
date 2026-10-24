@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# One-time (and idempotent) setup: signing config + the generated Xcode project.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+command -v xcodegen >/dev/null || { echo "xcodegen not found (brew install xcodegen)" >&2; exit 1; }
+[[ -f Config/Signing.xcconfig ]] || { cp Config/Signing.example.xcconfig Config/Signing.xcconfig; echo "created Config/Signing.xcconfig — add your DEVELOPMENT_TEAM for device builds"; }
+xcodegen generate --quiet
+echo "ok: Sheafs.xcodeproj generated"

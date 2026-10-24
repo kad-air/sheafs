@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# The one command that must pass. Fails loudly (non-zero exit, one-line reason) at the first problem.
+#   1. no personal names, emails or secrets in the tree              (grep)
+#   2. reference data is fresh: the Python second sources regenerate byte-identical JSON
+#   3. SheafsKit unit tests (EPUB/ZIP vs Python zipfile, converter vs validated path algorithm,
+#      partial MD5 vs an independent digest, OPDS vs ElementTree)    (swift test, on the Mac)
+#   4. the app builds for the iPhone Duo simulator                   (xcodegen + xcodebuild)
+#   5. the app's own unit tests on the simulator                     (xcodebuild test; SKIP_SIM_TESTS=1 skips)
+set -euo pipefail
+cd "$(dirname "$0")/.."
+LOG=$(mktemp -d)
+trap 'rm -rf "$LOG"' EXIT
+fail() { echo "CHECK FAILED: $*" >&2; exit 1; }
+step() { echo "== $* =="; }
+run() { local label=$1 log=$LOG/$2; shift 2; "$@" >"$log" 2>&1 || { tail -n 40 "$log" >&2; fail "$label"; }; }
+
+START=$SECONDS
+step "1/5 open-source hygiene"
+# The repo is meant to be published: no personal names, mail addresses, hostnames or keys may sneak in.
+# (the pattern is assembled so this script doesn't match itself)
+PERSONAL="kei""th|ad""air|@hey\\.com|railway\\.app|BOOKS_""API_KEY|Auth""Key_"
+if grep -rIniE --exclude-dir=.git --exclude-dir=.build --exclude-dir=Sheafs.xcodeproj --exclude=Signing.xcconfig \
+     "$PERSONAL" . ; then
+  fail "personal names, addresses or secrets found in the tree (see matches above)"
+fi
+
+step "2/5 reference data freshness (Python second sources)"
+command -v python3 >/dev/null || fail "python3 not found"
+FIX=Packages/SheafsKit/Tests/SheafsKitTests/Fixtures
+for gen in gen_epub_reference:epub-reference gen_chapter_reference:chapter-reference gen_sync_reference:sync-reference; do
+  script=${gen%%:*}; json=${gen##*:}
+  [[ -f scripts/$script.py ]] || fail "scripts/$script.py missing"
+  [[ -f $FIX/$json.json ]] || fail "$FIX/$json.json missing"
+  cp "$FIX/$json.json" "$LOG/$json.before.json"
+  run "scripts/$script.py" "$script.log" python3 -I "scripts/$script.py"
+  cmp -s "$FIX/$json.json" "$LOG/$json.before.json" || fail "$FIX/$json.json changed when regenerated (commit the new one, or the generator is nondeterministic)"
+done
+
+step "3/5 SheafsKit tests (swift test)"
+run "swift test" swift-test.log bash -c "cd Packages/SheafsKit && swift test 2>&1"
+grep -E "Test run with [0-9]+ tests? .*passed|Executed [0-9]+ tests, with 0 failures" "$LOG/swift-test.log" >/dev/null \
+  || { tail -n 30 "$LOG/swift-test.log" >&2; fail "swift test did not report a passing run"; }
+grep -E "Test run with [0-9]+ tests?" "$LOG/swift-test.log" | tail -1
+
+step "4/5 app build (iPhone Duo simulator)"
+command -v xcodegen >/dev/null || fail "xcodegen not found (brew install xcodegen)"
+[[ -f Config/Signing.xcconfig ]] || cp Config/Signing.example.xcconfig Config/Signing.xcconfig
+run "xcodegen generate" xcodegen.log xcodegen generate --quiet
+DD=${DERIVED_DATA:-/tmp/sheafs-derived}
+SIM=${SIM:-iPhone Duo}   # any iOS 27.1 iPhone Duo simulator; SIM="Sheafs Duo" keeps the shared one free
+run "xcodebuild build" build.log xcodebuild -project Sheafs.xcodeproj -scheme Sheafs \
+  -destination "platform=iOS Simulator,name=$SIM" -derivedDataPath "$DD" -quiet build
+if grep -E "^/.*\.swift:[0-9]+:[0-9]+: warning:" "$LOG/build.log" >/dev/null; then
+  grep -E "warning:" "$LOG/build.log" | head -20 >&2
+  fail "the build has warnings in our sources (fix them; warnings are errors here)"
+fi
+
+if [[ -z ${SKIP_SIM_TESTS:-} ]]; then
+  step "5/5 app unit tests (simulator)"
+  run "xcodebuild test" test.log xcodebuild -project Sheafs.xcodeproj -scheme Sheafs \
+    -destination "platform=iOS Simulator,name=$SIM" -derivedDataPath "$DD" test
+  grep -E "Test run with [0-9]+ tests? in [0-9]+ suites? passed" "$LOG/test.log" >/dev/null \
+    || { tail -n 30 "$LOG/test.log" >&2; fail "simulator tests did not report a passing run"; }
+  grep -E "Test run with [0-9]+ tests? in [0-9]+ suites? passed" "$LOG/test.log" | tail -1
+else
+  step "5/5 app unit tests skipped (SKIP_SIM_TESTS=1)"
+fi
+
+echo "CHECK OK ($((SECONDS - START)) s)"

@@ -1,0 +1,89 @@
+# Source of truth for Sheafs.xcodeproj (generated, git-ignored). Regenerate with `xcodegen generate`
+# at the repo root (scripts/bootstrap does it and creates Config/Signing.xcconfig if missing).
+name: Sheafs
+options:
+  deploymentTarget:
+    iOS: "27.1"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+  xcodeVersion: "27.1"
+packages:
+  SheafsKit:
+    path: Packages/SheafsKit
+configFiles:
+  Debug: Config/Signing.xcconfig
+  Release: Config/Signing.xcconfig
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+    SWIFT_APPROACHABLE_CONCURRENCY: YES
+    CODE_SIGN_STYLE: Automatic
+    MARKETING_VERSION: "0.1"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+targets:
+  Sheafs:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sheafs
+        excludes:
+          - Generated
+    dependencies:
+      - package: SheafsKit
+    info:
+      path: Sheafs/Generated/Info.plist
+      properties:
+        CFBundleDisplayName: Sheafs
+        CFBundleName: Sheafs
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        ITSAppUsesNonExemptEncryption: false
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: false
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: EPUB Publication
+            LSHandlerRank: Alternate
+            LSItemContentTypes:
+              - org.idpf.epub-container
+        NSAppTransportSecurity:
+          # Self-hosted catalogs on a LAN are often plain http; the user chooses what to add.
+          NSAllowsArbitraryLoads: true
+        UIViewControllerBasedStatusBarAppearance: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.sheafs.reader
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: Sheafs/Generated/Info.plist
+        SWIFT_EMIT_LOC_STRINGS: YES
+  SheafsTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: SheafsTests
+      - path: Packages/SheafsKit/Tests/SheafsKitTests/Fixtures/alice-epub3.epub
+        buildPhase: resources
+    dependencies:
+      - target: Sheafs
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.sheafs.reader.tests
+        GENERATE_INFOPLIST_FILE: YES

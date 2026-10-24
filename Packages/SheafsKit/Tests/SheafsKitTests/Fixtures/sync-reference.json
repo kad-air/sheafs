@@ -1,0 +1,131 @@
+{
+  "md5": {
+    "correct horse battery staple": "9cc2ae8a1ba7a93da39b46fc1019c481",
+    "password": "5f4dcc3b5aa765d61d8327deb882cf99",
+    "p\u00e4ssw\u00f6rd": "12841e4ba5e37d2fbfc78458c6714ade"
+  },
+  "opds": {
+    "entries": [
+      {
+        "epubHref": "/opds/REDACTED_KEY/v1.2/books/8d290ec1-5166-4b88-93e1-e62d1263499e/file/01%20-%20Call%20for%20the%20Dead.epub",
+        "id": "8d290ec1-5166-4b88-93e1-e62d1263499e",
+        "thumbnailHref": "/opds/REDACTED_KEY/v1.2/books/8d290ec1-5166-4b88-93e1-e62d1263499e/thumbnail",
+        "title": "Call for the Dead A George Smiley Novel",
+        "updatedEpoch": 1786942528.198992
+      },
+      {
+        "epubHref": "/opds/REDACTED_KEY/v1.2/books/5944acef-da85-4bac-8b9e-13e025d2f19d/file/02%20-%20The%20Drawing%20of%20the%20Three.epub",
+        "id": "5944acef-da85-4bac-8b9e-13e025d2f19d",
+        "thumbnailHref": "/opds/REDACTED_KEY/v1.2/books/5944acef-da85-4bac-8b9e-13e025d2f19d/thumbnail",
+        "title": "The Dark Tower II: The Drawing of the Three",
+        "updatedEpoch": 1786942528.215369
+      },
+      {
+        "epubHref": "/opds/REDACTED_KEY/v1.2/books/fe0dbb62-5818-4e20-99f6-ba2e20efa3fb/file/02%20-%20The%20Two%20Towers.epub",
+        "id": "fe0dbb62-5818-4e20-99f6-ba2e20efa3fb",
+        "thumbnailHref": "/opds/REDACTED_KEY/v1.2/books/fe0dbb62-5818-4e20-99f6-ba2e20efa3fb/thumbnail",
+        "title": "The Two Towers",
+        "updatedEpoch": 1786942528.226888
+      },
+      {
+        "epubHref": "/opds/REDACTED_KEY/v1.2/books/73fee4db-b0e7-490c-a9de-0e4f7910af3c/file/04%20-%20Mort.epub",
+        "id": "73fee4db-b0e7-490c-a9de-0e4f7910af3c",
+        "thumbnailHref": "/opds/REDACTED_KEY/v1.2/books/73fee4db-b0e7-490c-a9de-0e4f7910af3c/thumbnail",
+        "title": "Mort",
+        "updatedEpoch": 1786942528.239957
+      },
+      {
+        "epubHref": "/opds/REDACTED_KEY/v1.2/books/5f5e744f-26e6-40d2-ba2f-682a6af51780/file/05%20-%20Tinker%20Tailor%20Soldier%20Spy.epub",
+        "id": "5f5e744f-26e6-40d2-ba2f-682a6af51780",
+        "thumbnailHref": "/opds/REDACTED_KEY/v1.2/books/5f5e744f-26e6-40d2-ba2f-682a6af51780/thumbnail",
+        "title": "Tinker Tailor Soldier Spy",
+        "updatedEpoch": 1786942528.242366
+      },
+      {
+        "epubHref": "/opds/REDACTED_KEY/v1.2/books/1ed1df04-3025-4a5a-a5c3-494a88997472/file/15%20-%20Men%20at%20Arms.epub",
+        "id": "1ed1df04-3025-4a5a-a5c3-494a88997472",
+        "thumbnailHref": "/opds/REDACTED_KEY/v1.2/books/1ed1df04-3025-4a5a-a5c3-494a88997472/thumbnail",
+        "title": "Pratchett, Terry - Discworld 15 - Men at Arms",
+        "updatedEpoch": 1786942528.245474
+      },
+      {
+        "epubHref": "/opds/REDACTED_KEY/v1.2/books/a5bd4bf4-13f9-4657-bf55-0fb49d1891b7/file/Before%20Sunrise.epub",
+        "id": "a5bd4bf4-13f9-4657-bf55-0fb49d1891b7",
+        "thumbnailHref": "/opds/REDACTED_KEY/v1.2/books/a5bd4bf4-13f9-4657-bf55-0fb49d1891b7/thumbnail",
+        "title": "Before Sunrise",
+        "updatedEpoch": 1786942528.251171
+      },
+      {
+        "epubHref": "/opds/REDACTED_KEY/v1.2/books/37fe3d07-a031-4040-b6d2-e82313aec321/file/Before%20Sunset.epub",
+        "id": "37fe3d07-a031-4040-b6d2-e82313aec321",
+        "thumbnailHref": "/opds/REDACTED_KEY/v1.2/books/37fe3d07-a031-4040-b6d2-e82313aec321/thumbnail",
+        "title": "Before Sunset",
+        "updatedEpoch": 1786942528.253342
+      },
+      {
+        "epubHref": "/opds/REDACTED_KEY/v1.2/books/0f8468c8-279f-41db-9552-1d97ea9bb7b3/file/Jonathan%20Strange%20and%20Mr%20Norrell.epub",
+        "id": "0f8468c8-279f-41db-9552-1d97ea9bb7b3",
+        "thumbnailHref": "/opds/REDACTED_KEY/v1.2/books/0f8468c8-279f-41db-9552-1d97ea9bb7b3/thumbnail",
+        "title": "Jonathan Strange and Mr Norrell",
+        "updatedEpoch": 1786942528.266069
+      },
+      {
+        "epubHref": "/opds/REDACTED_KEY/v1.2/books/032d3c38-2636-4e56-9200-19d862e466f8/file/Task%20Allocation%20-%20Human%20Computer%20Interaction%20in%20Intelligent%20Scheduling.epub",
+        "id": "032d3c38-2636-4e56-9200-19d862e466f8",
+        "thumbnailHref": "/opds/REDACTED_KEY/v1.2/books/032d3c38-2636-4e56-9200-19d862e466f8/thumbnail",
+        "title": "Task Allocation: Human Computer Interaction in Intelligent Scheduling",
+        "updatedEpoch": 1786942528.276276
+      },
+      {
+        "epubHref": "/opds/REDACTED_KEY/v1.2/books/bde0284b-94a7-4200-a9e9-8d3fe9ddd83f/file/The%20Ladies%20of%20Grace%20Adieu.epub",
+        "id": "bde0284b-94a7-4200-a9e9-8d3fe9ddd83f",
+        "thumbnailHref": "/opds/REDACTED_KEY/v1.2/books/bde0284b-94a7-4200-a9e9-8d3fe9ddd83f/thumbnail",
+        "title": "The Ladies of Grace Adieu",
+        "updatedEpoch": 1786942528.334854
+      },
+      {
+        "epubHref": "/opds/REDACTED_KEY/v1.2/books/591ceb12-4749-4d1d-a427-5cee1b9c4111/file/The%20Little%20Drummer%20Girl.epub",
+        "id": "591ceb12-4749-4d1d-a427-5cee1b9c4111",
+        "thumbnailHref": "/opds/REDACTED_KEY/v1.2/books/591ceb12-4749-4d1d-a427-5cee1b9c4111/thumbnail",
+        "title": "The Little Drummer Girl",
+        "updatedEpoch": 1786942528.341303
+      },
+      {
+        "epubHref": "/opds/REDACTED_KEY/v1.2/books/30fa7284-2944-41a4-bc9e-10f3f28bb7ef/file/The%20Running%20Man.epub",
+        "id": "30fa7284-2944-41a4-bc9e-10f3f28bb7ef",
+        "thumbnailHref": "/opds/REDACTED_KEY/v1.2/books/30fa7284-2944-41a4-bc9e-10f3f28bb7ef/thumbnail",
+        "title": "The Running Man",
+        "updatedEpoch": 1786942528.365895
+      }
+    ],
+    "entryCount": 13,
+    "feedTitle": "All Books",
+    "feedUpdatedEpoch": 1786942528.367039,
+    "hasNext": false,
+    "hasPrevious": true,
+    "nextHref": null,
+    "previousHref": "/opds/REDACTED_KEY/v1.2/books?page=0",
+    "searchHref": null,
+    "searchType": null,
+    "startHref": "/opds/REDACTED_KEY/v1.2/catalog"
+  },
+  "partialMd5": {
+    "fixtures": {
+      "alice-epub3.epub": "59feb863c3a0652fe66a99c0978404f9",
+      "hub-fixture.epub": "2d54ce2c70a99dc5b63e58ebfe69bf51",
+      "pride-epub2.epub": "7b1de93d94cde13f2fcb425c09768067"
+    },
+    "synthetic": {
+      "0": "d41d8cd98f00b204e9800998ecf8427e",
+      "1": "8666683506aacd900bbd5a74ac4edf68",
+      "1023": "5044b433fe3d9d5345f896f4c75964fe",
+      "1024": "84d769de0d4a5450f9ca6ca2eab3234a",
+      "1025": "bf8516a41091eed47cb5c49723ae5be9",
+      "1100000": "a8e5d826fec788763e08061cf84e2f97",
+      "2047": "c0091e8b154ee9c28a44be35f9ca8bee",
+      "4096": "85d05173d467e09a9069dc7f2642fe99",
+      "5000": "47c161c92e3628990d2674a8d716b10d",
+      "70000": "0091e4609f1a669e327e85e82daf8c55"
+    }
+  }
+}

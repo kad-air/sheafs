@@ -1,0 +1,1252 @@
+{
+  "alice-epub3.epub": {
+    "authors": [
+      "Lewis Carroll"
+    ],
+    "coverPath": "OEBPS/7981341119032183217_cover.jpg",
+    "entries": [
+      {
+        "compressedSize": 20,
+        "crc32": 749429103,
+        "head4096Crc32": 749429103,
+        "isDirectory": false,
+        "method": 0,
+        "path": "mimetype",
+        "uncompressedSize": 20
+      },
+      {
+        "compressedSize": 178,
+        "crc32": 1477930990,
+        "head4096Crc32": 1477930990,
+        "isDirectory": false,
+        "method": 8,
+        "path": "META-INF/container.xml",
+        "uncompressedSize": 252
+      },
+      {
+        "compressedSize": 104775,
+        "crc32": 1785683121,
+        "head4096Crc32": 580754503,
+        "isDirectory": false,
+        "method": 0,
+        "path": "OEBPS/7981341119032183217_cover.jpg",
+        "uncompressedSize": 104775
+      },
+      {
+        "compressedSize": 413,
+        "crc32": 1886146398,
+        "head4096Crc32": 1886146398,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/pgepub.css",
+        "uncompressedSize": 986
+      },
+      {
+        "compressedSize": 371,
+        "crc32": 752929418,
+        "head4096Crc32": 752929418,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/0.css",
+        "uncompressedSize": 1535
+      },
+      {
+        "compressedSize": 501,
+        "crc32": 2609900674,
+        "head4096Crc32": 2609900674,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/1.css",
+        "uncompressedSize": 1681
+      },
+      {
+        "compressedSize": 1543,
+        "crc32": 2392845177,
+        "head4096Crc32": 907143811,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/4040227324556390537_11-h-0.htm.xhtml",
+        "uncompressedSize": 4115
+      },
+      {
+        "compressedSize": 5438,
+        "crc32": 3583599845,
+        "head4096Crc32": 3210417324,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/4040227324556390537_11-h-1.htm.xhtml",
+        "uncompressedSize": 13052
+      },
+      {
+        "compressedSize": 5476,
+        "crc32": 1126611825,
+        "head4096Crc32": 3749867358,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/4040227324556390537_11-h-2.htm.xhtml",
+        "uncompressedSize": 12427
+      },
+      {
+        "compressedSize": 4774,
+        "crc32": 1939757536,
+        "head4096Crc32": 3047919713,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/4040227324556390537_11-h-3.htm.xhtml",
+        "uncompressedSize": 11140
+      },
+      {
+        "compressedSize": 6587,
+        "crc32": 1632189292,
+        "head4096Crc32": 2854669516,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/4040227324556390537_11-h-4.htm.xhtml",
+        "uncompressedSize": 15536
+      },
+      {
+        "compressedSize": 5558,
+        "crc32": 698560806,
+        "head4096Crc32": 951421561,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/4040227324556390537_11-h-5.htm.xhtml",
+        "uncompressedSize": 14388
+      },
+      {
+        "compressedSize": 6334,
+        "crc32": 818067256,
+        "head4096Crc32": 384418442,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/4040227324556390537_11-h-6.htm.xhtml",
+        "uncompressedSize": 15981
+      },
+      {
+        "compressedSize": 5769,
+        "crc32": 2855745791,
+        "head4096Crc32": 403845396,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/4040227324556390537_11-h-7.htm.xhtml",
+        "uncompressedSize": 15235
+      },
+      {
+        "compressedSize": 6216,
+        "crc32": 1737126748,
+        "head4096Crc32": 2189537241,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/4040227324556390537_11-h-8.htm.xhtml",
+        "uncompressedSize": 15532
+      },
+      {
+        "compressedSize": 5863,
+        "crc32": 3233580494,
+        "head4096Crc32": 1870252637,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/4040227324556390537_11-h-9.htm.xhtml",
+        "uncompressedSize": 14935
+      },
+      {
+        "compressedSize": 5135,
+        "crc32": 1067214438,
+        "head4096Crc32": 209959182,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/4040227324556390537_11-h-10.htm.xhtml",
+        "uncompressedSize": 13892
+      },
+      {
+        "compressedSize": 4882,
+        "crc32": 1466171902,
+        "head4096Crc32": 3034775063,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/4040227324556390537_11-h-11.htm.xhtml",
+        "uncompressedSize": 12302
+      },
+      {
+        "compressedSize": 5572,
+        "crc32": 284025738,
+        "head4096Crc32": 2498548053,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/4040227324556390537_11-h-12.htm.xhtml",
+        "uncompressedSize": 13744
+      },
+      {
+        "compressedSize": 7140,
+        "crc32": 1512833957,
+        "head4096Crc32": 4027500207,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/4040227324556390537_11-h-13.htm.xhtml",
+        "uncompressedSize": 20177
+      },
+      {
+        "compressedSize": 868,
+        "crc32": 399335794,
+        "head4096Crc32": 399335794,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/toc.xhtml",
+        "uncompressedSize": 3002
+      },
+      {
+        "compressedSize": 902,
+        "crc32": 3130211727,
+        "head4096Crc32": 3130211727,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/toc.ncx",
+        "uncompressedSize": 4057
+      },
+      {
+        "compressedSize": 342,
+        "crc32": 3013260967,
+        "head4096Crc32": 3013260967,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/wrap0000.xhtml",
+        "uncompressedSize": 595
+      },
+      {
+        "compressedSize": 1226,
+        "crc32": 1770987191,
+        "head4096Crc32": 4136843148,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/content.opf",
+        "uncompressedSize": 4905
+      }
+    ],
+    "identifier": "http://www.gutenberg.org/11",
+    "language": "en",
+    "manifestCount": 21,
+    "modified": "2026-10-01T07:31:59Z",
+    "opfPath": "OEBPS/content.opf",
+    "published": "2008-06-27",
+    "publisher": null,
+    "series": null,
+    "seriesIndex": null,
+    "spine": [
+      {
+        "crc32": 3013260967,
+        "head4096Crc32": 3013260967,
+        "linear": true,
+        "path": "OEBPS/wrap0000.xhtml",
+        "size": 595
+      },
+      {
+        "crc32": 2392845177,
+        "head4096Crc32": 907143811,
+        "linear": true,
+        "path": "OEBPS/4040227324556390537_11-h-0.htm.xhtml",
+        "size": 4115
+      },
+      {
+        "crc32": 3583599845,
+        "head4096Crc32": 3210417324,
+        "linear": true,
+        "path": "OEBPS/4040227324556390537_11-h-1.htm.xhtml",
+        "size": 13052
+      },
+      {
+        "crc32": 1126611825,
+        "head4096Crc32": 3749867358,
+        "linear": true,
+        "path": "OEBPS/4040227324556390537_11-h-2.htm.xhtml",
+        "size": 12427
+      },
+      {
+        "crc32": 1939757536,
+        "head4096Crc32": 3047919713,
+        "linear": true,
+        "path": "OEBPS/4040227324556390537_11-h-3.htm.xhtml",
+        "size": 11140
+      },
+      {
+        "crc32": 1632189292,
+        "head4096Crc32": 2854669516,
+        "linear": true,
+        "path": "OEBPS/4040227324556390537_11-h-4.htm.xhtml",
+        "size": 15536
+      },
+      {
+        "crc32": 698560806,
+        "head4096Crc32": 951421561,
+        "linear": true,
+        "path": "OEBPS/4040227324556390537_11-h-5.htm.xhtml",
+        "size": 14388
+      },
+      {
+        "crc32": 818067256,
+        "head4096Crc32": 384418442,
+        "linear": true,
+        "path": "OEBPS/4040227324556390537_11-h-6.htm.xhtml",
+        "size": 15981
+      },
+      {
+        "crc32": 2855745791,
+        "head4096Crc32": 403845396,
+        "linear": true,
+        "path": "OEBPS/4040227324556390537_11-h-7.htm.xhtml",
+        "size": 15235
+      },
+      {
+        "crc32": 1737126748,
+        "head4096Crc32": 2189537241,
+        "linear": true,
+        "path": "OEBPS/4040227324556390537_11-h-8.htm.xhtml",
+        "size": 15532
+      },
+      {
+        "crc32": 3233580494,
+        "head4096Crc32": 1870252637,
+        "linear": true,
+        "path": "OEBPS/4040227324556390537_11-h-9.htm.xhtml",
+        "size": 14935
+      },
+      {
+        "crc32": 1067214438,
+        "head4096Crc32": 209959182,
+        "linear": true,
+        "path": "OEBPS/4040227324556390537_11-h-10.htm.xhtml",
+        "size": 13892
+      },
+      {
+        "crc32": 1466171902,
+        "head4096Crc32": 3034775063,
+        "linear": true,
+        "path": "OEBPS/4040227324556390537_11-h-11.htm.xhtml",
+        "size": 12302
+      },
+      {
+        "crc32": 284025738,
+        "head4096Crc32": 2498548053,
+        "linear": true,
+        "path": "OEBPS/4040227324556390537_11-h-12.htm.xhtml",
+        "size": 13744
+      },
+      {
+        "crc32": 1512833957,
+        "head4096Crc32": 4027500207,
+        "linear": true,
+        "path": "OEBPS/4040227324556390537_11-h-13.htm.xhtml",
+        "size": 20177
+      }
+    ],
+    "title": "Alice's Adventures in Wonderland",
+    "toc": [
+      {
+        "depth": 0,
+        "fragment": "pgepubid00000",
+        "path": "OEBPS/4040227324556390537_11-h-0.htm.xhtml",
+        "title": "Alice’s Adventures in Wonderland"
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00001",
+        "path": "OEBPS/4040227324556390537_11-h-0.htm.xhtml",
+        "title": "THE MILLENNIUM FULCRUM EDITION 3.0"
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00002",
+        "path": "OEBPS/4040227324556390537_11-h-0.htm.xhtml",
+        "title": "Contents"
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00003",
+        "path": "OEBPS/4040227324556390537_11-h-1.htm.xhtml",
+        "title": "CHAPTER I. Down the Rabbit-Hole"
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00004",
+        "path": "OEBPS/4040227324556390537_11-h-2.htm.xhtml",
+        "title": "CHAPTER II. The Pool of Tears"
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00005",
+        "path": "OEBPS/4040227324556390537_11-h-3.htm.xhtml",
+        "title": "CHAPTER III. A Caucus-Race and a Long Tale"
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00006",
+        "path": "OEBPS/4040227324556390537_11-h-4.htm.xhtml",
+        "title": "CHAPTER IV. The Rabbit Sends in a Little Bill"
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00007",
+        "path": "OEBPS/4040227324556390537_11-h-5.htm.xhtml",
+        "title": "CHAPTER V. Advice from a Caterpillar"
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00008",
+        "path": "OEBPS/4040227324556390537_11-h-6.htm.xhtml",
+        "title": "CHAPTER VI. Pig and Pepper"
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00009",
+        "path": "OEBPS/4040227324556390537_11-h-7.htm.xhtml",
+        "title": "CHAPTER VII. A Mad Tea-Party"
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00010",
+        "path": "OEBPS/4040227324556390537_11-h-8.htm.xhtml",
+        "title": "CHAPTER VIII. The Queen’s Croquet-Ground"
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00011",
+        "path": "OEBPS/4040227324556390537_11-h-9.htm.xhtml",
+        "title": "CHAPTER IX. The Mock Turtle’s Story"
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00012",
+        "path": "OEBPS/4040227324556390537_11-h-10.htm.xhtml",
+        "title": "CHAPTER X. The Lobster Quadrille"
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00013",
+        "path": "OEBPS/4040227324556390537_11-h-11.htm.xhtml",
+        "title": "CHAPTER XI. Who Stole the Tarts?"
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00014",
+        "path": "OEBPS/4040227324556390537_11-h-12.htm.xhtml",
+        "title": "CHAPTER XII. Alice’s Evidence"
+      },
+      {
+        "depth": 0,
+        "fragment": "pg-footer-heading",
+        "path": "OEBPS/4040227324556390537_11-h-13.htm.xhtml",
+        "title": "THE FULL PROJECT GUTENBERG™ LICENSE"
+      }
+    ],
+    "version": "3.0"
+  },
+  "hub-fixture.epub": {
+    "authors": [
+      "Fixture, Frances"
+    ],
+    "coverPath": "OEBPS/cover.png",
+    "entries": [
+      {
+        "compressedSize": 20,
+        "crc32": 749429103,
+        "head4096Crc32": 749429103,
+        "isDirectory": false,
+        "method": 0,
+        "path": "mimetype",
+        "uncompressedSize": 20
+      },
+      {
+        "compressedSize": 159,
+        "crc32": 906179101,
+        "head4096Crc32": 906179101,
+        "isDirectory": false,
+        "method": 8,
+        "path": "META-INF/container.xml",
+        "uncompressedSize": 226
+      },
+      {
+        "compressedSize": 441,
+        "crc32": 91213736,
+        "head4096Crc32": 91213736,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/content.opf",
+        "uncompressedSize": 935
+      },
+      {
+        "compressedSize": 69,
+        "crc32": 900016158,
+        "head4096Crc32": 900016158,
+        "isDirectory": false,
+        "method": 0,
+        "path": "OEBPS/cover.png",
+        "uncompressedSize": 69
+      },
+      {
+        "compressedSize": 1347413,
+        "crc32": 2789547969,
+        "head4096Crc32": 393631505,
+        "isDirectory": false,
+        "method": 0,
+        "path": "OEBPS/ch1.xhtml",
+        "uncompressedSize": 1347413
+      }
+    ],
+    "identifier": "urn:uuid:11111111-2222-3333-4444-555555555555",
+    "language": "en",
+    "manifestCount": 3,
+    "modified": null,
+    "opfPath": "OEBPS/content.opf",
+    "published": null,
+    "publisher": null,
+    "series": "Fixtures",
+    "seriesIndex": 3.0,
+    "spine": [
+      {
+        "crc32": 2789547969,
+        "head4096Crc32": 393631505,
+        "linear": true,
+        "path": "OEBPS/ch1.xhtml",
+        "size": 1347413
+      }
+    ],
+    "title": "The Fixture Book",
+    "toc": [],
+    "version": "3.0"
+  },
+  "pride-epub2.epub": {
+    "authors": [
+      "Jane Austen"
+    ],
+    "coverPath": "OEBPS/3878325469831718223_cover.jpg",
+    "entries": [
+      {
+        "compressedSize": 20,
+        "crc32": 749429103,
+        "head4096Crc32": 749429103,
+        "isDirectory": false,
+        "method": 0,
+        "path": "mimetype",
+        "uncompressedSize": 20
+      },
+      {
+        "compressedSize": 178,
+        "crc32": 1477930990,
+        "head4096Crc32": 1477930990,
+        "isDirectory": false,
+        "method": 8,
+        "path": "META-INF/container.xml",
+        "uncompressedSize": 252
+      },
+      {
+        "compressedSize": 225286,
+        "crc32": 945255866,
+        "head4096Crc32": 359443818,
+        "isDirectory": false,
+        "method": 0,
+        "path": "OEBPS/3878325469831718223_cover.jpg",
+        "uncompressedSize": 225286
+      },
+      {
+        "compressedSize": 370,
+        "crc32": 634325950,
+        "head4096Crc32": 634325950,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/pgepub.css",
+        "uncompressedSize": 782
+      },
+      {
+        "compressedSize": 728,
+        "crc32": 2752659283,
+        "head4096Crc32": 2752659283,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/0.css",
+        "uncompressedSize": 3033
+      },
+      {
+        "compressedSize": 16489,
+        "crc32": 4003988570,
+        "head4096Crc32": 1238005255,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/1306980130634175271_1342-h-0.htm.html",
+        "uncompressedSize": 54039
+      },
+      {
+        "compressedSize": 15834,
+        "crc32": 842510459,
+        "head4096Crc32": 3099935512,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/1306980130634175271_1342-h-1.htm.html",
+        "uncompressedSize": 43241
+      },
+      {
+        "compressedSize": 21455,
+        "crc32": 2659264567,
+        "head4096Crc32": 837334278,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/1306980130634175271_1342-h-2.htm.html",
+        "uncompressedSize": 58595
+      },
+      {
+        "compressedSize": 18871,
+        "crc32": 1516763960,
+        "head4096Crc32": 1747156845,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/1306980130634175271_1342-h-3.htm.html",
+        "uncompressedSize": 49479
+      },
+      {
+        "compressedSize": 22564,
+        "crc32": 554713549,
+        "head4096Crc32": 4112812140,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/1306980130634175271_1342-h-4.htm.html",
+        "uncompressedSize": 60624
+      },
+      {
+        "compressedSize": 20897,
+        "crc32": 2699849660,
+        "head4096Crc32": 3316588097,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/1306980130634175271_1342-h-5.htm.html",
+        "uncompressedSize": 56531
+      },
+      {
+        "compressedSize": 20626,
+        "crc32": 1613060785,
+        "head4096Crc32": 969146226,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/1306980130634175271_1342-h-6.htm.html",
+        "uncompressedSize": 55040
+      },
+      {
+        "compressedSize": 16022,
+        "crc32": 3015379420,
+        "head4096Crc32": 4228282391,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/1306980130634175271_1342-h-7.htm.html",
+        "uncompressedSize": 43152
+      },
+      {
+        "compressedSize": 19896,
+        "crc32": 1206738253,
+        "head4096Crc32": 2268343864,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/1306980130634175271_1342-h-8.htm.html",
+        "uncompressedSize": 53014
+      },
+      {
+        "compressedSize": 17110,
+        "crc32": 1045808971,
+        "head4096Crc32": 427908624,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/1306980130634175271_1342-h-9.htm.html",
+        "uncompressedSize": 44443
+      },
+      {
+        "compressedSize": 24056,
+        "crc32": 2799127147,
+        "head4096Crc32": 1335654264,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/1306980130634175271_1342-h-10.htm.html",
+        "uncompressedSize": 65094
+      },
+      {
+        "compressedSize": 23083,
+        "crc32": 2969753488,
+        "head4096Crc32": 102607601,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/1306980130634175271_1342-h-11.htm.html",
+        "uncompressedSize": 61452
+      },
+      {
+        "compressedSize": 22671,
+        "crc32": 3354576426,
+        "head4096Crc32": 402414098,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/1306980130634175271_1342-h-12.htm.html",
+        "uncompressedSize": 61067
+      },
+      {
+        "compressedSize": 17504,
+        "crc32": 1259980578,
+        "head4096Crc32": 4046044410,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/1306980130634175271_1342-h-13.htm.html",
+        "uncompressedSize": 46167
+      },
+      {
+        "compressedSize": 22749,
+        "crc32": 4003167116,
+        "head4096Crc32": 933376742,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/1306980130634175271_1342-h-14.htm.html",
+        "uncompressedSize": 61723
+      },
+      {
+        "compressedSize": 20023,
+        "crc32": 3057068632,
+        "head4096Crc32": 2630433351,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/1306980130634175271_1342-h-15.htm.html",
+        "uncompressedSize": 53815
+      },
+      {
+        "compressedSize": 9754,
+        "crc32": 2522831270,
+        "head4096Crc32": 3745674557,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/toc.ncx",
+        "uncompressedSize": 116685
+      },
+      {
+        "compressedSize": 297,
+        "crc32": 3858036561,
+        "head4096Crc32": 3858036561,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/wrap0000.html",
+        "uncompressedSize": 431
+      },
+      {
+        "compressedSize": 1103,
+        "crc32": 3169523384,
+        "head4096Crc32": 1551586465,
+        "isDirectory": false,
+        "method": 8,
+        "path": "OEBPS/content.opf",
+        "uncompressedSize": 4916
+      }
+    ],
+    "identifier": "http://www.gutenberg.org/1342",
+    "language": "en",
+    "manifestCount": 21,
+    "modified": null,
+    "opfPath": "OEBPS/content.opf",
+    "published": "1998-06-01",
+    "publisher": null,
+    "series": null,
+    "seriesIndex": null,
+    "spine": [
+      {
+        "crc32": 3858036561,
+        "head4096Crc32": 3858036561,
+        "linear": true,
+        "path": "OEBPS/wrap0000.html",
+        "size": 431
+      },
+      {
+        "crc32": 4003988570,
+        "head4096Crc32": 1238005255,
+        "linear": true,
+        "path": "OEBPS/1306980130634175271_1342-h-0.htm.html",
+        "size": 54039
+      },
+      {
+        "crc32": 842510459,
+        "head4096Crc32": 3099935512,
+        "linear": true,
+        "path": "OEBPS/1306980130634175271_1342-h-1.htm.html",
+        "size": 43241
+      },
+      {
+        "crc32": 2659264567,
+        "head4096Crc32": 837334278,
+        "linear": true,
+        "path": "OEBPS/1306980130634175271_1342-h-2.htm.html",
+        "size": 58595
+      },
+      {
+        "crc32": 1516763960,
+        "head4096Crc32": 1747156845,
+        "linear": true,
+        "path": "OEBPS/1306980130634175271_1342-h-3.htm.html",
+        "size": 49479
+      },
+      {
+        "crc32": 554713549,
+        "head4096Crc32": 4112812140,
+        "linear": true,
+        "path": "OEBPS/1306980130634175271_1342-h-4.htm.html",
+        "size": 60624
+      },
+      {
+        "crc32": 2699849660,
+        "head4096Crc32": 3316588097,
+        "linear": true,
+        "path": "OEBPS/1306980130634175271_1342-h-5.htm.html",
+        "size": 56531
+      },
+      {
+        "crc32": 1613060785,
+        "head4096Crc32": 969146226,
+        "linear": true,
+        "path": "OEBPS/1306980130634175271_1342-h-6.htm.html",
+        "size": 55040
+      },
+      {
+        "crc32": 3015379420,
+        "head4096Crc32": 4228282391,
+        "linear": true,
+        "path": "OEBPS/1306980130634175271_1342-h-7.htm.html",
+        "size": 43152
+      },
+      {
+        "crc32": 1206738253,
+        "head4096Crc32": 2268343864,
+        "linear": true,
+        "path": "OEBPS/1306980130634175271_1342-h-8.htm.html",
+        "size": 53014
+      },
+      {
+        "crc32": 1045808971,
+        "head4096Crc32": 427908624,
+        "linear": true,
+        "path": "OEBPS/1306980130634175271_1342-h-9.htm.html",
+        "size": 44443
+      },
+      {
+        "crc32": 2799127147,
+        "head4096Crc32": 1335654264,
+        "linear": true,
+        "path": "OEBPS/1306980130634175271_1342-h-10.htm.html",
+        "size": 65094
+      },
+      {
+        "crc32": 2969753488,
+        "head4096Crc32": 102607601,
+        "linear": true,
+        "path": "OEBPS/1306980130634175271_1342-h-11.htm.html",
+        "size": 61452
+      },
+      {
+        "crc32": 3354576426,
+        "head4096Crc32": 402414098,
+        "linear": true,
+        "path": "OEBPS/1306980130634175271_1342-h-12.htm.html",
+        "size": 61067
+      },
+      {
+        "crc32": 1259980578,
+        "head4096Crc32": 4046044410,
+        "linear": true,
+        "path": "OEBPS/1306980130634175271_1342-h-13.htm.html",
+        "size": 46167
+      },
+      {
+        "crc32": 4003167116,
+        "head4096Crc32": 933376742,
+        "linear": true,
+        "path": "OEBPS/1306980130634175271_1342-h-14.htm.html",
+        "size": 61723
+      },
+      {
+        "crc32": 3057068632,
+        "head4096Crc32": 2630433351,
+        "linear": true,
+        "path": "OEBPS/1306980130634175271_1342-h-15.htm.html",
+        "size": 53815
+      }
+    ],
+    "title": "Pride and Prejudice",
+    "toc": [
+      {
+        "depth": 0,
+        "fragment": "pgepubid00002",
+        "path": "OEBPS/1306980130634175271_1342-h-0.htm.html",
+        "title": "PRIDE. and PREJUDICE"
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00022",
+        "path": "OEBPS/1306980130634175271_1342-h-0.htm.html",
+        "title": "Chapter I."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00028",
+        "path": "OEBPS/1306980130634175271_1342-h-1.htm.html",
+        "title": "I hope Mr. Bingley will like it. CHAPTER II."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00033",
+        "path": "OEBPS/1306980130634175271_1342-h-1.htm.html",
+        "title": "He rode a black horse. CHAPTER III."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00041",
+        "path": "OEBPS/1306980130634175271_1342-h-1.htm.html",
+        "title": "CHAPTER IV."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00046",
+        "path": "OEBPS/1306980130634175271_1342-h-1.htm.html",
+        "title": "CHAPTER V."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00052",
+        "path": "OEBPS/1306980130634175271_1342-h-1.htm.html",
+        "title": "CHAPTER VI."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00062",
+        "path": "OEBPS/1306980130634175271_1342-h-2.htm.html",
+        "title": "A note for Miss Bennet. CHAPTER VII."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00071",
+        "path": "OEBPS/1306980130634175271_1342-h-2.htm.html",
+        "title": "Covering a screen. CHAPTER VIII."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00079",
+        "path": "OEBPS/1306980130634175271_1342-h-2.htm.html",
+        "title": "Mrs Bennet and her two youngest girls. CHAPTER IX."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00086",
+        "path": "OEBPS/1306980130634175271_1342-h-2.htm.html",
+        "title": "CHAPTER X."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00096",
+        "path": "OEBPS/1306980130634175271_1342-h-3.htm.html",
+        "title": "Piling up the fire. CHAPTER XI."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00103",
+        "path": "OEBPS/1306980130634175271_1342-h-3.htm.html",
+        "title": "CHAPTER XII."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00106",
+        "path": "OEBPS/1306980130634175271_1342-h-3.htm.html",
+        "title": "CHAPTER XIII"
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00113",
+        "path": "OEBPS/1306980130634175271_1342-h-3.htm.html",
+        "title": "CHAPTER XIV"
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00119",
+        "path": "OEBPS/1306980130634175271_1342-h-3.htm.html",
+        "title": "CHAPTER XV."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00125",
+        "path": "OEBPS/1306980130634175271_1342-h-3.htm.html",
+        "title": "CHAPTER XVI."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00138",
+        "path": "OEBPS/1306980130634175271_1342-h-4.htm.html",
+        "title": "delighted to see their dear friend again. CHAPTER XVII."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00143",
+        "path": "OEBPS/1306980130634175271_1342-h-4.htm.html",
+        "title": "CHAPTER XVIII."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00162",
+        "path": "OEBPS/1306980130634175271_1342-h-5.htm.html",
+        "title": "“to assure you in the most animated language.” CHAPTER XIX."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00169",
+        "path": "OEBPS/1306980130634175271_1342-h-5.htm.html",
+        "title": "CHAPTER XX."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00176",
+        "path": "OEBPS/1306980130634175271_1342-h-5.htm.html",
+        "title": "CHAPTER XXI."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00185",
+        "path": "OEBPS/1306980130634175271_1342-h-5.htm.html",
+        "title": "CHAPTER XXII."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00193",
+        "path": "OEBPS/1306980130634175271_1342-h-5.htm.html",
+        "title": "“Protested he must be entirely mistaken.” CHAPTER XXIII."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00200",
+        "path": "OEBPS/1306980130634175271_1342-h-6.htm.html",
+        "title": "CHAPTER XXIV."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00208",
+        "path": "OEBPS/1306980130634175271_1342-h-6.htm.html",
+        "title": "CHAPTER XXV."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00215",
+        "path": "OEBPS/1306980130634175271_1342-h-6.htm.html",
+        "title": "“Will you come and see me.” CHAPTER XXVI."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00224",
+        "path": "OEBPS/1306980130634175271_1342-h-6.htm.html",
+        "title": "“On the Stairs.” CHAPTERXXVII."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00229",
+        "path": "OEBPS/1306980130634175271_1342-h-6.htm.html",
+        "title": "“At the door.” CHAPTERXXVIII."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00236",
+        "path": "OEBPS/1306980130634175271_1342-h-7.htm.html",
+        "title": "“Lady Catherine, said she, you have given me a treasure.” CHAPTER XXIX."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00246",
+        "path": "OEBPS/1306980130634175271_1342-h-7.htm.html",
+        "title": "CHAPTER XXX."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00252",
+        "path": "OEBPS/1306980130634175271_1342-h-7.htm.html",
+        "title": "CHAPTER XXXI."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00258",
+        "path": "OEBPS/1306980130634175271_1342-h-7.htm.html",
+        "title": "CHAPTER XXXII."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00265",
+        "path": "OEBPS/1306980130634175271_1342-h-8.htm.html",
+        "title": "“On looking up.” CHAPTER XXXIII."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00272",
+        "path": "OEBPS/1306980130634175271_1342-h-8.htm.html",
+        "title": "CHAPTER XXXIV."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00280",
+        "path": "OEBPS/1306980130634175271_1342-h-8.htm.html",
+        "title": "“Hearing herself called.” CHAPTER XXXV."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00287",
+        "path": "OEBPS/1306980130634175271_1342-h-8.htm.html",
+        "title": "CHAPTER XXXVI."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00295",
+        "path": "OEBPS/1306980130634175271_1342-h-9.htm.html",
+        "title": "“His parting obeisance.” CHAPTER XXXVII."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00301",
+        "path": "OEBPS/1306980130634175271_1342-h-9.htm.html",
+        "title": "“The elevation of his feelings.” CHAPTER XXXVIII."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00307",
+        "path": "OEBPS/1306980130634175271_1342-h-9.htm.html",
+        "title": "“How nicely we are crammed in.” CHAPTER XXXIX."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00313",
+        "path": "OEBPS/1306980130634175271_1342-h-9.htm.html",
+        "title": "CHAPTER XL."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00321",
+        "path": "OEBPS/1306980130634175271_1342-h-10.htm.html",
+        "title": "“When Colonel Miller’s regiment went away.” CHAPTER XLI."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00330",
+        "path": "OEBPS/1306980130634175271_1342-h-10.htm.html",
+        "title": "“The arrival of the Gardiners.” CHAPTER XLII."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00337",
+        "path": "OEBPS/1306980130634175271_1342-h-10.htm.html",
+        "title": "“Conjecturing as to the date.” CHAPTER XLIII."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00355",
+        "path": "OEBPS/1306980130634175271_1342-h-10.htm.html",
+        "title": "CHAPTER XLIV."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00364",
+        "path": "OEBPS/1306980130634175271_1342-h-11.htm.html",
+        "title": "“Engaged by the river.” CHAPTER XLV."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00371",
+        "path": "OEBPS/1306980130634175271_1342-h-11.htm.html",
+        "title": "Chapter XLVI."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00383",
+        "path": "OEBPS/1306980130634175271_1342-h-11.htm.html",
+        "title": "“The first pleasing earnest of their welcome.” CHAPTER XLVII."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00397",
+        "path": "OEBPS/1306980130634175271_1342-h-12.htm.html",
+        "title": "“The Post.” CHAPTER XLVIII."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00407",
+        "path": "OEBPS/1306980130634175271_1342-h-12.htm.html",
+        "title": "CHAPTER XLIX."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00417",
+        "path": "OEBPS/1306980130634175271_1342-h-12.htm.html",
+        "title": "“The spiteful old ladies.” CHAPTER L."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00425",
+        "path": "OEBPS/1306980130634175271_1342-h-12.htm.html",
+        "title": "“With an affectionate smile.” CHAPTER LI."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00433",
+        "path": "OEBPS/1306980130634175271_1342-h-13.htm.html",
+        "title": "“I am sure she did not listen.” CHAPTER LII."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00443",
+        "path": "OEBPS/1306980130634175271_1342-h-13.htm.html",
+        "title": "“Mr. Darcy with him.” CHAPTER LIII."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00454",
+        "path": "OEBPS/1306980130634175271_1342-h-13.htm.html",
+        "title": "“Jane happened to look round.” CHAPTER LIV."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00462",
+        "path": "OEBPS/1306980130634175271_1342-h-14.htm.html",
+        "title": "“Lizzy, my dear, I want to speak to you.” CHAPTER LV."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00471",
+        "path": "OEBPS/1306980130634175271_1342-h-14.htm.html",
+        "title": "CHAPTER LVI."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00482",
+        "path": "OEBPS/1306980130634175271_1342-h-14.htm.html",
+        "title": "“But now it comes out.” CHAPTER LVII."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00488",
+        "path": "OEBPS/1306980130634175271_1342-h-14.htm.html",
+        "title": "“The efforts of his aunt.” CHAPTER LVIII."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00497",
+        "path": "OEBPS/1306980130634175271_1342-h-15.htm.html",
+        "title": "“Unable to utter a syllable.” CHAPTER LIX."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00506",
+        "path": "OEBPS/1306980130634175271_1342-h-15.htm.html",
+        "title": "“The obsequious civility.” CHAPTER LX."
+      },
+      {
+        "depth": 0,
+        "fragment": "pgepubid00512",
+        "path": "OEBPS/1306980130634175271_1342-h-15.htm.html",
+        "title": "CHAPTER LXI."
+      },
+      {
+        "depth": 0,
+        "fragment": "pg-footer-heading",
+        "path": "OEBPS/1306980130634175271_1342-h-15.htm.html",
+        "title": "THE FULL PROJECT GUTENBERG™ LICENSE"
+      }
+    ],
+    "version": "2.0"
+  }
+}
