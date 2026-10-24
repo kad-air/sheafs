@@ -20,7 +20,7 @@ settings:
     SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
     SWIFT_APPROACHABLE_CONCURRENCY: YES
     CODE_SIGN_STYLE: Automatic
-    MARKETING_VERSION: "0.1"
+    MARKETING_VERSION: "0.2"
     CURRENT_PROJECT_VERSION: "1"
     ENABLE_USER_SCRIPT_SANDBOXING: YES
 targets:
@@ -74,6 +74,11 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: Sheafs/Generated/Info.plist
         SWIFT_EMIT_LOC_STRINGS: YES
+    # An explicit scheme is written to xcshareddata (shared), which Xcode Cloud requires;
+    # Xcode's auto-created one is per-user and doesn't exist in a fresh clone.
+    scheme:
+      testTargets:
+        - SheafsTests
   SheafsTests:
     type: bundle.unit-test
     platform: iOS
