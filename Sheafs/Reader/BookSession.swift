@@ -187,15 +187,17 @@ final class BookSession {
         paginated.removeAll()
     }
 
-    /// The paginated chapter for the current style and size, laid out on demand.
-    func paginatedChapter(_ spineIndex: Int) -> PaginatedChapter? {
+    /// The paginated chapter for the current style and size, laid out on demand. The first layout
+    /// of a chapter after a size or style change forces a page break at `anchor` (the reading
+    /// position), so what was at the top of the page stays at the top; a cached layout is reused as is.
+    func paginatedChapter(_ spineIndex: Int, anchor: Int? = nil) -> PaginatedChapter? {
         guard isReady, let style, textSize.width > 10, textSize.height > 10,
               spineIndex >= 0, spineIndex < chapters.count else { return nil }
         if let cached = paginated[spineIndex] { return cached }
         let chapter = chapters[spineIndex]
         let chapterImages = loadImages(for: spineIndex)
         let attributed = Typesetter.attributedString(for: chapter, style: style, images: chapterImages, pageSize: textSize)
-        let result = PaginatedChapter(spineIndex: spineIndex, attributedString: attributed, pageSize: textSize)
+        let result = PaginatedChapter(spineIndex: spineIndex, attributedString: attributed, pageSize: textSize, anchor: anchor)
         paginated[spineIndex] = result
         return result
     }

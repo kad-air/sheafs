@@ -86,13 +86,20 @@ display and inner-landscape), `toolbarVisibility(_:for: .statusBar)`, `ToolbarOv
   prev/next, contents, text size, appearance) on the lower half;
 - an active occlusion touching the top edge (inner camera) pushes the page down.
 Both pages of a spread share one text size, so one pagination serves both. The reading position is
-the first character of the current spread, so folding/unfolding/rotating repaginates and lands on
-the same words.
+the first character of the RIGHT-hand page of a spread (the left page shows what came just before,
+or is blank at the very start). Pagination is ANCHORED: the first layout of a chapter after a
+size/style change forces a page break at the position (`PaginatedChapter(anchor:)`, two TextKit
+parts), so the line that was at the top of the cover page is the first line of the right page
+after unfolding, and vice versa. Running feet: single page = chapter title + "n of m · %"; spread
+= title on the left page, numbers on the right (title repeated on the right only when its chapter
+differs or the left page is blank).
 🔴 Geometry comes from a GeometryReader that does NOT ignore the safe area (inside one that does,
 `proxy.safeAreaInsets` is all zeros and the pages ran under the vertical bar): the layout works in
 window coordinates (`proxy.size` + insets, regions shifted by the insets) and the pager is a full-
 window view offset back by the insets. The system keeps an 84 pt trailing inset for the vertical
-bar even with the status bar hidden; the pages respect it (text never sits under the bar region).
+bar even with the status bar hidden. On the inner display (a fold region exists) the pages read
+FULL BLEED under that strip and the bars overlay them on tap (`fullBleed`); the cover display keeps
+the side inset because the camera sits in that strip.
 🔴 While the chrome is visible the layout keeps the chrome-hidden SAFE AREAS (`ReaderView.
 effectiveInput`) but still follows fold/camera/size — otherwise the bars' insets would repaginate
 under the reader's eyes on every tap; the bars overlay the page instead. A size change (fold,

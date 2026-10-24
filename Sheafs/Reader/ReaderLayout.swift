@@ -29,6 +29,8 @@ struct PageLayout: Equatable {
         var margin: CGFloat
         var fontSize: CGFloat
         var allowSpread: Bool
+        /// Let the pages run the full width (under the vertical bar's strip); the bars overlay on tap.
+        var fullBleed = false
     }
 
     static let footerHeight: CGFloat = 30
@@ -36,8 +38,8 @@ struct PageLayout: Equatable {
 
     static func compute(_ input: Input) -> PageLayout {
         var content = CGRect(origin: .zero, size: input.size).inset(by: UIEdgeInsets(
-            top: input.safeArea.top, left: input.safeArea.leading,
-            bottom: input.safeArea.bottom, right: input.safeArea.trailing))
+            top: input.safeArea.top, left: input.fullBleed ? 0 : input.safeArea.leading,
+            bottom: input.safeArea.bottom, right: input.fullBleed ? 0 : input.safeArea.trailing))
         // An active occlusion (the inner camera) that reaches into the content from the top pushes
         // the content down; one inside the bars' safe area doesn't touch the content at all.
         for region in input.occlusions {

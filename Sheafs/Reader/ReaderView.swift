@@ -148,9 +148,12 @@ struct ReaderView: View {
                 .frame.offsetBy(dx: shift.x, dy: shift.y)
             let active = !proxy.reservedRegions(kind: .division).isEmpty
             let occlusions = proxy.reservedRegions(kind: .occlusion).map { $0.frame.offsetBy(dx: shift.x, dy: shift.y) }
+            // The inner display (the one with a fold) reads full width; the cover display keeps its
+            // side inset because the camera sits in that strip.
             let fresh = PageLayout.Input(size: full, safeArea: insets, division: division,
                                          divisionIsActive: active, occlusions: occlusions,
-                                         margin: settings.margin, fontSize: settings.fontSize, allowSpread: true)
+                                         margin: settings.margin, fontSize: settings.fontSize, allowSpread: true,
+                                         fullBleed: division != nil)
             let layout = PageLayout.compute(effectiveInput(for: fresh))
             ZStack(alignment: .topLeading) {
                 ReaderPager(session: session, layout: layout, style: style, palette: palette,

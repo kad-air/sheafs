@@ -82,13 +82,16 @@ struct ReaderEngineTests {
         let layout = PageLayout.compute(.init(size: CGSize(width: 951, height: 669),
                                               safeArea: EdgeInsets(top: 0, leading: 0, bottom: 20, trailing: 84),
                                               division: fold, divisionIsActive: false, occlusions: [],
-                                              margin: 24, fontSize: 19, allowSpread: true))
+                                              margin: 24, fontSize: 19, allowSpread: true, fullBleed: true))
         #expect(layout.isSpread)
         let left = layout.pageFrames[0], right = layout.pageFrames[1]
         #expect(left.width == right.width)
         #expect(left.maxX < fold.minX)
         #expect(right.minX > fold.maxX)
-        #expect(right.maxX <= 951 - 84)
+        // Full bleed: the pages use the whole width, bars overlay them.
+        let fullWidth: CGFloat = 951
+        #expect(right.maxX == fullWidth)
+        #expect(left.minX == 0)
         #expect(left.minY == right.minY)
         #expect(left.height == right.height)
     }
@@ -158,5 +161,40 @@ struct ReaderEngineTests {
         #expect(pointer.serialized.hasPrefix("/body/DocFragment[3]/body/"))
         let found = try #require(chapter.block(atElementPath: parsed.elementPath))
         #expect(found.id == block.id)
+    }
+}
+
+struct AnchoredPaginationTests {
+    @Test func anchorBecomesTheFirstCharacterOfItsPage() throws {
+        let epub = try ReaderEngineTests.alice()
+        let item = epub.spine[2].item
+        let chapter = XHTMLConverter().convert(try epub.data(for: item))
+        let pageSize = CGSize(width: 300, height: 480)
+        let string = Typesetter.attributedString(for: chapter, style: ReaderEngineTests.style, images: ChapterImages(), pageSize: pageSize)
+        // Somewhere in the middle of a paragraph, on a different size than the one that produced it.
+        let plain = PaginatedChapter(spineIndex: 2, attributedString: string, pageSize: CGSize(width: 340, height: 600))
+        let anchor = plain.range(ofPage: 2).location + 37
+        let anchored = PaginatedChapter(spineIndex: 2, attributedString: string, pageSize: pageSize, anchor: anchor)
+        let page = anchored.pageIndex(containing: anchor)
+        #expect(anchored.range(ofPage: page).location == anchor)
+        // Every character is still covered exactly once, in order.
+        var cursor = 0
+        for index in 0 ..< anchored.pageCount {
+            let range = anchored.range(ofPage: index)
+            #expect(range.location == cursor)
+            #expect(range.length > 0)
+            cursor = NSMaxRange(range)
+        }
+        #expect(cursor == string.length)
+        // Page count stays within one of the plain layout at the same size.
+        let same = PaginatedChapter(spineIndex: 2, attributedString: string, pageSize: pageSize)
+        #expect(abs(same.pageCount - anchored.pageCount) <= 1)
+        // Character lookups map back to chapter coordinates on both sides of the break.
+        let point = CGPoint(x: 10, y: 5)
+        if let before = anchored.characterIndex(at: point, page: 0) { #expect(before < anchor) }
+        if let after = anchored.characterIndex(at: point, page: page) { #expect(after >= anchor) }
+        // An anchor at the start or the end is the plain layout.
+        #expect(PaginatedChapter(spineIndex: 2, attributedString: string, pageSize: pageSize, anchor: 0).anchor == nil)
+        #expect(PaginatedChapter(spineIndex: 2, attributedString: string, pageSize: pageSize, anchor: string.length).anchor == nil)
     }
 }

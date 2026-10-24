@@ -119,23 +119,25 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         }
     }
 
-    /// Shows the spread starting at `location`.
+    /// Shows the spread starting at `location`. A chapter laid out for the first time at this size
+    /// breaks its pages at the location, so that line is the first on its page.
     func show(location: ReadingLocation, animated: Bool, direction: UIPageViewController.NavigationDirection = .forward) {
-        guard let chapter = session.paginatedChapter(location.spineIndex) else { return }
+        guard let chapter = session.paginatedChapter(location.spineIndex, anchor: location.textOffset) else { return }
         let page = chapter.pageIndex(containing: location.textOffset)
-        let first = PageSlot(spineIndex: location.spineIndex, page: page)
-        let spread = makeSpread(startingAt: first)
+        let spread = makeSpread(anchoredAt: PageSlot(spineIndex: location.spineIndex, page: page))
         displayedLocation = spread.location
         pager.setViewControllers([spread], direction: direction, animated: animated)
         session.prefetch(around: location.spineIndex)
     }
 
-    private func makeSpread(startingAt first: PageSlot) -> SpreadViewController {
-        var slots: [PageSlot?] = [first]
-        if layout.isSpread {
-            slots.append(nextSlot(after: first))
+    /// In a spread the reading position is the right-hand page, like a book open to where you are:
+    /// the left page shows what came just before it (or stays blank at the very start).
+    private func makeSpread(anchoredAt page: PageSlot) -> SpreadViewController {
+        guard layout.isSpread else { return makeSpread(slots: [page]) }
+        if let previous = previousSlot(before: page) {
+            return makeSpread(slots: [previous, page])
         }
-        return makeSpread(slots: slots)
+        return makeSpread(slots: [nil, page])
     }
 
     private func makeSpread(slots: [PageSlot?]) -> SpreadViewController {
@@ -269,9 +271,10 @@ final class SpreadViewController: UIViewController {
 
     var firstSlot: PageSlot? { slots.compactMap { $0 }.first }
     var lastSlot: PageSlot? { slots.compactMap { $0 }.last }
+    /// The reading position: the start of the right-hand (last) page of the spread.
     var location: ReadingLocation? {
-        guard let first = firstSlot, let chapter = session.paginatedChapter(first.spineIndex) else { return nil }
-        return ReadingLocation(spineIndex: first.spineIndex, textOffset: chapter.range(ofPage: first.page).location)
+        guard let last = lastSlot, let chapter = session.paginatedChapter(last.spineIndex) else { return nil }
+        return ReadingLocation(spineIndex: last.spineIndex, textOffset: chapter.range(ofPage: last.page).location)
     }
 
     override func viewDidLoad() {
@@ -284,11 +287,7 @@ final class SpreadViewController: UIViewController {
             if index < slots.count, let slot = slots[index], let chapter = session.paginatedChapter(slot.spineIndex) {
                 pageView.chapter = chapter
                 pageView.page = slot.page
-                let title = session.chapterTitle(for: slot.spineIndex) ?? session.book.title
-                let overall = session.progress(for: ReadingLocation(spineIndex: slot.spineIndex,
-                                                                     textOffset: chapter.range(ofPage: slot.page).location))
-                let percent = overall.formatted(.percent.precision(.fractionLength(0)))
-                pageView.footer = PageView.Footer(leading: title, trailing: "\(slot.page + 1) of \(chapter.pageCount) · \(percent)")
+                pageView.footer = footer(for: slot, chapter: chapter, index: index)
             }
             view.addSubview(pageView)
             pageViews.append(pageView)
@@ -300,6 +299,22 @@ final class SpreadViewController: UIViewController {
         for (index, frame) in layout.pageFrames.enumerated() where index < pageViews.count {
             pageViews[index].frame = frame
         }
+    }
+
+    /// Running feet like a printed book: a single page carries the chapter title and the numbers;
+    /// in a spread the left page carries the chapter title (full width, so it isn't truncated) and
+    /// the right page the page count and progress. The right page repeats the title only when it
+    /// starts a different chapter, or when the left page is blank.
+    private func footer(for slot: PageSlot, chapter: PaginatedChapter, index: Int) -> PageView.Footer {
+        let title = session.chapterTitle(for: slot.spineIndex) ?? session.book.title
+        let overall = session.progress(for: ReadingLocation(spineIndex: slot.spineIndex,
+                                                             textOffset: chapter.range(ofPage: slot.page).location))
+        let numbers = "\(slot.page + 1) of \(chapter.pageCount) · \(overall.formatted(.percent.precision(.fractionLength(0))))"
+        guard layout.isSpread else { return PageView.Footer(leading: title, trailing: numbers) }
+        if index == 0 { return PageView.Footer(leading: title, trailing: "") }
+        let left = slots.first ?? nil
+        let showTitle = left == nil || left?.spineIndex != slot.spineIndex
+        return PageView.Footer(leading: showTitle ? title : "", trailing: numbers)
     }
 
     /// The link under a point in this controller's view, if any.
