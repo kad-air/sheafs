@@ -72,13 +72,12 @@ static half3 sampleBack(texture2d<half> front, texture2d<half> back, float2 s, h
     return mix(paper, through, half(0.11));
 }
 
-// Lighting on the near side of the bend: the paper turns away from the light toward the crest,
-// with a soft sheen just before it, the way a glossy-ish page catches the room.
+// Lighting on the near side of the bend: matte paper turning away from an overhead light, so
+// it simply darkens toward the crest (on dark paper the bend catches a little light instead).
 static float shadeFront(float theta, float isDark) {
-    float grazing = 1 - 0.30 * (1 - cos(theta));
-    float sheen = 0.08 * exp(-pow((theta - 1.05) / 0.32, 2.0));
-    float dark = 1 + 0.22 * sin(theta);
-    return mix(grazing + sheen, dark, isDark);
+    float grazing = 1 - 0.26 * (1 - cos(theta));
+    float dark = 1 + 0.18 * sin(theta);
+    return mix(grazing, dark, isDark);
 }
 
 // The far side of the bend, seen from inside the curl: darkest at the crest, opening up to the
@@ -176,7 +175,7 @@ fragment half4 flipFragment(FlipVertexOut in [[stage_in]],
         float cov = coverage(turned, w, h);
         if (cov > 0) {
             // A hint of the crease where the turned part meets the bend.
-            float crease = R > 0.01 ? 1 - 0.10 * (1 - smoothstep(0.0, R * 0.9, -xi)) : 1;
+            float crease = R > 0.01 ? 1 - 0.06 * (1 - smoothstep(0.0, R * 0.9, -xi)) : 1;
             half3 b = sampleBack(front, back, turned, paper, u) * half(mix(crease, 1.0, u.isDark));
             color = mix(color, b, half(cov));
         }
