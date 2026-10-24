@@ -2,26 +2,30 @@ import SwiftData
 import SwiftUI
 
 /// Informational: how many books are in the library and how much disk they and their covers use.
-struct LibrarySettingsSection: View {
+struct LibrarySettingsView: View {
     @Environment(LibraryStore.self) private var library
     @Query private var books: [Book]
     @State private var bytesUsed: Int64?
 
     var body: some View {
-        Section {
-            LabeledContent("Books", value: books.count.formatted())
-            LabeledContent("Space Used") {
-                if let bytesUsed {
-                    Text(bytesUsed, format: .byteCount(style: .file))
-                } else {
-                    ProgressView()
+        Form {
+            Section {
+                LabeledContent("Books", value: books.count.formatted())
+                LabeledContent("Space Used") {
+                    if let bytesUsed {
+                        Text(bytesUsed, format: .byteCount(style: .file))
+                    } else {
+                        ProgressView()
+                    }
                 }
+            } header: {
+                Text("Storage")
+            } footer: {
+                Text("EPUB files and cover images stored on this device.")
             }
-        } header: {
-            Text("Library")
-        } footer: {
-            Text("EPUB files and cover images stored on this device.")
         }
+        .navigationTitle("Library")
+        .navigationBarTitleDisplayMode(.inline)
         .task(id: books.count) {
             bytesUsed = await LibraryDiskUsage.measure([library.booksDirectory, library.coversDirectory])
         }

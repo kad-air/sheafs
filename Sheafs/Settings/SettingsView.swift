@@ -1,28 +1,62 @@
+import SwiftData
 import SwiftUI
 
-/// The Settings tab: sync account, reading appearance, library storage and an About block.
+/// The Settings tab: a short grouped list, most-used first, each row pushing a screen with the
+/// detail. Reading → the reader's appearance; Library → storage; Sync → the kosync account; About.
 struct SettingsView: View {
+    @Environment(ReaderSettings.self) private var settings
+    @Environment(SyncService.self) private var sync
+    @Query private var books: [Book]
+
     var body: some View {
         NavigationStack {
             Form {
-                SyncSettingsSection()
-                appearanceSection
-                LibrarySettingsSection()
-                AboutSettingsSection()
+                Section {
+                    NavigationLink {
+                        AppearanceView(embedded: true)
+                    } label: {
+                        row("Appearance", systemImage: "textformat.size", value: settings.theme.title)
+                    }
+                } header: {
+                    Text("Reading")
+                } footer: {
+                    Text("Theme, font, text size, spacing and page-turn options for the reader.")
+                }
+
+                Section("Library") {
+                    NavigationLink {
+                        LibrarySettingsView()
+                    } label: {
+                        row("Storage", systemImage: "books.vertical", value: books.count.formatted())
+                    }
+                }
+
+                Section("Sync & Accounts") {
+                    NavigationLink {
+                        SyncSettingsView()
+                    } label: {
+                        row("Reading Position Sync", systemImage: "arrow.triangle.2.circlepath",
+                            value: sync.isEnabled ? "On" : "Off")
+                    }
+                }
+
+                Section {
+                    NavigationLink {
+                        AboutSettingsView()
+                    } label: {
+                        Label("About Sheafs", systemImage: "info.circle")
+                    }
+                }
             }
             .navigationTitle("Settings")
         }
     }
 
-    private var appearanceSection: some View {
-        Section {
-            NavigationLink {
-                AppearanceView(embedded: true)
-            } label: {
-                Label("Appearance", systemImage: "textformat.size")
-            }
-        } footer: {
-            Text("Theme, font, text size, spacing and page-turn options for the reader.")
+    private func row(_ title: LocalizedStringKey, systemImage: String, value: String) -> some View {
+        LabeledContent {
+            Text(value)
+        } label: {
+            Label(title, systemImage: systemImage)
         }
     }
 }
