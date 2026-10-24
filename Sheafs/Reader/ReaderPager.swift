@@ -283,7 +283,14 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
     // MARK: Taps
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
-        true
+        // The tap and the long press are exclusive: a tap recognises on finger-up however long
+        // the hold was, and would clear the selection the press just made. Once the press begins
+        // the tap is cancelled. (Not `require(toFail:)`: that would delay every page-turn tap.)
+        let pair = [gestureRecognizer, otherGestureRecognizer]
+        if pair.contains(where: { $0 is UITapGestureRecognizer }), pair.contains(where: { $0 is UILongPressGestureRecognizer }) {
+            return false
+        }
+        return true
     }
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
