@@ -52,7 +52,7 @@ tests there.
 
 ## Sync setup
 
-In Settings → Reading position sync, enter the server URL (for a self-hosted server this may
+In Settings → Sync & Accounts → Reading Position Sync, enter the server URL (for a self-hosted server this may
 include a path, e.g. `https://example.com/kosync/`), a user name and a password, then tap
 *Register Account* once and *Test Connection*. Any reader that speaks the KOReader sync protocol
 can share the account; the same EPUB file (byte for byte) must be on each device.

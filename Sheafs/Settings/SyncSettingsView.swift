@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Account settings for KOReader-protocol ("kosync") reading position sync, with Test and Register.
-struct SyncSettingsSection: View {
+/// The Settings → Reading Position Sync screen: the KOReader-protocol ("kosync") account, with Test
+/// and Register.
+struct SyncSettingsView: View {
     @Environment(SyncService.self) private var sync
 
     private enum Field: Hashable { case server, user, password, device }
@@ -14,54 +15,65 @@ struct SyncSettingsSection: View {
 
     var body: some View {
         @Bindable var sync = sync
-        Section {
-            Toggle("Sync Reading Position", isOn: $sync.isEnabled)
-
-            LabeledContent("Server URL") {
-                TextField("Server URL", text: $sync.serverURLString, prompt: Text("https://example.com/kosync/"))
-                    .keyboardType(.URL)
-                    .textContentType(.URL)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .multilineTextAlignment(.trailing)
-                    .labelsHidden()
-                    .submitLabel(.next)
-                    .focused($focus, equals: .server)
-            }
-            LabeledContent("User Name") {
-                TextField("User Name", text: $sync.username, prompt: Text("Required"))
-                    .textContentType(.username)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .multilineTextAlignment(.trailing)
-                    .labelsHidden()
-                    .submitLabel(.next)
-                    .focused($focus, equals: .user)
-            }
-            LabeledContent("Password") {
-                SecureField("Password", text: $password, prompt: Text("Required"))
-                    .textContentType(.password)
-                    .multilineTextAlignment(.trailing)
-                    .labelsHidden()
-                    .submitLabel(.next)
-                    .focused($focus, equals: .password)
-            }
-            LabeledContent("Device Name") {
-                TextField("Device Name", text: $sync.deviceName, prompt: Text(SyncService.defaultDeviceName))
-                    .multilineTextAlignment(.trailing)
-                    .labelsHidden()
-                    .submitLabel(.done)
-                    .focused($focus, equals: .device)
+        Form {
+            Section {
+                Toggle("Sync Reading Position", isOn: $sync.isEnabled)
+            } footer: {
+                Text("The same account works with KOReader and other readers that speak its sync protocol. A book's position is keyed by the bytes of its file, so the same file must be on every device.")
             }
 
-            actionButton("Test Connection", systemImage: "checkmark.shield", operation: .testing)
-            actionButton("Register Account", systemImage: "person.crop.circle.badge.plus", operation: .registering)
-            statusRow
-        } header: {
-            Text("Reading Position Sync")
-        } footer: {
-            Text("The same account works with KOReader and other readers that speak its sync protocol. A book's position is keyed by the bytes of its file, so the same file must be on every device.")
+            Section("Account") {
+                LabeledContent("Server URL") {
+                    TextField("Server URL", text: $sync.serverURLString, prompt: Text("https://example.com/kosync/"))
+                        .keyboardType(.URL)
+                        .textContentType(.URL)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .multilineTextAlignment(.trailing)
+                        .labelsHidden()
+                        .submitLabel(.next)
+                        .focused($focus, equals: .server)
+                }
+                LabeledContent("User Name") {
+                    TextField("User Name", text: $sync.username, prompt: Text("Required"))
+                        .textContentType(.username)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .multilineTextAlignment(.trailing)
+                        .labelsHidden()
+                        .submitLabel(.next)
+                        .focused($focus, equals: .user)
+                }
+                LabeledContent("Password") {
+                    SecureField("Password", text: $password, prompt: Text("Required"))
+                        .textContentType(.password)
+                        .multilineTextAlignment(.trailing)
+                        .labelsHidden()
+                        .submitLabel(.next)
+                        .focused($focus, equals: .password)
+                }
+            }
+
+            Section {
+                LabeledContent("Device Name") {
+                    TextField("Device Name", text: $sync.deviceName, prompt: Text(SyncService.defaultDeviceName))
+                        .multilineTextAlignment(.trailing)
+                        .labelsHidden()
+                        .submitLabel(.done)
+                        .focused($focus, equals: .device)
+                }
+            } footer: {
+                Text("How this device appears to the sync server.")
+            }
+
+            Section {
+                actionButton("Test Connection", systemImage: "checkmark.shield", operation: .testing)
+                actionButton("Register Account", systemImage: "person.crop.circle.badge.plus", operation: .registering)
+                statusRow
+            }
         }
+        .navigationTitle("Reading Position Sync")
+        .navigationBarTitleDisplayMode(.inline)
         .onSubmit(advanceFocus)
         .onAppear { password = sync.password }
         .onChange(of: password) { _, newValue in sync.password = newValue }

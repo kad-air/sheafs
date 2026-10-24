@@ -135,7 +135,9 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     shader offscreen (leaf red, page beneath blue, so blue reads the shade) and pins the shadow.
   - `Catalog/` — OPDS browser (catalog list, add/edit, feed browser with pagination/search,
     entry detail + download → `LibraryStore.importBook`).
-  - `Settings/` — sync account, appearance link, library stats, about. `Sync/SyncService` — kosync
+  - `Settings/` — `SettingsView` is a short grouped list (Reading → `AppearanceView(embedded: true)`,
+    Library → storage stats, Sync & Accounts → the kosync account, About), each row pushing its
+    own screen (`LibrarySettingsView`, `SyncSettingsView`, `AboutSettingsView`). `Sync/SyncService` — kosync
     settings (password in the keychain) + `pull`/`push`.
 
 ## iPhone Duo behaviour (the point of the app)
