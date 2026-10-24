@@ -34,8 +34,7 @@ fi
 files=(); mains=()
 while IFS= read -r -d '' f; do
   case "$f" in */main.swift) mains+=("$f") ;; *) files+=("$f") ;; esac
-done < <(find . -name '*.swift' -not -path './.git/*' -not -path '*/.build/*' -not -path './build/*' \
-           -not -path './DerivedData/*' -print0 | sort -z)
+done < <(git ls-files -z '*.swift')   # tracked files only: nested worktrees (.claude/worktrees) and builds stay out
 
 if [ ${#files[@]} -lt 50 ]; then
   echo "swift-parse: FAIL, found only ${#files[@]} Swift files (expected 80+)"; exit 1
