@@ -128,3 +128,59 @@ struct WindowRegions: Equatable {
         occlusions = proxy.reservedRegions(kind: .occlusion).map { inWindow($0.frame) }
     }
 }
+
+/// Keeps the text still while anything but the display itself changes. The bars (status bar,
+/// toolbar, progress strip) change the reader's safe areas, and the system reports the status-bar
+/// cluster and Live Activities as OCCLUSION regions, the same kind as the cover display's camera
+/// hole (the API has no way to tell hardware from system UI). None of that may move the text. So the
+/// geometry the page avoids (safe areas and occlusions) is learned once per display state (window
+/// size + fold) while the reader settles, then locked: later changes on the same display are
+/// ignored. A fold, unfold or rotation starts a new display state and is followed at once.
+struct SteadyPageGeometry {
+    /// What makes a display state: changes here re-lay the pages; anything else is held.
+    struct Display: Equatable {
+        var size: CGSize
+        var division: CGRect?
+        var divisionIsActive: Bool
+        init(_ input: PageLayout.Input) {
+            size = input.size
+            division = input.division
+            divisionIsActive = input.divisionIsActive
+        }
+    }
+
+    /// The locked input for the current display (its safe areas and occlusions are the ones used).
+    private(set) var reading: PageLayout.Input?
+    /// Until when (seconds of system uptime) the current display's geometry is still being learned.
+    private(set) var learningUntil: TimeInterval = 0
+
+    /// How long after a new display state its geometry may still settle (the bars leave one by one
+    /// after a fold hides them; the status bar goes last).
+    static let learningWindow: TimeInterval = 1.5
+
+    /// `barsVisible`: the reader's own bars are up, so the current insets are theirs, not reading ones.
+    mutating func observe(_ fresh: PageLayout.Input, barsVisible: Bool, now: TimeInterval) {
+        guard let reading, Display(reading) == Display(fresh) else {
+            reading = fresh
+            learningUntil = now + Self.learningWindow
+            return
+        }
+        if !barsVisible, now < learningUntil { self.reading = fresh }
+    }
+
+    /// The input to lay the pages out with: `fresh` (its settings, size and fold) with the locked
+    /// safe areas and occlusions while the display is the same.
+    func input(for fresh: PageLayout.Input) -> PageLayout.Input {
+        var used = fresh
+        if let reading, Display(reading) == Display(fresh) {
+            used.safeArea = reading.safeArea
+            used.occlusions = reading.occlusions
+        }
+        return used
+    }
+
+    func isHolding(_ fresh: PageLayout.Input) -> Bool {
+        guard let reading, Display(reading) == Display(fresh) else { return false }
+        return reading.safeArea != fresh.safeArea || reading.occlusions != fresh.occlusions
+    }
+}

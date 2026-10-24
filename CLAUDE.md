@@ -168,10 +168,15 @@ running head (`PageView.headFrame`) narrows symmetrically to stay clear of it. F
 folio centred ~50 pt above the display's bottom edge, like Books; the page frame stops at the home
 indicator's zone. Page breaks are judged by a line's GLYPH bottom (`Paginator`), not its fragment
 rect, which carries the trailing line/paragraph spacing: otherwise the last line that fits is dropped.
-🔴 While the chrome is visible the layout keeps the chrome-hidden SAFE AREAS (`ReaderView.
-effectiveInput`) but still follows fold/camera/size — otherwise the bars' insets would repaginate
-under the reader's eyes on every tap; the bars overlay the page instead. A size change (fold,
-rotate) while the bars are up hides them first, so the stored insets are always reading ones.
+🔴 Nothing but the display itself moves the text (`SteadyPageGeometry`, `SteadyPageGeometryTests`).
+The bars change the safe areas, and the system reports the status-bar cluster and Live Activities as
+OCCLUSION regions, exactly like the cover camera (the API cannot tell hardware from system UI; on the
+inner display the clock/Wi-Fi cluster pushed both pages' text below it). So the safe areas and
+occlusions are learned per display state (window size + fold position/activity) during the first
+1.5 s, then LOCKED: later changes on the same display are ignored, and the bars overlay the page. A
+fold, unfold, rotation or book pose is a new display state and is followed at once; a size change
+while the bars are up hides them first. Known gap: a Live Activity animating in during those first
+1.5 s on a display gets learned as a hole until the next display change.
 
 ## Landmines
 - The reader forces a colour scheme only for a FIXED theme (`ReaderPalette.forcedColorScheme`; nil for

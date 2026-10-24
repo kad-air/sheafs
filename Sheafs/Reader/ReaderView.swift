@@ -37,7 +37,7 @@ struct ReaderView: View {
     @State private var showAppearance = false
     /// The small panel over the bottom of the page; `showAppearance` is the detailed sheet behind it.
     @State private var showQuickAppearance = false
-    @State private var layoutInput: PageLayout.Input?
+    @State private var geometry = SteadyPageGeometry()
     @State private var regions: WindowRegions?
     @State private var footnote: Footnote?
     @State private var editingAnnotation: Annotation?
@@ -78,7 +78,7 @@ struct ReaderView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .persistentSystemOverlays(chromeVisible ? .automatic : .hidden)
                 .safeAreaInset(edge: .bottom) {
-                    if chromeVisible, let session, session.isReady, layoutInput?.division.map({ $0.width < $0.height }) ?? true {
+                    if chromeVisible, let session, session.isReady, geometry.reading?.division.map({ $0.width < $0.height }) ?? true {
                         progressStrip(session)
                     }
                 }
@@ -184,7 +184,7 @@ struct ReaderView: View {
                                              divisionIsActive: regions.divisionIsActive, occlusions: regions.occlusions,
                                              margin: settings.margin, fontSize: settings.fontSize, allowSpread: true,
                                              fullBleed: true)
-                let layout = PageLayout.compute(effectiveInput(for: fresh))
+                let layout = PageLayout.compute(geometry.input(for: fresh))
                 ZStack(alignment: .topLeading) {
                     ReaderPager(session: session, layout: layout, style: style, palette: palette,
                                 location: session.location, tapTurnsPages: settings.tapToTurn,
@@ -211,14 +211,15 @@ struct ReaderView: View {
                 .onChange(of: fresh, initial: true) { _, new in
                     // A fold, unfold or rotation while the bars are up: drop the bars so the stored
                     // insets are the reading ones, not the bars'.
-                    if chromeVisible, let frozen = layoutInput, frozen.size != new.size {
+                    if chromeVisible, let frozen = geometry.reading, frozen.size != new.size {
                         chromeVisible = false
                     }
-                    if !chromeVisible || layoutInput?.size != new.size { layoutInput = new }
-                    let used = PageLayout.compute(effectiveInput(for: new))
+                    geometry.observe(new, barsVisible: chromeVisible, now: ProcessInfo.processInfo.systemUptime)
+                    let used = PageLayout.compute(geometry.input(for: new))
                     print("[layout] size=\(new.size) safe=\(new.safeArea) division=\(String(describing: new.division)) " +
                           "active=\(new.divisionIsActive) occlusions=\(new.occlusions) → pages=\(used.pageFrames) " +
-                          "textInsets=\(used.textInsets) holes=\(used.occlusions)")
+                          "textInsets=\(used.textInsets) holes=\(used.occlusions) " +
+                          "holding=\(geometry.isHolding(new))")
                 }
                 .animation(.smooth, value: layout.deckFrame != nil)
             }
@@ -230,14 +231,6 @@ struct ReaderView: View {
             }
             .ignoresSafeArea()
         }
-    }
-
-    /// While the chrome is up, keep the chrome-hidden safe areas (so the bars overlay the page instead
-    /// of repaginating it) but still follow the fold, the camera and the size.
-    private func effectiveInput(for fresh: PageLayout.Input) -> PageLayout.Input {
-        var used = fresh
-        if chromeVisible, let frozen = layoutInput, frozen.size == fresh.size { used.safeArea = frozen.safeArea }
-        return used
     }
 
     /// Titles from the OPF and the TOC often differ only in quotes or case.
@@ -381,7 +374,7 @@ struct ReaderView: View {
     /// stay off the fold, and the right page, which holds the reading position, stays in full view.
     private var quickPanelWidth: CGFloat? {
         guard let division = regions?.division, division.height > division.width else { return nil }
-        return max(0, division.minX - (layoutInput?.safeArea.leading ?? 0))
+        return max(0, division.minX - (geometry.reading?.safeArea.leading ?? 0))
     }
 
     /// The bars would cover the text being adjusted, so they make way for the panel.
