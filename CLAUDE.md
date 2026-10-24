@@ -14,6 +14,9 @@ scripts/check-auto-theme          # end to end on a simulator (SIM="Sheafs Duo")
                                   #   live Light/Dark flips (reads the page colour off screenshots)
 cd Packages/SheafsKit && swift test            # the core package, on the Mac, ~1 s
 xcodebuild -project Sheafs.xcodeproj -scheme Sheafs -destination 'platform=iOS Simulator,name=iPhone Duo' build
+scripts/release                   # archive + upload to TestFlight with an App Store Connect API key
+                                  #   (ASC_KEY_PATH/ASC_KEY_ID/ASC_ISSUER_ID; build = commit count,
+                                  #   refuses a dirty tree; --no-upload archives and checks only)
 scripts/hinge/hinge 110           # fold the booted Duo simulator (0 closed … 180 flat); `get` reads it
 xcrun simctl io <udid> screenshot --display=primary-1 out.png   # inner display (`primary` = cover)
 ```

@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# Archive the app and upload it to App Store Connect (TestFlight), signed with an App Store Connect
+# API key, so no Apple ID has to be signed into Xcode. Fails loudly (non-zero exit, one-line reason).
+#   scripts/release              archive + check the archive + upload
+#   scripts/release --no-upload  archive + check only
+# Needs: Config/Signing.xcconfig with DEVELOPMENT_TEAM, and an API key with the App Manager role or
+# higher in ASC_KEY_PATH (the .p8 file), ASC_KEY_ID and ASC_ISSUER_ID.
+# Build number = the commit count on HEAD, so every upload from a newer commit is higher; the tree
+# must be clean so the build is a real commit. Version = MARKETING_VERSION in project.yml.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+MODE=${1:-upload}
+BUNDLE=io.sheafs.reader
+MIN_SDK=27.1   # the iPhone Duo layout (reserved regions, the vertical bar) needs the 27.1 SDK
+OUT=build/release
+ARCHIVE=$OUT/Sheafs.xcarchive
+fail() { echo "RELEASE FAILED: $*" >&2; exit 1; }
+
+case $MODE in upload|--no-upload) ;; *) fail "unknown argument $MODE";; esac
+TEAM=$(sed -n 's/^DEVELOPMENT_TEAM *= *\([A-Z0-9]*\).*/\1/p' Config/Signing.xcconfig 2>/dev/null || true)
+[[ -n $TEAM ]] || fail "no DEVELOPMENT_TEAM in Config/Signing.xcconfig (run scripts/bootstrap, then add it)"
+: "${ASC_KEY_PATH:?set ASC_KEY_PATH to the App Store Connect API key (.p8)}"
+: "${ASC_KEY_ID:?set ASC_KEY_ID}"
+: "${ASC_ISSUER_ID:?set ASC_ISSUER_ID}"
+[[ -r $ASC_KEY_PATH ]] || fail "can't read $ASC_KEY_PATH"
+AUTH=(-allowProvisioningUpdates -authenticationKeyPath "$ASC_KEY_PATH"
+      -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
+
+if [[ $MODE == upload && -n $(git status --porcelain) ]]; then
+  fail "uncommitted changes: commit first so the build is a real commit"
+fi
+BUILD=$(git rev-list --count HEAD)
+VERSION=$(sed -n 's/^ *MARKETING_VERSION: *"\{0,1\}\([0-9.]*\)"\{0,1\} *$/\1/p' project.yml | head -1)
+[[ -n $VERSION ]] || fail "no MARKETING_VERSION in project.yml"
+SDK=$(xcrun --sdk iphoneos --show-sdk-version)
+printf '%s\n%s\n' "$MIN_SDK" "$SDK" | sort -V -C || fail "iOS SDK $SDK is older than $MIN_SDK"
+echo "Sheafs $VERSION ($BUILD) @ $(git rev-parse --short HEAD), iOS SDK $SDK, $(xcodebuild -version | head -1)"
+
+mkdir -p "$OUT"
+xcodegen generate --quiet || fail "xcodegen"
+echo "archiving (log $OUT/archive.log)…"
+rm -rf "$ARCHIVE"
+xcodebuild archive -project Sheafs.xcodeproj -scheme Sheafs -configuration Release \
+  -destination generic/platform=iOS -archivePath "$ARCHIVE" "${AUTH[@]}" \
+  CURRENT_PROJECT_VERSION="$BUILD" MARKETING_VERSION="$VERSION" \
+  >"$OUT/archive.log" 2>&1 || { grep -E 'error:' "$OUT/archive.log" | head; fail "archive ($OUT/archive.log)"; }
+
+# The archive must be the app we think it is.
+PLIST=$ARCHIVE/Products/Applications/Sheafs.app/Info.plist
+[[ -f $PLIST ]] || fail "no Sheafs.app in the archive"
+pb() { /usr/libexec/PlistBuddy -c "Print :$1" "$PLIST" 2>/dev/null || true; }
+[[ $(pb CFBundleIdentifier) == "$BUNDLE" ]] || fail "bundle id is '$(pb CFBundleIdentifier)', expected $BUNDLE"
+[[ $(pb CFBundleVersion) == "$BUILD" ]] || fail "build number is '$(pb CFBundleVersion)', expected $BUILD"
+[[ $(pb CFBundleShortVersionString) == "$VERSION" ]] || fail "version is '$(pb CFBundleShortVersionString)', expected $VERSION"
+[[ $(pb DTSDKName) == "iphoneos$SDK" ]] || fail "linked SDK is '$(pb DTSDKName)', expected iphoneos$SDK"
+[[ $(pb ITSAppUsesNonExemptEncryption) == false ]] || fail "ITSAppUsesNonExemptEncryption must be false (TestFlight asks otherwise)"
+echo "ok: archive $VERSION ($BUILD), $BUNDLE, $(pb DTSDKName)"
+[[ $MODE == --no-upload ]] && exit 0
+
+cat >"$OUT/ExportOptions.plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>method</key><string>app-store-connect</string>
+  <key>destination</key><string>upload</string>
+  <key>teamID</key><string>$TEAM</string>
+  <key>signingStyle</key><string>automatic</string>
+  <key>manageAppVersionAndBuildNumber</key><false/>
+</dict></plist>
+EOF
+echo "uploading (log $OUT/export.log)…"
+# Homebrew's rsync breaks -exportArchive's copy step: run it with the system PATH only.
+PATH=/usr/bin:/bin:/usr/sbin:/sbin xcodebuild -exportArchive -archivePath "$ARCHIVE" \
+  -exportOptionsPlist "$OUT/ExportOptions.plist" -exportPath "$OUT/export" "${AUTH[@]}" \
+  >"$OUT/export.log" 2>&1 || { grep -iE 'error' "$OUT/export.log" | head; fail "export/upload ($OUT/export.log)"; }
+grep -qE 'Upload succeeded|EXPORT SUCCEEDED' "$OUT/export.log" || fail "no success line in $OUT/export.log"
+echo "ok: uploaded Sheafs $VERSION ($BUILD); App Store Connect processes it in a few minutes"

@@ -16,3 +16,5 @@ xcuserdata/
 .DS_Store
 # Scratch
 /tmp/
+# Release builds (scripts/release)
+build/
