@@ -35,6 +35,8 @@ struct ReaderView: View {
     @State private var chromeVisible = false
     @State private var showContents = false
     @State private var showAppearance = false
+    /// The small panel over the bottom of the page; `showAppearance` is the detailed sheet behind it.
+    @State private var showQuickAppearance = false
     @State private var layoutInput: PageLayout.Input?
     @State private var regions: WindowRegions?
     @State private var footnote: Footnote?
@@ -80,6 +82,18 @@ struct ReaderView: View {
                         progressStrip(session)
                     }
                 }
+        }
+        .overlay(alignment: .bottomLeading) {
+            if showQuickAppearance {
+                QuickAppearanceView(onMore: {
+                    withAnimation(.snappy) { showQuickAppearance = false }
+                    showAppearance = true
+                }, onClose: {
+                    withAnimation(.snappy) { showQuickAppearance = false }
+                })
+                .frame(maxWidth: quickPanelWidth ?? .infinity)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
         .preferredColorScheme(palette.isDark ? .dark : .light)
         .tint(Color(uiColor: palette.link))
@@ -184,7 +198,7 @@ struct ReaderView: View {
                                 onSelectionAction: handle(selection:))
                     if let deck = layout.deckFrame {
                         ReaderDeck(session: session, palette: palette, proxy: pagerProxy,
-                                   showContents: $showContents, showAppearance: $showAppearance) { location in
+                                   showContents: $showContents, showAppearance: $showQuickAppearance) { location in
                             jump(to: location)
                         }
                         .frame(width: deck.width, height: deck.height)
@@ -256,7 +270,7 @@ struct ReaderView: View {
         }
         .visibilityPriority(.high)
         ToolbarItem(placement: .primaryAction) {
-            Button("Appearance", systemImage: "textformat.size") { showAppearance = true }
+            Button("Appearance", systemImage: "textformat.size") { openQuickAppearance() }
         }
         ToolbarOverflowMenu {
             Button("Sync Position Now", systemImage: "arrow.triangle.2.circlepath") {
@@ -325,7 +339,11 @@ struct ReaderView: View {
     private func handle(tap: ReaderTap) {
         switch tap {
         case .center:
-            withAnimation(.snappy) { chromeVisible.toggle() }
+            if showQuickAppearance {
+                withAnimation(.snappy) { showQuickAppearance = false }
+            } else {
+                withAnimation(.snappy) { chromeVisible.toggle() }
+            }
         case .previous, .next:
             break // the pager turns the page itself
         case .link(let href, let spine):
@@ -357,6 +375,21 @@ struct ReaderView: View {
         library.add(annotation)
         log.info("highlight \(selection.spineIndex):\(selection.range.location)+\(selection.range.length) \(color.rawValue, privacy: .public)")
         return annotation
+    }
+
+    /// Over a vertical fold (a spread, flat or in book pose) the panel keeps to the left page: controls
+    /// stay off the fold, and the right page, which holds the reading position, stays in full view.
+    private var quickPanelWidth: CGFloat? {
+        guard let division = regions?.division, division.height > division.width else { return nil }
+        return max(0, division.minX - (layoutInput?.safeArea.leading ?? 0))
+    }
+
+    /// The bars would cover the text being adjusted, so they make way for the panel.
+    private func openQuickAppearance() {
+        withAnimation(.snappy) {
+            chromeVisible = false
+            showQuickAppearance = true
+        }
     }
 
     private func open(link href: String, from spine: Int) {
@@ -429,6 +462,7 @@ struct ReaderView: View {
         guard fresh.isReady else { return }
         book.lastOpenedAt = .now
         library.save()
+        openAppearanceFromLaunchArgument()
         if let remote = await sync.pull(for: book) {
             offer(remote, session: fresh, force: false)
         }
@@ -461,6 +495,20 @@ struct ReaderView: View {
             accept(prompt)
         }
     }
+
+    /// `-SheafsAppearance quick|full` opens the quick panel or the detailed sheet once per launch, so
+    /// screenshots and simulator checks can reach them without taps.
+    private func openAppearanceFromLaunchArgument() {
+        guard !Self.appearanceArgumentConsumed else { return }
+        Self.appearanceArgumentConsumed = true
+        switch UserDefaults.standard.string(forKey: "SheafsAppearance") {
+        case "quick": openQuickAppearance()
+        case "full": showAppearance = true
+        default: break
+        }
+    }
+
+    private static var appearanceArgumentConsumed = false
 
     private func accept(_ prompt: RemotePrompt) {
         jump(to: prompt.location)
