@@ -1,0 +1,52 @@
+# scripts/check on every PR to main and every push to main, on a macOS runner (free for public repos).
+# The app (steps 4-5) needs the iOS 27.1 SDK: the newest Xcode on the runner is used, and when it
+# can't build for 27.1 the run says so in a warning and the summary and checks steps 1-3 only.
+# Simulator unit tests (step 5) need an iPhone Duo runtime the runners don't have: run them locally.
+name: check
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: pick Xcode
+        id: xcode
+        run: |
+          ls -d /Applications/Xcode*.app
+          best=""; best_sdk=0
+          for x in /Applications/Xcode*.app; do
+            sdk=$(DEVELOPER_DIR="$x/Contents/Developer" xcrun --sdk iphonesimulator --show-sdk-version 2>/dev/null) || continue
+            echo "$x: iOS Simulator SDK $sdk"
+            if [ "$(printf '%s\n%s\n' "$best_sdk" "$sdk" | sort -V | tail -1)" = "$sdk" ]; then best=$x; best_sdk=$sdk; fi
+          done
+          [ -n "$best" ] || { echo "no Xcode with an iOS Simulator SDK"; exit 1; }
+          sudo xcode-select -s "$best/Contents/Developer"
+          xcodebuild -version
+          if printf '27.1\n%s\n' "$best_sdk" | sort -V -C; then
+            echo "app=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::newest Xcode on the runner has the iOS $best_sdk SDK; the app needs 27.1, so CI checks steps 1-3 only (run scripts/check locally)"
+            echo "⚠️ App build skipped: the runner's newest iOS SDK is $best_sdk, the app needs 27.1. Steps 1-3 only." >> "$GITHUB_STEP_SUMMARY"
+            echo "app=0" >> "$GITHUB_OUTPUT"
+          fi
+      - name: install xcodegen
+        if: steps.xcode.outputs.app == '1'
+        run: brew install xcodegen
+      - name: scripts/check
+        env:
+          NO_APP: ${{ steps.xcode.outputs.app == '1' && '' || '1' }}
+          SKIP_SIM_TESTS: "1"
+          DESTINATION: generic/platform=iOS Simulator
+          DERIVED_DATA: ${{ runner.temp }}/derived
+        run: scripts/check

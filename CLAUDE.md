@@ -10,6 +10,10 @@ hostnames or secrets anywhere in the tree** — `scripts/check` greps for them a
 scripts/bootstrap                 # Config/Signing.xcconfig (git-ignored) + `xcodegen generate`
 scripts/check                     # THE gate: hygiene grep, Python reference freshness, swift test,
                                   #   simulator build, simulator unit tests (SKIP_SIM_TESTS=1 skips the last)
+                                  #   NO_APP=1 stops before the app build; DESTINATION overrides its destination
+scripts/swift-parse               # swiftc -parse of every Swift file (no SDK); part of scripts/check step 3
+                                  # CI: .github/workflows/check.yml runs scripts/check on PRs and main pushes
+                                  #   (macOS runner, newest Xcode; app build only if it has the 27.1 SDK)
 scripts/check-auto-theme          # end to end on a simulator (SIM="Sheafs Duo"): theme Automatic follows
                                   #   live Light/Dark flips (reads the page colour off screenshots)
 cd Packages/SheafsKit && swift test            # the core package, on the Mac, ~1 s
