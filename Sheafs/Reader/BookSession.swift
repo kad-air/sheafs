@@ -202,6 +202,26 @@ final class BookSession {
         return result
     }
 
+    /// Book-wide page numbers like Books shows them: exact for chapters already laid out at this
+    /// size, estimated from their text length for the rest (so the total settles as you read).
+    func bookPages(spineIndex: Int, page: Int) -> (page: Int, total: Int) {
+        guard !chapters.isEmpty else { return (1, 1) }
+        var laidOutChars = 0, laidOutPages = 0
+        for (index, chapter) in paginated {
+            laidOutChars += chapters[index].textLength
+            laidOutPages += chapter.pageCount
+        }
+        let perPage = laidOutPages > 0 ? max(200, Double(laidOutChars) / Double(laidOutPages)) : 1500
+        func count(_ index: Int) -> Int {
+            paginated[index]?.pageCount ?? max(1, Int((Double(chapters[index].textLength) / perPage).rounded(.up)))
+        }
+        var before = 0
+        for index in 0 ..< min(spineIndex, chapters.count) { before += count(index) }
+        var total = 0
+        for index in chapters.indices { total += count(index) }
+        return (before + page + 1, max(total, before + page + 1))
+    }
+
     /// Lays out the neighbours of `spineIndex` soon, so page turns don't wait.
     func prefetch(around spineIndex: Int) {
         for index in [spineIndex + 1, spineIndex - 1] where index >= 0 && index < chapters.count && paginated[index] == nil {

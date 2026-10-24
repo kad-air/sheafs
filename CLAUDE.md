@@ -89,17 +89,21 @@ Both pages of a spread share one text size, so one pagination serves both. The r
 the first character of the RIGHT-hand page of a spread (the left page shows what came just before,
 or is blank at the very start). Pagination is ANCHORED: the first layout of a chapter after a
 size/style change forces a page break at the position (`PaginatedChapter(anchor:)`, two TextKit
-parts), so the line that was at the top of the cover page is the first line of the right page
-after unfolding, and vice versa. Running feet: single page = chapter title + "n of m · %"; spread
-= title on the left page, numbers on the right (title repeated on the right only when its chapter
-differs or the left page is blank).
+parts: each part is ONE tall container cut into pages at line-fragment boundaries; the part before
+the anchor is cut BACKWARD from it so its short page lands at the chapter start, not right before
+the position), so the line that was at the top of the cover page is the first line of the right
+page after unfolding, and vice versa. Margins like Books: running head at the top (book title on a
+left page, chapter title on a right or single page), the book-wide page number centred at the
+bottom (`BookSession.bookPages`: exact for laid-out chapters, estimated by text length for the
+rest), and the chrome strip says "136 of 594 · 18 pages left in chapter".
 🔴 Geometry comes from a GeometryReader that does NOT ignore the safe area (inside one that does,
 `proxy.safeAreaInsets` is all zeros and the pages ran under the vertical bar): the layout works in
 window coordinates (`proxy.size` + insets, regions shifted by the insets) and the pager is a full-
 window view offset back by the insets. The system keeps an 84 pt trailing inset for the vertical
-bar even with the status bar hidden. On the inner display (a fold region exists) the pages read
-FULL BLEED under that strip and the bars overlay them on tap (`fullBleed`); the cover display keeps
-the side inset because the camera sits in that strip.
+bar even with the status bar hidden. Both displays read FULL BLEED under that strip and the bars
+overlay the page on tap (`fullBleed`); the only thing avoided is the cover display's camera, which
+the system reports as an active occlusion region: the running-head band grows to its bottom edge so
+the text starts below it (Books does the same).
 🔴 While the chrome is visible the layout keeps the chrome-hidden SAFE AREAS (`ReaderView.
 effectiveInput`) but still follows fold/camera/size — otherwise the bars' insets would repaginate
 under the reader's eyes on every tap; the bars overlay the page instead. A size change (fold,

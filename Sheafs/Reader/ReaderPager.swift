@@ -287,7 +287,11 @@ final class SpreadViewController: UIViewController {
             if index < slots.count, let slot = slots[index], let chapter = session.paginatedChapter(slot.spineIndex) {
                 pageView.chapter = chapter
                 pageView.page = slot.page
-                pageView.footer = footer(for: slot, chapter: chapter, index: index)
+                // Running heads like a printed book: book title on a left page, chapter on a right
+                // or single page; the folio is the book-wide page number.
+                let chapterTitle = session.chapterTitle(for: slot.spineIndex) ?? session.book.title
+                pageView.head = (layout.isSpread && index == 0) ? session.book.title : chapterTitle
+                pageView.folio = "\(session.bookPages(spineIndex: slot.spineIndex, page: slot.page).page)"
             }
             view.addSubview(pageView)
             pageViews.append(pageView)
@@ -299,22 +303,6 @@ final class SpreadViewController: UIViewController {
         for (index, frame) in layout.pageFrames.enumerated() where index < pageViews.count {
             pageViews[index].frame = frame
         }
-    }
-
-    /// Running feet like a printed book: a single page carries the chapter title and the numbers;
-    /// in a spread the left page carries the chapter title (full width, so it isn't truncated) and
-    /// the right page the page count and progress. The right page repeats the title only when it
-    /// starts a different chapter, or when the left page is blank.
-    private func footer(for slot: PageSlot, chapter: PaginatedChapter, index: Int) -> PageView.Footer {
-        let title = session.chapterTitle(for: slot.spineIndex) ?? session.book.title
-        let overall = session.progress(for: ReadingLocation(spineIndex: slot.spineIndex,
-                                                             textOffset: chapter.range(ofPage: slot.page).location))
-        let numbers = "\(slot.page + 1) of \(chapter.pageCount) · \(overall.formatted(.percent.precision(.fractionLength(0))))"
-        guard layout.isSpread else { return PageView.Footer(leading: title, trailing: numbers) }
-        if index == 0 { return PageView.Footer(leading: title, trailing: "") }
-        let left = slots.first ?? nil
-        let showTitle = left == nil || left?.spineIndex != slot.spineIndex
-        return PageView.Footer(leading: showTitle ? title : "", trailing: numbers)
     }
 
     /// The link under a point in this controller's view, if any.

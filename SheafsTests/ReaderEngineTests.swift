@@ -134,14 +134,16 @@ struct ReaderEngineTests {
         #expect(layout.pageFrames[0].height == expectedHeight)
     }
 
-    @Test func activeCameraOcclusionPushesTheTopDown() {
+    @Test func activeCameraOcclusionWidensTheHeadBand() {
         let layout = PageLayout.compute(.init(size: CGSize(width: 951, height: 669),
                                               safeArea: EdgeInsets(top: 0, leading: 0, bottom: 20, trailing: 84),
                                               division: nil, divisionIsActive: false,
                                               occlusions: [CGRect(x: 200, y: 0, width: 60, height: 40)],
                                               margin: 24, fontSize: 19, allowSpread: false))
-        let expectedTop: CGFloat = 40
-        #expect(layout.pageFrames[0].minY == expectedTop)
+        // The frame stays at the top; the head band grows past the camera so the text starts below it.
+        let zero: CGFloat = 0
+        #expect(layout.pageFrames[0].minY == zero)
+        #expect(layout.textInsets.top >= 40)
     }
 
     @Test func libraryColumnsAreEvenOverAFold() {

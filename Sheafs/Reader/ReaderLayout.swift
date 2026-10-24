@@ -33,28 +33,28 @@ struct PageLayout: Equatable {
         var fullBleed = false
     }
 
-    static let footerHeight: CGFloat = 30
-    static let headerHeight: CGFloat = 14
+    /// Bands for the folio and the running head.
+    static let footerHeight: CGFloat = 40
+    static let headerHeight: CGFloat = 36
 
     static func compute(_ input: Input) -> PageLayout {
         var content = CGRect(origin: .zero, size: input.size).inset(by: UIEdgeInsets(
             top: input.safeArea.top, left: input.fullBleed ? 0 : input.safeArea.leading,
             bottom: input.safeArea.bottom, right: input.fullBleed ? 0 : input.safeArea.trailing))
-        // An active occlusion (the inner camera) that reaches into the content from the top pushes
-        // the content down; one inside the bars' safe area doesn't touch the content at all.
-        for region in input.occlusions {
-            let hit = region.intersection(content)
-            guard !hit.isNull, !hit.isEmpty, hit.minY <= content.minY + 1 else { continue }
-            let cut = hit.maxY - content.minY
-            content.origin.y += cut
-            content.size.height -= cut
-        }
         content = content.standardized
         guard content.width > 60, content.height > 60 else {
             return PageLayout(pageFrames: [content], textInsets: .zero, deckFrame: nil)
         }
 
-        let insets = UIEdgeInsets(top: headerHeight, left: input.margin, bottom: footerHeight, right: input.margin)
+        // A camera (an active occlusion) reaching into the page from the top widens the head band
+        // so the text starts below it; the frame itself stays put.
+        var topBand = headerHeight
+        for region in input.occlusions {
+            let hit = region.intersection(content)
+            guard !hit.isNull, !hit.isEmpty, hit.minY <= content.minY + 1 else { continue }
+            topBand = max(topBand, hit.maxY - content.minY + 6)
+        }
+        let insets = UIEdgeInsets(top: topBand, left: input.margin, bottom: footerHeight, right: input.margin)
         var deck: CGRect?
 
         if let fold = input.division, fold.width >= fold.height, input.divisionIsActive,

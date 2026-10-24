@@ -148,12 +148,11 @@ struct ReaderView: View {
                 .frame.offsetBy(dx: shift.x, dy: shift.y)
             let active = !proxy.reservedRegions(kind: .division).isEmpty
             let occlusions = proxy.reservedRegions(kind: .occlusion).map { $0.frame.offsetBy(dx: shift.x, dy: shift.y) }
-            // The inner display (the one with a fold) reads full width; the cover display keeps its
-            // side inset because the camera sits in that strip.
+            // Both displays read full width under the bars' strip; the bars overlay on tap.
             let fresh = PageLayout.Input(size: full, safeArea: insets, division: division,
                                          divisionIsActive: active, occlusions: occlusions,
                                          margin: settings.margin, fontSize: settings.fontSize, allowSpread: true,
-                                         fullBleed: division != nil)
+                                         fullBleed: true)
             let layout = PageLayout.compute(effectiveInput(for: fresh))
             ZStack(alignment: .topLeading) {
                 ReaderPager(session: session, layout: layout, style: style, palette: palette,
@@ -276,9 +275,18 @@ struct ReaderView: View {
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 
+    /// "136 of 594 · 18 pages left in chapter", like Books; a percentage while scrubbing.
     private func progressLabel(_ session: BookSession) -> String {
-        let fraction = isScrubbing ? sliderValue : session.progress(for: session.location)
-        return fraction.formatted(.percent.precision(.fractionLength(0)))
+        if isScrubbing { return sliderValue.formatted(.percent.precision(.fractionLength(0))) }
+        let location = session.location
+        guard let chapter = session.paginatedChapter(location.spineIndex) else {
+            return session.progress(for: location).formatted(.percent.precision(.fractionLength(0)))
+        }
+        let page = chapter.pageIndex(containing: location.textOffset)
+        let (number, total) = session.bookPages(spineIndex: location.spineIndex, page: page)
+        let left = max(0, chapter.pageCount - page - 1)
+        let leftText = left == 1 ? "1 page left in chapter" : "\(left) pages left in chapter"
+        return "\(number) of \(total) · \(leftText)"
     }
 
     // MARK: Actions

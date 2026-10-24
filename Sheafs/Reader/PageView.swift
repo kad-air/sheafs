@@ -1,18 +1,17 @@
 import UIKit
 
-/// Draws one page of a paginated chapter plus its running footer.
+/// Draws one page of a paginated chapter with a running head (top, centered) and a folio
+/// (page number, bottom, centered), like a printed book.
 final class PageView: UIView {
-    struct Footer {
-        var leading: String
-        var trailing: String
-    }
-
     var chapter: PaginatedChapter? { didSet { setNeedsDisplay() } }
     var page: Int = 0 { didSet { setNeedsDisplay() } }
     var palette: ReaderPalette = .paper { didSet { backgroundColor = palette.background; setNeedsDisplay() } }
     var textInsets: UIEdgeInsets = .zero { didSet { setNeedsDisplay() } }
-    var footer = Footer(leading: "", trailing: "") { didSet { setNeedsDisplay() } }
-    var footerFont = UIFont.preferredFont(forTextStyle: .footnote)
+    /// The running head: the book title on a left page, the chapter title on a right or single page.
+    var head = "" { didSet { setNeedsDisplay() } }
+    /// The page number.
+    var folio = "" { didSet { setNeedsDisplay() } }
+    var marginFont = UIFont.preferredFont(forTextStyle: .footnote)
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -32,23 +31,24 @@ final class PageView: UIView {
         ctx.setFillColor(palette.background.cgColor)
         ctx.fill(bounds)
         chapter?.draw(page: page, at: textOrigin)
-        drawFooter()
+        drawMargins()
     }
 
-    private func drawFooter() {
-        let attrs: [NSAttributedString.Key: Any] = [.font: footerFont, .foregroundColor: palette.secondary]
-        let y = bounds.height - textInsets.bottom + 10
-        let trailing = footer.trailing as NSString
-        let trailingSize = trailing.size(withAttributes: attrs)
-        trailing.draw(at: CGPoint(x: bounds.width - textInsets.right - trailingSize.width, y: y), withAttributes: attrs)
-        let available = bounds.width - textInsets.left - textInsets.right - trailingSize.width - 16
-        if available > 40 {
-            let para = NSMutableParagraphStyle()
-            para.lineBreakMode = .byTruncatingTail
-            var leadAttrs = attrs
-            leadAttrs[.paragraphStyle] = para
-            (footer.leading as NSString).draw(in: CGRect(x: textInsets.left, y: y, width: available, height: trailingSize.height + 2),
-                                              withAttributes: leadAttrs)
+    private func drawMargins() {
+        let para = NSMutableParagraphStyle()
+        para.alignment = .center
+        para.lineBreakMode = .byTruncatingTail
+        let attrs: [NSAttributedString.Key: Any] = [.font: marginFont, .foregroundColor: palette.secondary, .paragraphStyle: para]
+        let width = bounds.width - textInsets.left - textInsets.right
+        let lineHeight = marginFont.lineHeight + 2
+        if !head.isEmpty {
+            // Sits in the top band, just above the text.
+            let y = max(6, textInsets.top - lineHeight - 10)
+            (head as NSString).draw(in: CGRect(x: textInsets.left, y: y, width: width, height: lineHeight), withAttributes: attrs)
+        }
+        if !folio.isEmpty {
+            let y = bounds.height - textInsets.bottom + 12
+            (folio as NSString).draw(in: CGRect(x: textInsets.left, y: y, width: width, height: lineHeight), withAttributes: attrs)
         }
     }
 
