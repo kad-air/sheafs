@@ -131,27 +131,39 @@ fragment half4 flipFragment(FlipVertexOut in [[stage_in]],
         if (cov > 0) color = mix(color, sampleFront(front, sheet, paper, u), half(cov));
     }
 
-    // The shadow the lifted bend throws on the page beneath, beyond its silhouette.
-    if (R > 0.01 && xi > R) {
-        float2 silhouette = pivot + n * (R * M_PI_F / 2) + t * eta;
-        float there = coverage(silhouette, w, h);
-        float d = xi - R;
-        float fall = 1 - smoothstep(0.0, R * 0.9 + 8.0, d);
-        float shade = 0.38 * fall * fall * there * min(1.0, R / 16.0);
-        color *= half(1 - mix(shade, shade * 0.35, u.isDark));
+    // The shadow the lifted leaf throws on the page beneath, beyond its silhouette. Seen from
+    // above, the silhouette in this row is the crest of the bend if the sheet gets that far, and
+    // otherwise its free edge, still rising; the shadow deepens and widens with that point's
+    // height off the page, so it grows smoothly along the edge and through the turn. (Casting it
+    // only from the crest made it fill in row by row while a corner led, like a progress bar.)
+    if (R > 0.01 && xi > 0) {
+        // The stretch of sheet past the axis in this row: from the axis (or, near a corner, the
+        // leaf's top or bottom edge) to the free edge (or the top or bottom edge).
+        float2 axis = pivot + t * eta;
+        float enter = 0, leave = n.x > 1e-4 ? (w - axis.x) / n.x : 1e6;
+        if (abs(n.y) > 1e-4) {
+            float top = -axis.y / n.y, bottom = (h - axis.y) / n.y;
+            enter = max(enter, min(top, bottom));
+            leave = min(leave, max(top, bottom));
+        } else if (axis.y < 0 || axis.y > h) {
+            leave = 0;
+        }
+        float rise = clamp(leave, 0.0, R * M_PI_F / 2) / R;
+        float reach = R * sin(rise);              // the silhouette's distance past the axis
+        float height = R * (1 - cos(rise));       // and its height off the page
+        float there = clamp(R * rise - enter, 0.0, 1.0);
+        float d = xi - reach;
+        if (d > 0 && there > 0) {
+            float fall = 1 - smoothstep(0.0, height * 0.9 + 8.0, d);
+            float shade = 0.38 * fall * fall * there * min(1.0, height / 16.0);
+            color *= half(1 - mix(shade, shade * 0.35, u.isDark));
+        }
     }
 
     // The bend: near side (front) and far side (back) at the same screen column.
     if (R > 0.01 && xi > 0 && xi <= R) {
         float theta = asin(clamp(xi / R, 0.0, 1.0));
         float2 near = pivot + n * (R * theta) + t * eta;
-        float nearOver = overhang(near, w, h);
-        if (nearOver > 0 && nearOver < 14) {
-            // The free edge, lifted but not yet over the crest, throws a shadow of its own.
-            float height = min(1.0, R * (1 - cos(theta)) / 12.0);
-            float edgeShade = 0.24 * (1 - smoothstep(0.0, 14.0, nearOver)) * height;
-            color *= half(1 - mix(edgeShade, edgeShade * 0.3, u.isDark));
-        }
         float cov = coverage(near, w, h);
         if (cov > 0) color = mix(color, sampleFront(front, near, paper, u) * half(shadeFront(theta, u.isDark)), half(cov));
 
