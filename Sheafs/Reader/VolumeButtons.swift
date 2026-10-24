@@ -22,7 +22,6 @@ final class VolumeButtonPager {
     private var reader = PressReader(previous: 0.5, reference: 0.5)
     private var onPress: ((Press) -> Void)?
     private(set) var isRunning = false
-    private let log = Logger(subsystem: "io.sheafs.reader", category: "volume")
 
     /// The volume view's slider: searched for in its subtree each time, else the one it had when it
     /// was made (Readest keeps that one, which works on devices). On the iOS 27.1 simulator the
@@ -52,7 +51,7 @@ final class VolumeButtonPager {
             try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
             try session.setActive(true)
         } catch {
-            log.error("[volume] audio session failed: \(error.localizedDescription, privacy: .public)")
+            VolumeLog.shared.note("audio session failed: \(error.localizedDescription)")
             return
         }
         self.onPress = onPress
@@ -62,19 +61,32 @@ final class VolumeButtonPager {
         (host.window ?? host).addSubview(view)
         volumeView = view
         madeSlider = Self.firstSlider(in: view)
-        log.notice("[volume] view made: \(Self.tree(view), privacy: .public)")
+        VolumeLog.shared.note("view made: \(Self.tree(view))")
         // outputVolume is only current a moment after the session activates.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
             guard let self, isRunning else { return }
             originalVolume = session.outputVolume
             let reference = PressReader.reference(for: originalVolume)
             reader = PressReader(previous: originalVolume, reference: reference)
-            log.notice("[volume] start: volume=\(self.originalVolume, privacy: .public) reference=\(reference, privacy: .public) slider=\(self.slider != nil, privacy: .public) view=\(self.volumeView.map(Self.tree) ?? "nil", privacy: .public)")
+            VolumeLog.shared.note("start: category=\(session.category.rawValue) otherAudio=\(session.isOtherAudioPlaying) volume=\(self.originalVolume) reference=\(reference) slider=\(self.slider != nil) view=\(self.volumeView.map(Self.tree) ?? "nil")")
             observation = session.observe(\.outputVolume, options: [.new]) { [weak self] _, change in
                 guard let volume = change.newValue else { return }
                 DispatchQueue.main.async { self?.volumeChanged(volume) }
             }
             putBack()
+            probeIfAsked()
+        }
+    }
+
+    /// Debug: `-SheafsVolumeProbe up|down` moves the volume one step through the slider 1.5 s after
+    /// starting, standing in for a button press (the simulator has no volume buttons).
+    private func probeIfAsked() {
+        guard let direction = UserDefaults.standard.string(forKey: "SheafsVolumeProbe") else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            guard let self, isRunning else { return }
+            let target = reader.reference + (direction == "up" ? 0.0625 : -0.0625)
+            VolumeLog.shared.note("probe: slider=\(self.slider != nil) → \(target)")
+            slider?.value = target
         }
     }
 
@@ -83,7 +95,7 @@ final class VolumeButtonPager {
         isRunning = false
         observation?.invalidate()
         observation = nil
-        log.notice("[volume] stop: restoring volume=\(self.originalVolume, privacy: .public)")
+        VolumeLog.shared.note("stop: restoring volume=\(self.originalVolume)")
         slider?.value = originalVolume
         let view = volumeView
         volumeView = nil
@@ -99,7 +111,7 @@ final class VolumeButtonPager {
     private func volumeChanged(_ volume: Float) {
         guard isRunning else { return }
         let press = reader.read(volume, at: ProcessInfo.processInfo.systemUptime)
-        log.notice("[volume] outputVolume=\(volume, privacy: .public) press=\(press.map { "\($0)" } ?? "none", privacy: .public) slider=\(self.slider != nil, privacy: .public)")
+        VolumeLog.shared.note("outputVolume=\(volume) press=\(press.map { "\($0)" } ?? "none") slider=\(self.slider != nil)")
         guard let press else { return }
         putBack()
         onPress?(press)
