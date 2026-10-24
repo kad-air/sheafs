@@ -16,6 +16,8 @@ SwiftUI, TextKit and Foundation only. No web views, no third-party dependencies.
 - **Reading position sync** using the KOReader sync protocol ("kosync"), so a position set on one
   reader shows up on the others. The document key is the KOReader partial MD5 of the file bytes;
   positions are written as CREngine xpointers, the dialect KOReader and CrossPoint use.
+- **Volume buttons turn pages** if you want them to (Settings → Appearance → Reading): down for
+  the next page, up for the previous one.
 - **Open in Sheafs** from Files, AirDrop and the share sheet, or drop EPUBs into the app's
   Documents folder.
 
@@ -56,6 +58,12 @@ In Settings → Sync & Accounts → Reading Position Sync, enter the server URL 
 include a path, e.g. `https://example.com/kosync/`), a user name and a password, then tap
 *Register Account* once and *Test Connection*. Any reader that speaks the KOReader sync protocol
 can share the account; the same EPUB file (byte for byte) must be on each device.
+
+## Acknowledgements
+
+Volume-button page turns follow the approach of [Readest](https://github.com/readest/readest)
+(AGPL-3.0), which showed it working well on iOS; Sheafs' implementation is its own, and no Readest
+code is included.
 
 ## License
 

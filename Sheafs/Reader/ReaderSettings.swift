@@ -99,6 +99,9 @@ final class ReaderSettings {
     /// The colour the next highlight takes (the last one used).
     var highlightColor: HighlightColor { didSet { save() } }
     var pageTurn: PageTurnStyle { didSet { save() } }
+    /// Volume down turns to the next page, up to the previous (`VolumeButtonPager`). Off by default:
+    /// it takes the buttons away from the volume while a book is open.
+    var volumeButtonsTurn: Bool { didSet { save() } }
 
     private static let key = "reader.settings.v1"
 
@@ -116,6 +119,7 @@ final class ReaderSettings {
         // Optional: settings saved before this key existed must still decode.
         var highlightColor: HighlightColor?
         var pageTurn: PageTurnStyle?
+        var volumeButtonsTurn: Bool?
     }
 
     init() {
@@ -133,13 +137,14 @@ final class ReaderSettings {
         tapToTurn = stored.tapToTurn
         highlightColor = stored.highlightColor ?? .yellow
         pageTurn = stored.pageTurn ?? .flip
+        volumeButtonsTurn = stored.volumeButtonsTurn ?? false
     }
 
     private func save() {
         let stored = Stored(theme: theme, font: font, fontSize: fontSize, lineHeight: lineHeight, margin: margin,
                             justified: justified, hyphenate: hyphenate, paragraphStyle: paragraphStyle,
                             keepScreenAwake: keepScreenAwake, tapToTurn: tapToTurn, highlightColor: highlightColor,
-                            pageTurn: pageTurn)
+                            pageTurn: pageTurn, volumeButtonsTurn: volumeButtonsTurn)
         if let data = try? JSONEncoder().encode(stored) {
             UserDefaults.standard.set(data, forKey: Self.key)
         }

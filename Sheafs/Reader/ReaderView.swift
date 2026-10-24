@@ -9,6 +9,7 @@ import os
 final class PagerProxy {
     weak var controller: PagerController?
     func turn(forward: Bool) { controller?.turnPage(forward: forward) }
+    var hostView: UIView? { controller?.viewIfLoaded }
 }
 
 /// The full-screen reading experience for one book.
@@ -43,6 +44,7 @@ struct ReaderView: View {
     @State private var editingAnnotation: Annotation?
     @State private var remotePrompt: RemotePrompt?
     @State private var pagerProxy = PagerProxy()
+    @State private var volumeButtons = VolumeButtonPager()
     @State private var pushTask: Task<Void, Never>?
     @State private var sliderValue: Double = 0
     @State private var isScrubbing = false
@@ -140,7 +142,11 @@ struct ReaderView: View {
         .onChange(of: settings.keepScreenAwake, initial: true) { _, awake in
             UIApplication.shared.isIdleTimerDisabled = awake
         }
+        .onChange(of: volumeButtonsArmed, initial: true) { _, armed in
+            armVolumeButtons(armed)
+        }
         .onDisappear {
+            volumeButtons.stop()
             UIApplication.shared.isIdleTimerDisabled = false
             flush()
         }
@@ -328,6 +334,31 @@ struct ReaderView: View {
     }
 
     // MARK: Actions
+
+    /// The volume buttons turn pages only while the book is on screen and the app is active; with a
+    /// sheet up (contents, appearance, a note, a footnote) they change the volume again. Leaving
+    /// the foreground stops them, so Control Center's volume works and they re-arm on return.
+    private var volumeButtonsArmed: Bool {
+        settings.volumeButtonsTurn && scenePhase == .active && session?.isReady == true
+            && !showContents && !showAppearance && footnote == nil && editingAnnotation == nil
+    }
+
+    private func armVolumeButtons(_ armed: Bool) {
+        guard armed else {
+            volumeButtons.stop()
+            return
+        }
+        // The pager appears with the ready session; give it a pass to land in the window.
+        DispatchQueue.main.async {
+            guard volumeButtonsArmed, let host = pagerProxy.hostView, host.window != nil else {
+                print("[volume] not armed: host=\(pagerProxy.hostView != nil) window=\(pagerProxy.hostView?.window != nil)")
+                return
+            }
+            volumeButtons.start(host: host) { press in
+                pagerProxy.turn(forward: press == .down)
+            }
+        }
+    }
 
     private func handle(tap: ReaderTap) {
         switch tap {
