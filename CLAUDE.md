@@ -1,7 +1,7 @@
 # Sheafs
 
-Native EPUB reader for iOS 27.1 and the foldable iPhone Duo. SwiftUI + TextKit + Foundation only;
-no web views, no third-party packages. Open source (MIT), so **no personal names, emails,
+Native EPUB reader for iOS 27.1 and the foldable iPhone Duo. SwiftUI + TextKit + Foundation (plus
+Metal for the page flip) only; no web views, no third-party packages. Open source (MIT), so **no personal names, emails,
 hostnames or secrets anywhere in the tree** — `scripts/check` greps for them and fails.
 
 ## Commands
@@ -24,6 +24,10 @@ Launch arguments: `-SheafsOpen <title fragment>` opens the first matching librar
 typed text and transcripts: build the URL in a shell variable);
 `-SheafsAppearance quick|full` (with `-SheafsOpen`) opens the quick appearance panel or the detailed
 sheet once the book is ready.
+`-SheafsFlipAuto forward|back
+-SheafsFlipFreeze <0…1> [-SheafsFlipGrab <0…1 down the page>]` starts one page flip on its own
+once the book is up and holds it at that amount, so `simctl io … screenshot` can catch the leaf
+mid-air (the next tap lands it).
 Dropping `.epub` files into the app's Documents folder (`xcrun simctl get_app_container <udid>
 io.sheafs.reader data`/Documents) imports them on the next launch or foreground.
 
@@ -95,6 +99,21 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     Over a vertical fold (spread, book pose) the panel keeps to the LEFT page: off the fold, and the
     right page, which holds the reading position, stays in view. Its −/+ buttons move along the
     detailed sliders' grids (`QuickAppearanceTests`).
+  - `Reader/PageFlip/` — the default page turn (`ReaderSettings.pageTurn`, `.flip` or `.slide`): a
+    leaf of paper hinged at the spine that bends and falls over. `PageFlipPhysics` is the model
+    (`PageCurl`: the sheet lies flat to `flat`, wraps a cylinder of `radius`, the rest lies turned
+    over on top; the sheet's length is always the page width, the free edge goes where the finger
+    is, the bend travels to the spine and then shrinks as the leaf falls; `tilt` lets the held
+    corner lead; `FlipSpring` is the critically damped release). `PageFlipShader` is the Metal
+    fragment shader (inverse mapping per pixel: turned-over part, back and front of the bend,
+    flat part, else the page beneath; lighting, a shadow under the bend and the free edge, a
+    mirrored show-through "ghost" for the back of a single page). `PageFlipView` (MTKView, opaque,
+    covers the pager while a turn is in flight) renders pages to textures through
+    `PageView.render(in:)`. `PageFlipDriver` builds the scene for a turn (a spread turns like a
+    book: the leaf's back is the page that lands face up on the other side; a single display is a
+    pad printed on one side), follows the pan or runs the spring on a CADisplayLink, and calls
+    `PagerController.commit(spread:location:forward:)` when the leaf has landed. `SheafsTests`
+    pins the physics against numerical integration.
   - `Catalog/` — OPDS browser (catalog list, add/edit, feed browser with pagination/search,
     entry detail + download → `LibraryStore.importBook`).
   - `Settings/` — sync account, appearance link, library stats, about. `Sync/SyncService` — kosync
@@ -164,6 +183,17 @@ rotate) while the bars are up hides them first, so the stored insets are always 
 - `ReaderSettings.Stored` must keep NEW keys optional (`highlightColor: HighlightColor?`): a
   non-optional key missing from the saved JSON fails the whole decode and silently resets every
   setting.
+- The same layout pass turns the scroll view's scrolling OFF while pages flip (the flip's own pan
+  takes the swipe; it yields to the selection long press and the handles) and back on for slide.
+- The flip shader is a Swift string compiled on the device (`PageFlipShader.source`,
+  `device.makeLibrary(source:)`), not a `.metal` file: the Metal toolchain is an optional Xcode
+  component that is not installed here, and `scripts/check` must build on any Mac. Keep it so.
+  `FlipUniforms` (Swift) and `FlipUniforms` (shader) are plain floats in the same order; the view
+  asserts the float count. If the flip view cannot be made (no Metal, shader error) or Reduce Motion
+  is on, pages slide.
+- Page textures are cached per `PageSlot` and dropped on layout/palette/style changes; anything
+  else that changes what a page draws (highlights, selection) must call
+  `PageFlipDriver.invalidateTextures()` or the leaf shows stale content.
 - Pagination runs on the main actor, synchronously, on demand (neighbours prefetched). A single
   huge spine item (whole-book-in-one-file EPUBs) will hitch on open; move it off-main if it bites.
 - `hub-fixture.epub`'s manifest lists an NCX that isn't in the archive — `toc` is empty, no error.

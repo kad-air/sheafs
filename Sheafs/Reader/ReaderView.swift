@@ -188,7 +188,7 @@ struct ReaderView: View {
                 ZStack(alignment: .topLeading) {
                     ReaderPager(session: session, layout: layout, style: style, palette: palette,
                                 location: session.location, tapTurnsPages: settings.tapToTurn,
-                                marks: annotations.map(\.mark), highlightColor: settings.highlightColor, proxy: pagerProxy,
+                                marks: annotations.map(\.mark), highlightColor: settings.highlightColor, pageTurn: settings.pageTurn, proxy: pagerProxy,
                                 onLocationChange: { location in
                                     session.location = location
                                     persist(location)

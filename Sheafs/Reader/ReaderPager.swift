@@ -37,6 +37,7 @@ struct ReaderPager: UIViewControllerRepresentable {
     let tapTurnsPages: Bool
     let marks: [HighlightMark]
     let highlightColor: HighlightColor
+    let pageTurn: PageTurnStyle
     let proxy: PagerProxy
     var onLocationChange: (ReadingLocation) -> Void
     var onTap: (ReaderTap) -> Void
@@ -59,6 +60,7 @@ struct ReaderPager: UIViewControllerRepresentable {
         controller.onSelectionAction = onSelectionAction
         controller.tapTurnsPages = tapTurnsPages
         controller.highlightColor = highlightColor
+        controller.pageTurn = pageTurn
         session.configure(style: style, textSize: layout.textSize)
         controller.apply(marks: marks)
         controller.apply(layout: layout, palette: palette, location: location, animated: false)
@@ -79,6 +81,12 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
     var onSelectionAction: ((SelectionAction) -> Void)?
     var tapTurnsPages = true
     var highlightColor = HighlightColor.yellow
+    /// How pages turn: a flipping leaf (the default) or the page controller's slide. The flip
+    /// needs Metal and respects Reduce Motion; otherwise pages slide.
+    var pageTurn = PageTurnStyle.flip { didSet { if pageTurn != oldValue { updateTurnStyle() } } }
+    private lazy var flip = PageFlipDriver(host: self)
+    private var flipPan: UIPanGestureRecognizer?
+    var pagerView: UIView { pager.view }
     /// The style generation the visible spread was built with; a change re-lays out at the same place.
     private var appliedStyle: TypesetStyle?
 
@@ -132,6 +140,30 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
             let pan = UIPanGestureRecognizer(target: self, action: #selector(handleHandlePan(_:)))
             handle.addGestureRecognizer(pan)
         }
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(handleFlipPan(_:)))
+        pan.delegate = self
+        pan.maximumNumberOfTouches = 1
+        // Selecting text wins: the pan waits for the long press to fail, and never fires on a handle.
+        pan.require(toFail: press)
+        for handle in [startHandle, endHandle] {
+            for handlePan in handle.gestureRecognizers ?? [] { pan.require(toFail: handlePan) }
+        }
+        view.addGestureRecognizer(pan)
+        flipPan = pan
+        updateTurnStyle()
+    }
+
+    private var flipsPages: Bool {
+        pageTurn == .flip && !UIAccessibility.isReduceMotionEnabled && flip.isSupported
+    }
+
+    /// Flipping takes over the horizontal pan from the page controller's scroll view.
+    private func updateTurnStyle() {
+        guard isViewLoaded else { return }
+        flip.finishNow()
+        let flips = flipsPages
+        flipPan?.isEnabled = flips
+        pager.view.subviews.compactMap { $0 as? UIScrollView }.forEach { $0.isScrollEnabled = !flips }
     }
 
     override func viewDidLayoutSubviews() {
@@ -154,6 +186,7 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
                     for pan in handle.gestureRecognizers ?? [] { scrollView.panGestureRecognizer.require(toFail: pan) }
                 }
             }
+            if scrollView.isScrollEnabled == flipsPages { scrollView.isScrollEnabled = !flipsPages }
         }
     }
 
@@ -170,8 +203,27 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         endHandle.tintColor = palette.link
         guard session.isReady, !layout.pageFrames.isEmpty, session.style != nil else { return }
         appliedStyle = session.style
+        if layoutChanged || paletteChanged || styleChanged { flip.invalidateTextures() }
         if layoutChanged || paletteChanged || styleChanged || displayedLocation == nil || displayedLocation != location {
             show(location: location, animated: animated && !layoutChanged)
+            autoFlipForScreenshots()
+        }
+    }
+
+    private var autoFlipped = false
+
+    /// Debug: `-SheafsFlipAuto forward|back` (with `-SheafsFlipFreeze <amount>` and optionally
+    /// `-SheafsFlipGrab <0…1 down the page>`) starts one turn on its own once the book is up,
+    /// so a screenshot can catch the leaf mid-air.
+    private func autoFlipForScreenshots() {
+        let defaults = UserDefaults.standard
+        guard !autoFlipped, let direction = defaults.string(forKey: "SheafsFlipAuto") else { return }
+        autoFlipped = true
+        let grab = defaults.object(forKey: "SheafsFlipGrab") == nil ? 0.5 : defaults.double(forKey: "SheafsFlipGrab")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+            guard let self, let frame = layout.pageFrames.last else { return }
+            let point = CGPoint(x: frame.maxX - 20, y: frame.minY + frame.height * grab)
+            turnPage(forward: direction != "back", from: point)
         }
     }
 
@@ -181,6 +233,7 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         guard marks != session.marks else { return }
         session.marks = marks
         currentSpread?.refreshMarks()
+        flip.invalidateTextures()
     }
 
     /// Shows the spread starting at `location`. A chapter laid out for the first time at this size
@@ -188,6 +241,7 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
     func show(location: ReadingLocation, animated: Bool, direction: UIPageViewController.NavigationDirection = .forward) {
         guard let chapter = session.paginatedChapter(location.spineIndex, anchor: location.textOffset) else { return }
         clearSelection()
+        flip.finishNow()
         let page = chapter.pageIndex(containing: location.textOffset)
         let spread = makeSpread(anchoredAt: PageSlot(spineIndex: location.spineIndex, page: page))
         displayedLocation = spread.location
@@ -209,7 +263,23 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         SpreadViewController(session: session, slots: slots, layout: layout, palette: palette)
     }
 
-    private var currentSpread: SpreadViewController? { pager.viewControllers?.first as? SpreadViewController }
+    var currentSpread: SpreadViewController? { pager.viewControllers?.first as? SpreadViewController }
+
+    /// The spread after or before the visible one, or nil at the end of the book.
+    func adjacentSpread(forward: Bool) -> SpreadViewController? {
+        guard let current = currentSpread else { return nil }
+        let target = forward ? pageViewController(pager, viewControllerAfter: current)
+                             : pageViewController(pager, viewControllerBefore: current)
+        return target as? SpreadViewController
+    }
+
+    /// Makes `spread` the visible one without animation (the flip has already shown the turn).
+    func commit(spread: SpreadViewController, location: ReadingLocation, forward: Bool) {
+        displayedLocation = location
+        pager.setViewControllers([spread], direction: forward ? .forward : .reverse, animated: false)
+        onLocationChange?(location)
+        session.prefetch(around: location.spineIndex)
+    }
 
     // MARK: Slot arithmetic
 
@@ -317,22 +387,29 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         }
         let width = view.bounds.width
         if tapTurnsPages, point.x < width * 0.22 {
-            turnPage(forward: false)
+            turnPage(forward: false, from: point)
             onTap?(.previous)
         } else if tapTurnsPages, point.x > width * 0.78 {
-            turnPage(forward: true)
+            turnPage(forward: true, from: point)
             onTap?(.next)
         } else {
             onTap?(.center)
         }
     }
 
-    func turnPage(forward: Bool) {
-        guard let current = pager.viewControllers?.first else { return }
+    @objc private func handleFlipPan(_ gesture: UIPanGestureRecognizer) {
+        if gesture.state == .began { clearSelection() }
+        flip.handlePan(gesture)
+    }
+
+    /// Turns a page; `point` is where the finger was (a tap), so that corner leads the flip.
+    func turnPage(forward: Bool, from point: CGPoint? = nil) {
         clearSelection()
-        let target = forward ? pageViewController(pager, viewControllerAfter: current)
-                             : pageViewController(pager, viewControllerBefore: current)
-        guard let spread = target as? SpreadViewController, let location = spread.location else { return }
+        if flipsPages {
+            flip.turn(forward: forward, from: point)
+            return
+        }
+        guard let spread = adjacentSpread(forward: forward), let location = spread.location else { return }
         displayedLocation = location
         pager.setViewControllers([spread], direction: forward ? .forward : .reverse, animated: true) { [weak self] done in
             if done {
@@ -365,7 +442,7 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
             let word = chapter.wordRange(at: hit.index)
             setSelection(TextSelection(spineIndex: current.spineIndex, range: NSUnionRange(anchor, word)))
         case .ended, .cancelled, .failed:
-            scrollView?.isScrollEnabled = true
+            scrollView?.isScrollEnabled = !flipsPages
             selectionAnchor = nil
             if gesture.state == .ended, selection != nil { presentMenu() }
         default:
@@ -392,7 +469,7 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
             }
             setSelection(current)
         case .ended, .cancelled, .failed:
-            scrollView?.isScrollEnabled = true
+            scrollView?.isScrollEnabled = !flipsPages
             if selection != nil { presentMenu() }
         default:
             break
@@ -544,7 +621,7 @@ final class SpreadViewController: UIViewController {
     let slots: [PageSlot?]
     let layout: PageLayout
     let palette: ReaderPalette
-    private var pageViews: [PageView] = []
+    private(set) var pageViews: [PageView] = []
     var selection: TextSelection? {
         didSet { pushSelection() }
     }
