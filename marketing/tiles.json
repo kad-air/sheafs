@@ -153,6 +153,66 @@
         "title": "A two-page spread on iPad",
         "sub": "Landscape lays out two pages, like a book."
       }
+    },
+    "casual": {
+      "spread": {
+        "kicker": "iPhone Duo",
+        "title": "Open it like a book.",
+        "sub": "Unfold your Duo and you get two pages side by side, with the fold running down the middle where the gutter goes."
+      },
+      "both": {
+        "kicker": "iPhone Duo",
+        "title": "Fold, unfold, keep reading.",
+        "sub": "One page on the cover, two inside. Switch halfway through a chapter and you won’t lose your line."
+      },
+      "reader": {
+        "kicker": "Sheafs",
+        "title": "Just you and the book.",
+        "sub": "Nothing in the way while you read. Tap the middle of the page when you want the controls."
+      },
+      "flip": {
+        "kicker": "Page turns",
+        "title": "Pages that actually turn.",
+        "sub": "Swipe and the page curls over under your thumb, the way paper does."
+      },
+      "tabletop": {
+        "kicker": "iPhone Duo",
+        "title": "Prop it up at breakfast.",
+        "sub": "Fold it halfway and set it on the table. The page sits up top, with the controls underneath."
+      },
+      "appearance": {
+        "kicker": "Typography",
+        "title": "Fuss over the fonts.",
+        "sub": "Nine typefaces, plus size, spacing and margins. Tweak away until it looks right."
+      },
+      "night": {
+        "kicker": "Themes",
+        "title": "One more chapter.",
+        "sub": "A dark theme for late nights, or let it follow your phone’s light and dark mode."
+      },
+      "library": {
+        "kicker": "Library",
+        "title": "Bring your own books.",
+        "sub": "Import EPUBs from Files, or download them straight from an OPDS catalog."
+      },
+      "ipad-spread": {
+        "kicker": "iPad",
+        "title": "Turn it sideways.",
+        "sub": "In landscape you get two pages at once, like a book lying open on the table."
+      },
+      "features": {
+        "kicker": "Sheafs",
+        "title": "All the good stuff, too.",
+        "sub": "",
+        "list": [
+          "EPUB 2 and 3",
+          "Highlights and notes, shared as Markdown",
+          "KOReader sync",
+          "OPDS catalogs",
+          "A Continue Reading widget",
+          "Open source, no ads, no tracking"
+        ]
+      }
     }
   },
   "tiles": {
