@@ -12,7 +12,8 @@
 #           → $OUT/duo-inner/ and $OUT/duo-cover/. Sizes: cover 1398×2034 / 2034×1398, inner 2853×2007 /
 #           2007×2853
 #   iphone  "Sheafs Shots iPhone", an iPhone 17 Pro Max, portrait → $OUT/iphone/ (1320×2868, the 6.9")
-#   ipad    "Sheafs Shots iPad", an iPad Pro 13-inch (M5), portrait → $OUT/ipad/ (2064×2752, the 13")
+#   ipad    "Sheafs Shots iPad", an iPad Pro 13-inch (M5), portrait and a landscape spread → $OUT/ipad/
+#           (2064×2752 / 2752×2064, the 13")
 # Only the folders of the devices being run are cleared. Fails loudly when a shot is not one of App Store
 # Connect's sizes for its display (Apple's screenshot specifications), the hinge reads back wrong (Duo),
 # the reader's `[layout]` line shows the wrong pose, a `-SheafsGoTo` target is missing, or a shot is blank.
@@ -255,6 +256,13 @@ shot() {
     measured=$("$HINGE" -d "$UDID" get) || fail "$file: cannot read the hinge back"
     python3 -I -c 'import sys; sys.exit(abs(float(sys.argv[1]) - float(sys.argv[2])) > 1)' "$measured" "$angle" \
       || fail "$file: hinge reads $measured°, set $angle°"
+  else
+    # The iPhone and iPad simulators do rotate with devicectl (only the Duo's ignores it); "-" is
+    # portrait. The size check below proves the rotation took.
+    local turn=portrait
+    case $orient in landscape-left) turn=landscapeLeft ;; landscape-right) turn=landscapeRight ;; esac
+    xcrun devicectl device orientation set -d "$UDID" "$turn" >/dev/null 2>&1 || fail "$file: could not turn the $DEVICE to $turn"
+    sleep 2
   fi
   : >"$WORK/console.log"
   xcrun simctl launch --console-pty "$UDID" io.sheafs.reader "$@" >"$WORK/console.log" 2>&1 &
@@ -324,12 +332,20 @@ shots_single_display() {
   local d=$1
   shot "$d/$d-portrait-1-library.png"    "$d" - - -
   shot "$d/$d-portrait-2-reader.png"     "$d" - - "$SINGLE" -SheafsOpen Moby -SheafsGoTo Loomings
-  SETTLE=8 \
   # A single page is narrow: an early frame with the corner leading reads as a page turn.
+  SETTLE=8 \
   shot "$d/$d-portrait-3-flip.png"       "$d" - - "$SINGLE" -SheafsOpen Pride -SheafsGoTo 0.05 \
     -SheafsFlipAuto forward -SheafsFlipFreeze 0.24 -SheafsFlipGrab 0.92
   shot "$d/$d-portrait-4-appearance.png" "$d" - - "$SINGLE" -SheafsOpen Gatsby -SheafsGoTo II -SheafsAppearance quick
-  shot "$d/$d-portrait-5-page.png"     "$d" - - "$SINGLE" -SheafsOpen Pride -SheafsGoTo 0.05
+  shot "$d/$d-portrait-5-page.png"       "$d" - - "$SINGLE" -SheafsOpen Pride -SheafsGoTo 0.05
+  if [[ $d == ipad ]]; then
+    # iPad landscape: no fold, but wide enough for a two-page spread (`PageLayout.compute`); the
+    # turn is a book's, the leaf's back landing on the left.
+    shot "$d/$d-landscape-7-spread.png"  "$d" landscape-left - "$SPREAD" -SheafsOpen Pride -SheafsGoTo 0.05
+    SETTLE=8 \
+    shot "$d/$d-landscape-8-flip.png"    "$d" landscape-left - "$SPREAD" -SheafsOpen Pride -SheafsGoTo 0.05 \
+      -SheafsFlipAuto forward -SheafsFlipFreeze 0.5 -SheafsFlipGrab 0.9
+  fi
   # Night last: the theme is a saved setting.
   SETTLE=9 \
   shot "$d/$d-portrait-6-night.png"      "$d" - - "$SINGLE" -SheafsOpen Dracula -SheafsGoTo 0.05 -SheafsThemeSwitch night
