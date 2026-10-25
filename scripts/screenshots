@@ -325,8 +325,9 @@ shots_single_display() {
   shot "$d/$d-portrait-1-library.png"    "$d" - - -
   shot "$d/$d-portrait-2-reader.png"     "$d" - - "$SINGLE" -SheafsOpen Moby -SheafsGoTo Loomings
   SETTLE=8 \
+  # A single page is narrow: an early frame with the corner leading reads as a page turn.
   shot "$d/$d-portrait-3-flip.png"       "$d" - - "$SINGLE" -SheafsOpen Pride -SheafsGoTo 0.05 \
-    -SheafsFlipAuto forward -SheafsFlipFreeze 0.5 -SheafsFlipGrab 0.9
+    -SheafsFlipAuto forward -SheafsFlipFreeze 0.24 -SheafsFlipGrab 0.92
   shot "$d/$d-portrait-4-appearance.png" "$d" - - "$SINGLE" -SheafsOpen Gatsby -SheafsGoTo II -SheafsAppearance quick
   shot "$d/$d-portrait-5-page.png"     "$d" - - "$SINGLE" -SheafsOpen Pride -SheafsGoTo 0.05
   # Night last: the theme is a saved setting.
