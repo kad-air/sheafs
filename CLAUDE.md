@@ -14,6 +14,8 @@ scripts/check                     # THE gate: hygiene grep, the site (check-site
 scripts/swift-parse               # swiftc -parse of every Swift file (no SDK); part of scripts/check step 3
                                   # CI: .github/workflows/check.yml runs scripts/check on PRs and main pushes
                                   #   (macOS runner, newest Xcode; app build only if it has the 27.1 SDK)
+scripts/site-shots [name]...      # docs/assets/shots/*.png: the RAW screenshots in the App Store tiles' device
+                                  #   frames (book, pair, tabletop, phone, iPad), transparent, no copy; needs Chrome
 scripts/check-site [--render]     # the marketing site in docs/ (GitHub Pages, served from main at
                                   #   https://kad-air.github.io/sheafs/): links and assets resolve, meta/OG tags,
                                   #   the page's counts ("nine typefaces", "five highlight colors") against the
@@ -106,10 +108,11 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     32-bit shift — pinned against an independent Python digest, `2d54ce2c…` for hub-fixture.epub).
 - `docs/` — the marketing site, plain HTML + one stylesheet, no JavaScript, no build step. GitHub
   Pages serves it from `main` (`/docs`), so a merge publishes it. Paths are RELATIVE (the site lives
-  under `/sheafs/`), `.nojekyll` keeps Jekyll off it, and the images are web-sized JPEGs of the App
-  Store tiles in `assets/shots` (made with `sips` from the `scripts/marketing` output; regenerate
-  there, not by hand). The copy is the App Store listing's casual voice; `scripts/check-site` holds
-  its counts to the code.
+  under `/sheafs/`), `.nojekyll` keeps Jekyll off it, and `assets/shots/*.png` are the raw
+  screenshots in device frames, made by `scripts/site-shots` (which imports `scripts/marketing` for
+  the frames and `marketing/base.css` for the layouts; never edit the PNGs by hand, re-run it). The
+  headlines are HTML, in the App Store listing's casual voice; `scripts/check-site` holds its counts
+  to the code and the shots to the script's list.
 - `Sheafs/` (app, `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`, Swift 6 strict):
   - `App/` — `SheafsApp` (SwiftData container, environment objects, open-in, Documents import),
     `RootView` (tabs Library / Catalogs / Settings; the reader is a `fullScreenCover`).

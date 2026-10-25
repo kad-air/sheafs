@@ -60,7 +60,8 @@ and the screenshot in a device frame) in each style under `marketing/styles`, fr
   XHTML-to-block converter and xpointer model (`Text`), the OPDS client (`OPDS`) and the KOReader
   sync client (`KOSync`). `swift test` runs on the Mac.
 - `scripts/` — `check`, `bootstrap`, the Python reference generators, and the simulator hinge tool.
-- `docs/` — the landing page GitHub Pages serves (`scripts/check-site` checks it).
+- `docs/` — the landing page GitHub Pages serves (`scripts/site-shots` frames its screenshots,
+  `scripts/check-site` checks it).
 
 ## Sync setup
 

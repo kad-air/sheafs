@@ -4,18 +4,19 @@
 Fails loudly (non-zero exit, one-line reason) when:
   - docs/index.html does not parse, or a local href/src/srcset points at a file that is not there,
     or at a root-absolute path (the site lives under /sheafs/ on github.io, so paths are relative);
-  - an <img> has no alt attribute, a link is not https, the App Store links disagree or lack an id;
+  - an <img> has no alt attribute or its width/height disagree with the PNG, a link is not https, the App Store links disagree or lack an id;
   - the <title>, meta description, og:title or og:image is missing, or og:image is not a file in docs/;
   - a claim on the page disagrees with the app's code (the second source): "N typefaces" against
     ReaderFont's cases, "N highlight colors" against HighlightColor's cases, and the reader themes;
-  - any one asset is over 450 KB or docs/assets is over 6 MB (it is a landing page, not a gallery);
+  - any one asset is over 1 MB or docs/assets is over 9 MB (it is a landing page, not a gallery);
+  - docs/assets/shots is not exactly the set scripts/site-shots makes, or one is not a transparent PNG;
   - docs/.nojekyll is missing (GitHub Pages would run Jekyll over the tree).
 
   scripts/check-site            the checks
   scripts/check-site --render   also renders docs/index.html with headless Chrome at 1280 px wide
                                 to OUT (default /tmp/sheafs-site) for eyeballing; CHROME overrides the binary
 """
-import html.parser, os, re, subprocess, sys, tempfile, shutil
+import html.parser, os, re, shutil, struct, subprocess, sys, tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DOCS = os.path.join(ROOT, "docs")
@@ -97,6 +98,13 @@ def check_page():
                 local(candidate.strip().split()[0], line)
         if tag == "img" and "alt" not in attrs:
             fail(f"line {line}: <img src={attrs.get('src')!r}> has no alt attribute")
+        if tag == "img" and attrs.get("src", "").startswith("assets/shots/"):
+            with open(os.path.join(DOCS, attrs["src"]), "rb") as f:
+                head = f.read(24)
+            real = struct.unpack(">II", head[16:24])
+            given = (attrs.get("width"), attrs.get("height"))
+            if given != tuple(str(v) for v in real):
+                fail(f"line {line}: {attrs['src']} is {real[0]}×{real[1]} but the <img> says width={given[0]} height={given[1]}")
         if tag == "title":
             titles += 1
         if tag == "meta":
@@ -138,6 +146,25 @@ def check_page():
     return metas
 
 
+def check_shots():
+    """docs/assets/shots holds exactly what scripts/site-shots makes, and each is a transparent PNG."""
+    source = open(os.path.join(ROOT, "scripts", "site-shots")).read()
+    known = set(re.findall(r'^\s+"([a-z-]+)":\s+\(', source, re.M))
+    if not known:
+        fail("scripts/site-shots lists no shots")
+    on_disk = {f[:-4] for f in os.listdir(os.path.join(DOCS, "assets", "shots")) if f.endswith(".png")}
+    stray = {f for f in os.listdir(os.path.join(DOCS, "assets", "shots")) if not f.endswith(".png")}
+    if stray:
+        fail(f"docs/assets/shots has files that are not site-shots PNGs: {sorted(stray)}")
+    if known != on_disk:
+        fail(f"docs/assets/shots and scripts/site-shots disagree: missing {sorted(known - on_disk)}, extra {sorted(on_disk - known)}")
+    for name in sorted(known):
+        with open(os.path.join(DOCS, "assets", "shots", name + ".png"), "rb") as f:
+            head = f.read(26)
+        if head[:8] != b"\x89PNG\r\n\x1a\n" or head[25] != 6:
+            fail(f"docs/assets/shots/{name}.png is not an RGBA PNG (the frames need a transparent background)")
+
+
 def check_assets():
     if not os.path.exists(os.path.join(DOCS, ".nojekyll")):
         fail("docs/.nojekyll missing (GitHub Pages would run Jekyll over the site)")
@@ -146,10 +173,10 @@ def check_assets():
         for name in files:
             size = os.path.getsize(os.path.join(dirpath, name))
             total += size
-            if size > 450 * 1024:
-                fail(f"{os.path.relpath(os.path.join(dirpath, name), ROOT)} is {size // 1024} KB; keep assets under 450 KB")
-    if total > 6 * 1024 * 1024:
-        fail(f"docs/assets is {total // 1024 // 1024} MB; keep the site under 6 MB")
+            if size > 1024 * 1024:
+                fail(f"{os.path.relpath(os.path.join(dirpath, name), ROOT)} is {size // 1024} KB; keep assets under 1 MB")
+    if total > 9 * 1024 * 1024:
+        fail(f"docs/assets is {total // 1024 // 1024} MB; keep the site under 9 MB")
     return total
 
 
@@ -175,6 +202,7 @@ def render():
 
 def main():
     metas = check_page()
+    check_shots()
     total = check_assets()
     if "--render" in sys.argv:
         render()

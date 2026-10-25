@@ -119,7 +119,8 @@ h3 { font-size: 1.45rem; }
 .hero-description { color: var(--muted); margin-bottom: 1.75rem; max-width: 48ch; }
 .hero-cta { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
 .hero-note { font-family: var(--font-sans); font-size: 0.85rem; color: var(--muted); margin-top: 1.1rem; }
-.hero-figure img { border-radius: var(--radius); box-shadow: var(--shadow-lg); }
+.hero-figure img { width: 100%; }
+@media (min-width: 960px) { .hero-figure { margin-right: -4%; } }
 
 .app-store-badge { display: inline-flex; line-height: 0; }
 .app-store-badge img { height: 50px; width: auto; }
@@ -142,7 +143,8 @@ section + section { border-top: 1px solid var(--rule); }
 
 .duo-grid { display: grid; gap: 2rem; }
 @media (min-width: 760px) { .duo-grid { grid-template-columns: repeat(3, 1fr); gap: 1.75rem; } }
-.duo-card img { border-radius: var(--radius); box-shadow: var(--shadow-sm); margin-bottom: 1.1rem; }
+.duo-card .art { aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; margin-bottom: 0.6rem; }
+.duo-card img { width: auto; max-width: 100%; max-height: 100%; }
 .duo-card h3 { margin-bottom: 0.35rem; }
 .duo-card p { color: var(--muted); }
 
@@ -162,22 +164,20 @@ section + section { border-top: 1px solid var(--rule); }
 
 /* Screenshot shelves: a horizontal scroll with snapping, no JavaScript */
 .shelf {
-  display: flex; gap: 1.25rem;
+  display: flex; gap: 1.5rem; align-items: flex-start;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
   padding: 0.5rem calc(max(1.25rem, (100vw - 1180px) / 2 + 1.25rem)) 1.5rem;
   scrollbar-width: thin;
 }
-.shelf img {
-  flex: 0 0 auto;
-  width: min(72vw, 300px);
-  scroll-snap-align: center;
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
-}
-.shelf-ipad img { width: min(84vw, 420px); }
-.shelf-ipad img:first-child { width: min(84vw, 560px); }
+.shelf figure { flex: 0 0 auto; width: min(68vw, 290px); scroll-snap-align: center; }
+.shelf img { width: 100%; }
+.shelf figcaption { font-size: 0.95rem; line-height: 1.45; color: var(--muted); padding: 0 0.6rem; }
+.shelf figcaption strong { display: block; font-family: var(--font-display); font-weight: 400; font-size: 1.25rem; color: var(--ink); margin-bottom: 0.15rem; }
+.shelf-ipad figure { width: min(80vw, 380px); }
+.shelf-ipad figure.wide { width: min(90vw, 620px); }
+.shelf-ipad figcaption { padding: 0 1rem; }
 
 /* Open source */
 .open-source { text-align: center; }
