@@ -3,6 +3,8 @@
 A small, native EPUB reader for iPhone and iPad (iOS 27.0 and later), built for the foldable iPhone Duo.
 SwiftUI, TextKit and Foundation only. No web views, no third-party dependencies.
 
+Website: https://kad-air.github.io/sheafs/ (the `docs/` folder, published by GitHub Pages).
+
 - **Reads EPUB 2 and 3** with the system's own typography: New York, Georgia, Palatino, Charter and
   friends, paper / sepia / night themes, adjustable size, leading and margins, justified or ragged,
   hyphenation. Chapters are paginated like a book, not scrolled.
@@ -58,6 +60,7 @@ and the screenshot in a device frame) in each style under `marketing/styles`, fr
   XHTML-to-block converter and xpointer model (`Text`), the OPDS client (`OPDS`) and the KOReader
   sync client (`KOSync`). `swift test` runs on the Mac.
 - `scripts/` — `check`, `bootstrap`, the Python reference generators, and the simulator hinge tool.
+- `docs/` — the landing page GitHub Pages serves (`scripts/check-site` checks it).
 
 ## Sync setup
 

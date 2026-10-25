@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # The one command that must pass. Fails loudly (non-zero exit, one-line reason) at the first problem.
 #   1. no personal names, emails or secrets in the tree              (grep)
-#   2. reference data is fresh: the Python second sources regenerate byte-identical JSON
-#   3. SheafsKit unit tests (EPUB/ZIP vs Python zipfile, converter vs validated path algorithm,
+#   2. the marketing site (docs/, GitHub Pages) is whole and its claims match the code (scripts/check-site)
+#   3. reference data is fresh: the Python second sources regenerate byte-identical JSON
+#   4. SheafsKit unit tests (EPUB/ZIP vs Python zipfile, converter vs validated path algorithm,
 #      partial MD5 vs an independent digest, OPDS vs ElementTree)    (swift test, on the Mac),
 #      after every Swift file in the tree parses                     (scripts/swift-parse)
-#   4. the app builds for the iPhone Duo simulator                   (xcodegen + xcodebuild; NO_APP=1 skips 4-5)
-#   5. the app's own unit tests on the simulator                     (xcodebuild test; SKIP_SIM_TESTS=1 skips)
-# DESTINATION overrides step 4's destination (CI: 'generic/platform=iOS Simulator', no runtime needed).
+#   5. the app builds for the iPhone Duo simulator                   (xcodegen + xcodebuild; NO_APP=1 skips 5-6)
+#   6. the app's own unit tests on the simulator                     (xcodebuild test; SKIP_SIM_TESTS=1 skips)
+# DESTINATION overrides step 5's destination (CI: 'generic/platform=iOS Simulator', no runtime needed).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 LOG=$(mktemp -d)
@@ -17,7 +18,7 @@ step() { echo "== $* =="; }
 run() { local label=$1 log=$LOG/$2; shift 2; "$@" >"$log" 2>&1 || { tail -n 40 "$log" >&2; fail "$label"; }; }
 
 START=$SECONDS
-step "1/5 open-source hygiene"
+step "1/6 open-source hygiene"
 # The repo is meant to be published: no personal names, mail addresses, hostnames or keys may sneak in.
 # (the pattern is assembled so this script doesn't match itself)
 PERSONAL="kei""th|ad""air|@hey\\.com|railway\\.app|BOOKS_""API_KEY|Auth""Key_"
@@ -26,8 +27,12 @@ if grep -rIniE --exclude-dir=.git --exclude-dir=.build --exclude-dir=Sheafs.xcod
   fail "personal names, addresses or secrets found in the tree (see matches above)"
 fi
 
-step "2/5 reference data freshness (Python second sources)"
 command -v python3 >/dev/null || fail "python3 not found"
+step "2/6 marketing site (docs/)"
+run "scripts/check-site" check-site.log python3 -I scripts/check-site
+tail -1 "$LOG/check-site.log"
+
+step "3/6 reference data freshness (Python second sources)"
 FIX=Packages/SheafsKit/Tests/SheafsKitTests/Fixtures
 for gen in gen_epub_reference:epub-reference gen_chapter_reference:chapter-reference gen_sync_reference:sync-reference; do
   script=${gen%%:*}; json=${gen##*:}
@@ -38,7 +43,7 @@ for gen in gen_epub_reference:epub-reference gen_chapter_reference:chapter-refer
   cmp -s "$FIX/$json.json" "$LOG/$json.before.json" || fail "$FIX/$json.json changed when regenerated (commit the new one, or the generator is nondeterministic)"
 done
 
-step "3/5 Swift syntax (every file) + SheafsKit tests (swift test)"
+step "4/6 Swift syntax (every file) + SheafsKit tests (swift test)"
 run "scripts/swift-parse" swift-parse.log bash -c "scripts/swift-parse --selftest && scripts/swift-parse"
 tail -1 "$LOG/swift-parse.log"
 run "swift test" swift-test.log bash -c "cd Packages/SheafsKit && swift test 2>&1"
@@ -47,12 +52,12 @@ grep -E "Test run with [0-9]+ tests? .*passed|Executed [0-9]+ tests, with 0 fail
 grep -E "Test run with [0-9]+ tests?" "$LOG/swift-test.log" | tail -1
 
 if [[ -n ${NO_APP:-} ]]; then
-  step "4-5/5 app build and tests skipped (NO_APP=1)"
+  step "5-6/6 app build and tests skipped (NO_APP=1)"
   echo "CHECK OK, without the app ($((SECONDS - START)) s)"
   exit 0
 fi
 
-step "4/5 app build (iPhone Duo simulator)"
+step "5/6 app build (iPhone Duo simulator)"
 command -v xcodegen >/dev/null || fail "xcodegen not found (brew install xcodegen)"
 [[ -f Config/Signing.xcconfig ]] || cp Config/Signing.example.xcconfig Config/Signing.xcconfig
 run "xcodegen generate" xcodegen.log xcodegen generate --quiet
@@ -66,14 +71,14 @@ if grep -E "^/.*\.swift:[0-9]+:[0-9]+: warning:" "$LOG/build.log" >/dev/null; th
 fi
 
 if [[ -z ${SKIP_SIM_TESTS:-} ]]; then
-  step "5/5 app unit tests (simulator)"
+  step "6/6 app unit tests (simulator)"
   run "xcodebuild test" test.log xcodebuild -project Sheafs.xcodeproj -scheme Sheafs \
     -destination "platform=iOS Simulator,name=$SIM" -derivedDataPath "$DD" test
   grep -E "Test run with [0-9]+ tests? in [0-9]+ suites? passed" "$LOG/test.log" >/dev/null \
     || { tail -n 30 "$LOG/test.log" >&2; fail "simulator tests did not report a passing run"; }
   grep -E "Test run with [0-9]+ tests? in [0-9]+ suites? passed" "$LOG/test.log" | tail -1
 else
-  step "5/5 app unit tests skipped (SKIP_SIM_TESTS=1)"
+  step "6/6 app unit tests skipped (SKIP_SIM_TESTS=1)"
 fi
 
 echo "CHECK OK ($((SECONDS - START)) s)"
