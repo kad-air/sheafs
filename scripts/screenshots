@@ -262,11 +262,11 @@ shot() {
   if [[ $layout == - ]]; then
     sleep 6
   else
-    for _ in $(seq 1 30); do grep -q '^\[layout\]' "$WORK/console.log" && break; sleep 1; done
+    for _ in $(seq 1 30); do grep -a -q '^\[layout\]' "$WORK/console.log" && break; sleep 1; done
     sleep "${SETTLE:-5}"
-    grep -q 'nothing in the contents matches' "$WORK/console.log" && fail "$file: $(grep '\[goto\]' "$WORK/console.log")"
+    grep -aq 'nothing in the contents matches' "$WORK/console.log" && fail "$file: $(grep -a '\[goto\]' "$WORK/console.log")"
     local line
-    line=$(grep '^\[layout\]' "$WORK/console.log" | tail -1)
+    line=$(grep -a '^\[layout\]' "$WORK/console.log" | tail -1)
     [[ -n $line ]] || fail "$file: the reader logged no [layout] line (did the book open?)"
     [[ $line =~ $layout ]] || fail "$file: layout is not /$layout/: $line"
   fi
