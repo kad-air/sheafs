@@ -39,15 +39,56 @@ struct ReaderPalette: Hashable, Sendable {
         }
     }
 
-    /// The colour scheme the reader forces so its bars and sheets match the page, or nil to follow
-    /// the device. 🔴 Automatic must be nil: the reader resolves the palette from the environment's
-    /// `colorScheme`, and a forced scheme overrides that same environment, so the first value would
-    /// latch and live Light/Dark changes would never reach the page.
-    static func forcedColorScheme(for theme: ReaderTheme) -> ColorScheme? {
+    /// The colour scheme the reader runs in: the theme's own for a fixed theme, else the system's.
+    /// 🔴 Always a value, never nil. `preferredColorScheme(nil)` does NOT undo an earlier forced
+    /// scheme on the presentation: after Night, choosing Automatic kept the reader dark in Light
+    /// mode. And the system's scheme must come from the window scene (`SystemColorSchemeReader`),
+    /// not the environment's `colorScheme`, which the forced scheme itself overrides (reading it
+    /// latched the first value, so live Light/Dark changes never reached the page).
+    static func colorScheme(for theme: ReaderTheme, system: ColorScheme) -> ColorScheme {
         switch theme {
         case .paper, .sepia: .light
         case .night: .dark
-        case .system: nil
+        case .system: system
+        }
+    }
+}
+
+/// Reports the device's Light/Dark setting from the window scene's traits, which no view
+/// controller's `overrideUserInterfaceStyle` (what `preferredColorScheme` sets) can change.
+struct SystemColorSchemeReader: UIViewRepresentable {
+    var onChange: (ColorScheme) -> Void
+
+    func makeUIView(context: Context) -> Probe {
+        let view = Probe()
+        view.isUserInteractionEnabled = false
+        return view
+    }
+
+    func updateUIView(_ view: Probe, context: Context) { view.onChange = onChange }
+
+    final class Probe: UIView {
+        var onChange: ((ColorScheme) -> Void)?
+        private weak var observed: UIWindowScene?
+        private var registration: (any UITraitChangeRegistration)?
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            guard let scene = window?.windowScene, scene !== observed else { return }
+            if let registration, let observed { observed.unregisterForTraitChanges(registration) }
+            observed = scene
+            registration = scene.registerForTraitChanges([UITraitUserInterfaceStyle.self]) { [weak self] (scene: UIWindowScene, _) in
+                self?.report(scene)
+            }
+            report(scene)
+        }
+
+        private func report(_ scene: UIWindowScene) {
+            let scheme: ColorScheme = scene.traitCollection.userInterfaceStyle == .dark ? .dark : .light
+            print("[theme] system scheme \(scheme)")
+            let onChange = onChange
+            // Not during the layout pass that SwiftUI is running.
+            DispatchQueue.main.async { onChange?(scheme) }
         }
     }
 }
