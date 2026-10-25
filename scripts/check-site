@@ -1,0 +1,213 @@
+#!/usr/bin/env -S python3 -I
+"""The marketing site (docs/, served by GitHub Pages from main) must be whole and must not lie.
+
+Fails loudly (non-zero exit, one-line reason) when:
+  - docs/index.html does not parse, or a local href/src/srcset points at a file that is not there,
+    or at a root-absolute path (the site lives under /sheafs/ on github.io, so paths are relative);
+  - an <img> has no alt attribute or its width/height disagree with the PNG, a link is not https, the App Store links disagree or lack an id;
+  - the <title>, meta description, og:title or og:image is missing, or og:image is not a file in docs/;
+  - a claim on the page disagrees with the app's code (the second source): "N typefaces" against
+    ReaderFont's cases, "N highlight colors" against HighlightColor's cases, and the reader themes;
+  - any one asset is over 1 MB or docs/assets is over 9 MB (it is a landing page, not a gallery);
+  - docs/assets/shots is not exactly the set scripts/site-shots makes, or one is not a transparent PNG;
+  - docs/.nojekyll is missing (GitHub Pages would run Jekyll over the tree).
+
+  scripts/check-site            the checks
+  scripts/check-site --render   also renders docs/index.html with headless Chrome at 1280 px wide
+                                to OUT (default /tmp/sheafs-site) for eyeballing; CHROME overrides the binary
+"""
+import html.parser, os, re, shutil, struct, subprocess, sys, tempfile
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DOCS = os.path.join(ROOT, "docs")
+INDEX = os.path.join(DOCS, "index.html")
+SITE = "https://kad-air.github.io/sheafs/"
+NUMBERS = {w: i for i, w in enumerate("zero one two three four five six seven eight nine ten eleven twelve".split())}
+
+
+def fail(message):
+    sys.exit(f"CHECK-SITE FAILED: {message}")
+
+
+class Page(html.parser.HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.tags, self.text, self.errors = [], [], []
+        self.stack = []
+
+    def handle_starttag(self, tag, attrs):
+        self.tags.append((tag, dict(attrs), self.getpos()[0]))
+        if tag not in ("meta", "link", "img", "br", "hr", "input", "source"):
+            self.stack.append(tag)
+
+    def handle_endtag(self, tag):
+        if tag in ("meta", "link", "img", "br", "hr", "input", "source"):
+            return
+        if not self.stack or self.stack[-1] != tag:
+            self.errors.append(f"line {self.getpos()[0]}: </{tag}> closes {'<' + self.stack[-1] + '>' if self.stack else 'nothing'}")
+        else:
+            self.stack.pop()
+
+    def handle_data(self, data):
+        self.text.append(data)
+
+
+def swift_cases(path, enum):
+    source = open(os.path.join(ROOT, path)).read()
+    match = re.search(r"enum " + enum + r"\b[^{]*\{\s*case ([^\n]+)", source)
+    if not match:
+        fail(f"{path}: no `enum {enum}` with a case line (the site's claims are checked against it)")
+    return [c.strip() for c in match.group(1).split(",")]
+
+
+def check_page():
+    if not os.path.exists(INDEX):
+        fail(f"{INDEX} missing")
+    page = Page()
+    page.feed(open(INDEX, encoding="utf-8").read())
+    if page.errors:
+        fail("docs/index.html is not well formed: " + "; ".join(page.errors[:3]))
+    if page.stack:
+        fail(f"docs/index.html: unclosed tags {page.stack}")
+    text = re.sub(r"\s+", " ", " ".join(page.text)).lower()
+
+    def local(ref, line):
+        ref = ref.split("#")[0].split("?")[0]
+        if not ref:
+            return
+        if ref.startswith("/"):
+            fail(f"line {line}: root-absolute path {ref!r}; the site is served under /sheafs/, use a relative one")
+        if not os.path.isfile(os.path.join(DOCS, ref)):
+            fail(f"line {line}: {ref!r} is not a file under docs/")
+
+    store, titles, metas = [], 0, {}
+    for tag, attrs, line in page.tags:
+        for key in ("href", "src"):
+            ref = attrs.get(key)
+            if ref is None:
+                continue
+            if re.match(r"[a-z]+:", ref):
+                if not ref.startswith("https://"):
+                    fail(f"line {line}: {ref!r} is not https")
+                if "apps.apple.com" in ref:
+                    store.append(ref)
+            elif not ref.startswith("#"):
+                local(ref, line)
+        if attrs.get("srcset"):
+            for candidate in attrs["srcset"].split(","):
+                local(candidate.strip().split()[0], line)
+        if tag == "img" and "alt" not in attrs:
+            fail(f"line {line}: <img src={attrs.get('src')!r}> has no alt attribute")
+        if tag == "img" and attrs.get("src", "").startswith("assets/shots/"):
+            with open(os.path.join(DOCS, attrs["src"]), "rb") as f:
+                head = f.read(24)
+            real = struct.unpack(">II", head[16:24])
+            given = (attrs.get("width"), attrs.get("height"))
+            if given != tuple(str(v) for v in real):
+                fail(f"line {line}: {attrs['src']} is {real[0]}×{real[1]} but the <img> says width={given[0]} height={given[1]}")
+        if tag == "title":
+            titles += 1
+        if tag == "meta":
+            name = attrs.get("name") or attrs.get("property")
+            if name:
+                metas[name] = attrs.get("content", "")
+    if titles != 1:
+        fail(f"docs/index.html has {titles} <title> tags")
+    for key in ("description", "og:title", "og:description", "og:image", "og:url", "viewport"):
+        if not metas.get(key):
+            fail(f"docs/index.html: <meta {key}> missing or empty")
+    if not metas["og:image"].startswith(SITE):
+        fail(f"og:image must be an absolute URL under {SITE}, got {metas['og:image']!r}")
+    local(metas["og:image"][len(SITE):], 0)
+    if not store:
+        fail("no App Store link on the page")
+    if len(set(store)) != 1:
+        fail(f"the App Store links disagree: {sorted(set(store))}")
+    if not re.fullmatch(r"https://apps\.apple\.com/app/id\d{6,}", store[0]):
+        fail(f"App Store link {store[0]!r} is not of the form https://apps.apple.com/app/id<number>")
+
+    # Claims against the code. The page says how many typefaces and highlight colours there are.
+    fonts = swift_cases("Sheafs/Reader/ReaderSettings.swift", "ReaderFont")
+    colors = swift_cases("Sheafs/Library/Annotations.swift", "HighlightColor")
+    themes = swift_cases("Sheafs/Reader/ReaderSettings.swift", "ReaderTheme")
+    for claim, actual, what in ((r"(\w+) typefaces", len(fonts), "ReaderFont cases"),
+                                (r"(\w+) highlight colou?rs", len(colors), "HighlightColor cases")):
+        found = re.findall(claim, text)
+        if not found:
+            fail(f"the page no longer says how many {what.split()[0]} there are ({claim!r}); keep the claim, it is checked")
+        for word in found:
+            if NUMBERS.get(word) != actual:
+                fail(f"the page says {word!r} where the code has {actual} {what}")
+    for theme in ("paper", "sepia"):
+        if theme not in themes or f"{theme} " not in text:
+            fail(f"the page or ReaderTheme lost the {theme} theme")
+    if "night" not in themes or "dark" not in text:
+        fail("the page no longer mentions the dark theme, or ReaderTheme lost .night")
+    return metas
+
+
+def check_shots():
+    """docs/assets/shots holds exactly what scripts/site-shots makes, and each is a transparent PNG."""
+    source = open(os.path.join(ROOT, "scripts", "site-shots")).read()
+    known = set(re.findall(r'^\s+"([a-z-]+)":\s+\(', source, re.M))
+    if not known:
+        fail("scripts/site-shots lists no shots")
+    on_disk = {f[:-4] for f in os.listdir(os.path.join(DOCS, "assets", "shots")) if f.endswith(".png")}
+    stray = {f for f in os.listdir(os.path.join(DOCS, "assets", "shots")) if not f.endswith(".png")}
+    if stray:
+        fail(f"docs/assets/shots has files that are not site-shots PNGs: {sorted(stray)}")
+    if known != on_disk:
+        fail(f"docs/assets/shots and scripts/site-shots disagree: missing {sorted(known - on_disk)}, extra {sorted(on_disk - known)}")
+    for name in sorted(known):
+        with open(os.path.join(DOCS, "assets", "shots", name + ".png"), "rb") as f:
+            head = f.read(26)
+        if head[:8] != b"\x89PNG\r\n\x1a\n" or head[25] != 6:
+            fail(f"docs/assets/shots/{name}.png is not an RGBA PNG (the frames need a transparent background)")
+
+
+def check_assets():
+    if not os.path.exists(os.path.join(DOCS, ".nojekyll")):
+        fail("docs/.nojekyll missing (GitHub Pages would run Jekyll over the site)")
+    total = 0
+    for dirpath, _, files in os.walk(os.path.join(DOCS, "assets")):
+        for name in files:
+            size = os.path.getsize(os.path.join(dirpath, name))
+            total += size
+            if size > 1024 * 1024:
+                fail(f"{os.path.relpath(os.path.join(dirpath, name), ROOT)} is {size // 1024} KB; keep assets under 1 MB")
+    if total > 9 * 1024 * 1024:
+        fail(f"docs/assets is {total // 1024 // 1024} MB; keep the site under 9 MB")
+    return total
+
+
+def render():
+    chrome = os.environ.get("CHROME", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
+    out = os.environ.get("OUT", "/tmp/sheafs-site")
+    if not os.path.exists(chrome):
+        fail(f"no Chrome at {chrome} (set CHROME)")
+    os.makedirs(out, exist_ok=True)
+    profile = tempfile.mkdtemp(prefix="sheafs-site-chrome-")
+    try:
+        shot = os.path.join(out, "desktop-1280.png")
+        subprocess.run([chrome, "--headless=new", "--hide-scrollbars", "--force-device-scale-factor=1",
+                        "--window-size=1280,3600", "--allow-file-access-from-files", "--virtual-time-budget=5000",
+                        f"--user-data-dir={profile}", f"--screenshot={shot}", "file://" + INDEX],
+                       capture_output=True, text=True, timeout=120)
+    finally:
+        shutil.rmtree(profile, ignore_errors=True)
+    if not os.path.exists(shot):
+        fail("Chrome wrote no screenshot")
+    print(f"rendered {shot}")
+
+
+def main():
+    metas = check_page()
+    check_shots()
+    total = check_assets()
+    if "--render" in sys.argv:
+        render()
+    print(f"CHECK-SITE OK: docs/index.html, {total // 1024} KB of assets, {metas['og:title']!r}")
+
+
+if __name__ == "__main__":
+    main()

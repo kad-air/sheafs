@@ -1,0 +1,195 @@
+#!/usr/bin/env -S python3 -I
+"""Device-framed screenshots for the marketing site (docs/assets/shots/*.png).
+
+The raw screenshots of `scripts/screenshots` in the same frames and layouts as the App Store tiles
+(scripts/marketing, marketing/base.css): the open Duo as a book, the pair, the tabletop, phones and
+iPads. No copy, no paper: a transparent PNG of just the device and its shadow, so the page's own
+headlines sit beside it. Fails loudly when a screenshot is missing, Chrome writes nothing, or the
+result is not a transparent PNG.
+
+  scripts/site-shots [name]...        all shots, or the named ones
+  RAW=/tmp/sheafs-screenshots         scripts/screenshots' OUT
+  CHROME=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+"""
+import importlib.machinery, importlib.util, json, os, re, shutil, struct, subprocess, sys, tempfile
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+OUT = os.path.join(ROOT, "docs", "assets", "shots")
+PAD = 90  # room for the shadow, px
+
+loader = importlib.machinery.SourceFileLoader("marketing", os.path.join(ROOT, "scripts", "marketing"))
+spec = importlib.util.spec_from_loader("marketing", loader)
+marketing = importlib.util.module_from_spec(spec)
+loader.exec_module(marketing)
+RAW, CHROME, fail = marketing.RAW, marketing.CHROME, marketing.fail
+
+NATIVE = {"iphone": 1320 / 2868, "ipad": 2064 / 2752, "duo-cover": 1398 / 2034}
+
+# name: (frame, layout, screenshot, device width in px[, second screenshot for the pair])
+SHOTS = {
+    "duo-spread":     ("duo-open",  "book",     "duo-inner/inner-landscape-2-spread.png",    1600),
+    "duo-pair":       ("duo-open",  "pair",     "duo-inner/inner-landscape-8-moby.png",      1300, "duo-cover/cover-portrait-2-reader.png"),
+    "duo-tabletop":   ("duo-open",  "tabletop", "duo-inner/inner-portrait-5-tabletop.png",   1000),
+    "duo-flip":       ("duo-open",  "side",     "duo-inner/inner-landscape-3-flip.png",      1300),
+    "iphone-reader":     ("iphone", "top", "iphone/iphone-portrait-2-reader.png",     640),
+    "iphone-flip":       ("iphone", "top", "iphone/iphone-portrait-3-flip.png",       640),
+    "iphone-appearance": ("iphone", "top", "iphone/iphone-portrait-4-appearance.png", 640),
+    "iphone-night":      ("iphone", "top", "iphone/iphone-portrait-6-night.png",      640),
+    "iphone-library":    ("iphone", "top", "iphone/iphone-portrait-1-library.png",    640),
+    "iphone-page":       ("iphone", "top", "iphone/iphone-portrait-5-page.png",       640),
+    "ipad-spread":     ("ipad", "wide", "ipad/ipad-landscape-7-spread.png",   1300),
+    "ipad-reader":     ("ipad", "top",  "ipad/ipad-portrait-2-reader.png",    800),
+    "ipad-appearance": ("ipad", "top",  "ipad/ipad-portrait-4-appearance.png", 800),
+    "ipad-night":      ("ipad", "top",  "ipad/ipad-portrait-6-night.png",     800),
+}
+
+STYLE = """
+html, body { width: auto; height: auto; overflow: visible; background: transparent; margin: 0; }
+body { --frame: #1d1b19; --frame-edge: rgba(255,255,255,0.10);
+  --device-shadow: 0 4px 10px rgba(58,38,18,0.20), 0 30px 70px rgba(58,38,18,0.28); }
+#stage { position: absolute; left: 0; top: 0; }
+.device .screen img { aspect-ratio: var(--screen-aspect); height: auto; }
+#stage > .device, #stage > .book, #stage > .tabletop { position: relative; left: auto; right: auto; top: auto; transform: none; }
+#stage.pair { position: absolute; }
+#stage.pair .device { position: absolute; top: 0; }
+#stage.pair .device.open { right: 0; }
+#stage.pair .device.closed { right: var(--closed-right); top: var(--closed-top); transform: rotate(-4deg); z-index: 3; }
+"""
+
+MEASURE = """<script>
+const r = [...document.querySelectorAll('.device, .book .half, .tabletop .half')].map(e => e.getBoundingClientRect());
+const box = { left: Math.min(...r.map(x => x.left)), top: Math.min(...r.map(x => x.top)),
+              right: Math.max(...r.map(x => x.right)), bottom: Math.max(...r.map(x => x.bottom)) };
+document.body.setAttribute('data-box', JSON.stringify(box));
+</script>"""
+
+
+def raw(path):
+    full = os.path.join(RAW, path)
+    if not os.path.exists(full):
+        fail(f"no screenshot {full} (run scripts/screenshots, or set RAW)")
+    return full
+
+
+def device(frame, layout, shot, width, extra_class=""):
+    sw, sh, _ = marketing.png_size(shot)
+    native = NATIVE.get(frame, sw / sh)
+    if layout == "wide":
+        native = 1 / native
+    tile_w = width / marketing.WIDTH[(layout, frame)]  # device_html sizes the device from the tile width
+    return marketing.device_html(frame, shot, tile_w, layout, native, False, "transparent", extra_class, follow=False)
+
+
+def page(name, offset=None, size=None):
+    spec = SHOTS[name]
+    frame, layout, shot, width = spec[:4]
+    shot = raw(shot)
+    if layout == "pair":
+        closed_w = 0.47 * width
+        html = (f'<div id="stage" class="pair" style="width:{width:.0f}px;height:{width * 0.9:.0f}px;'
+                f'--closed-right:{0.51 * width:.0f}px;--closed-top:{0.06 * width:.0f}px">'
+                + device("duo-open", "pair", shot, width, "open")
+                + device("duo-cover", "pair", raw(spec[4]), closed_w, "closed") + "</div>")
+    else:
+        html = f'<div id="stage">{device(frame, layout, shot, width)}</div>'
+    place = f"#stage {{ left: {offset[0]:.1f}px; top: {offset[1]:.1f}px; }}" if offset else ""
+    return (f'<!doctype html><html><head><meta charset="utf-8">'
+            f'<link rel="stylesheet" href="file://{marketing.MARKETING}/base.css"><style>{STYLE}{place}</style>'
+            f'</head><body>{html}{MEASURE}</body></html>')
+
+
+def png_rgba(path, x, y):
+    """One pixel of an 8-bit RGBA PNG, alpha included (Chrome's output)."""
+    import zlib
+    data = open(path, "rb").read()
+    width, height, colour = marketing.png_size(path)
+    channels = 4 if colour == 6 else 3
+    pos, chunks = 8, b""
+    while pos < len(data):
+        length, kind = struct.unpack(">I4s", data[pos:pos + 8])
+        if kind == b"IDAT":
+            chunks += data[pos + 8:pos + 8 + length]
+        pos += 12 + length
+    raw_rows = zlib.decompress(chunks)
+    stride = width * channels
+    previous = bytearray(stride)
+    for row in range(y + 1):
+        start = row * (stride + 1)
+        kind, line = raw_rows[start], bytearray(raw_rows[start + 1:start + 1 + stride])
+        for i in range(stride):
+            a = line[i - channels] if i >= channels else 0
+            b = previous[i]
+            c = previous[i - channels] if i >= channels else 0
+            if kind == 1: line[i] = (line[i] + a) & 255
+            elif kind == 2: line[i] = (line[i] + b) & 255
+            elif kind == 3: line[i] = (line[i] + (a + b) // 2) & 255
+            elif kind == 4:
+                p = a + b - c
+                pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
+                line[i] = (line[i] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255
+        previous = line
+    return tuple(previous[x * channels:x * channels + channels])
+
+
+def chrome(args, size):
+    profile = tempfile.mkdtemp(prefix="sheafs-site-shots-")
+    try:
+        return subprocess.run([CHROME, "--headless=new", "--hide-scrollbars", "--force-device-scale-factor=1",
+                               f"--window-size={size[0]},{size[1]}", "--allow-file-access-from-files",
+                               "--default-background-color=00000000", "--virtual-time-budget=4000",
+                               "--run-all-compositor-stages-before-draw", f"--user-data-dir={profile}", *args],
+                              capture_output=True, text=True, timeout=120)
+    finally:
+        shutil.rmtree(profile, ignore_errors=True)
+
+
+def render(name):
+    os.makedirs(OUT, exist_ok=True)
+    out = os.path.join(OUT, f"{name}.png")
+    with tempfile.TemporaryDirectory(prefix="sheafs-site-shots-") as tmp:
+        path = os.path.join(tmp, "measure.html")
+        open(path, "w").write(page(name))
+        result = chrome(["--dump-dom", "file://" + path], (3000, 3000))
+        match = re.search(r'data-box="([^"]+)"', result.stdout)
+        if not match:
+            fail(f"{name}: Chrome did not report the device's box: {result.stderr[-300:]}")
+        box = json.loads(match.group(1).replace("&quot;", '"'))
+        width = round(box["right"] - box["left"] + 2 * PAD)
+        height = round(box["bottom"] - box["top"] + 2 * PAD)
+        path = os.path.join(tmp, "shot.html")
+        open(path, "w").write(page(name, offset=(PAD - box["left"], PAD - box["top"])))
+        if os.path.exists(out):
+            os.unlink(out)
+        chrome([f"--screenshot={out}", "file://" + path], (width, height))
+    if not os.path.exists(out):
+        fail(f"{name}: Chrome wrote no {out}")
+    w, h, colour = marketing.png_size(out)
+    if colour != 6:
+        fail(f"{out}: not RGBA (PNG colour type {colour}); the site needs a transparent background")
+    if (w, h) != (width, height):
+        fail(f"{out}: {w}×{h}, wanted {width}×{height}")
+    if h < 2 * PAD + 200:
+        fail(f"{out}: only {h} px tall; the device's box was measured before it had a size")
+    centre = png_rgba(out, w // 2, h // 2)
+    if centre[3] != 255:
+        fail(f"{out}: the middle of the device is transparent (alpha {centre[3]}); the screenshot had not loaded")
+    corner = png_rgba(out, 2, 2)
+    if corner[3] != 0:
+        fail(f"{out}: the corner is not transparent (alpha {corner[3]})")
+    print(f"ok: {name}.png {w}×{h} {os.path.getsize(out) // 1024} KB")
+
+
+def main():
+    names = sys.argv[1:] or list(SHOTS)
+    for name in names:
+        if name not in SHOTS:
+            fail(f"unknown shot {name!r}; known: {', '.join(SHOTS)}")
+    if not os.path.exists(CHROME):
+        fail(f"no Chrome at {CHROME} (set CHROME)")
+    for name in names:
+        render(name)
+    print(f"SITE-SHOTS OK: {len(names)} shots in {OUT}")
+
+
+if __name__ == "__main__":
+    main()

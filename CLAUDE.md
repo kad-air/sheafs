@@ -8,12 +8,18 @@ hostnames or secrets anywhere in the tree** — `scripts/check` greps for them a
 
 ```bash
 scripts/bootstrap                 # Config/Signing.xcconfig (git-ignored) + `xcodegen generate`
-scripts/check                     # THE gate: hygiene grep, Python reference freshness, swift test,
-                                  #   simulator build, simulator unit tests (SKIP_SIM_TESTS=1 skips the last)
+scripts/check                     # THE gate: hygiene grep, the site (check-site), Python reference freshness,
+                                  #   swift test, simulator build, simulator unit tests (SKIP_SIM_TESTS=1 skips the last)
                                   #   NO_APP=1 stops before the app build; DESTINATION overrides its destination
 scripts/swift-parse               # swiftc -parse of every Swift file (no SDK); part of scripts/check step 3
                                   # CI: .github/workflows/check.yml runs scripts/check on PRs and main pushes
                                   #   (macOS runner, newest Xcode; app build only if it has the 27.1 SDK)
+scripts/site-shots [name]...      # docs/assets/shots/*.png: the RAW screenshots in the App Store tiles' device
+                                  #   frames (book, pair, tabletop, phone, iPad), transparent, no copy; needs Chrome
+scripts/check-site [--render]     # the marketing site in docs/ (GitHub Pages, served from main at
+                                  #   https://kad-air.github.io/sheafs/): links and assets resolve, meta/OG tags,
+                                  #   the page's counts ("nine typefaces", "five highlight colors") against the
+                                  #   enums in the code, asset weight; --render screenshots it with headless Chrome
 scripts/check-auto-theme          # end to end on a simulator (SIM="iPhone Duo"): theme Automatic follows
                                   #   live Light/Dark flips (reads the page colour off screenshots)
 scripts/screenshots [duo|iphone|ipad]  # App Store screenshots: every Duo pose on "iPhone Duo" (Sheafs is
@@ -100,6 +106,13 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     download). `KOSync/` — the vanilla KOReader sync protocol; `PartialMD5` is the document key
     (offsets 0, 1 KiB, 4 KiB … 1 GiB; 🔴 the i = −1 read is at offset 0, not 256, matching KOReader's
     32-bit shift — pinned against an independent Python digest, `2d54ce2c…` for hub-fixture.epub).
+- `docs/` — the marketing site, plain HTML + one stylesheet, no JavaScript, no build step. GitHub
+  Pages serves it from `main` (`/docs`), so a merge publishes it. Paths are RELATIVE (the site lives
+  under `/sheafs/`), `.nojekyll` keeps Jekyll off it, and `assets/shots/*.png` are the raw
+  screenshots in device frames, made by `scripts/site-shots` (which imports `scripts/marketing` for
+  the frames and `marketing/base.css` for the layouts; never edit the PNGs by hand, re-run it). The
+  headlines are HTML, in the App Store listing's casual voice; `scripts/check-site` holds its counts
+  to the code and the shots to the script's list.
 - `Sheafs/` (app, `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`, Swift 6 strict):
   - `App/` — `SheafsApp` (SwiftData container, environment objects, open-in, Documents import),
     `RootView` (tabs Library / Catalogs / Settings; the reader is a `fullScreenCover`).
