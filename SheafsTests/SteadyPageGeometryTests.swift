@@ -2,29 +2,25 @@ import Testing
 import SwiftUI
 @testable import Sheafs
 
-/// Nothing but the display itself may move the text: not the bars coming and going, not the status
-/// bar's cluster or a Live Activity, which the system reports as occlusion regions just like the cover
-/// display's camera hole. The cover-display insets are the ones the iPhone Duo simulator logged while
-/// toggling the bars; the inner-display occlusion is the status cluster from a device screenshot
-/// (clock, Wi-Fi and a Live Activity ring at the top of the vertical bar), which pushed both pages'
-/// text down below it.
+/// Nothing but the display itself may move the text: not the bars coming and going. The cover-display
+/// insets are the ones the iPhone Duo simulator logged while toggling the bars. (The status cluster
+/// and Live Activities, which the system reports as occlusion regions, are not inputs at all any
+/// more: only the cover camera's known spot is, `CoverCamera`.)
 struct SteadyPageGeometryTests {
     static let cover = CGSize(width: 466, height: 678)
-    static let coverCamera = [CGRect(x: 399.67, y: 29.33, width: 37, height: 37), CGRect(x: 382, y: 0, width: 84, height: 82)]
+    static let coverCamera = CoverCamera.hole(window: cover, hasFold: false, orientation: .portrait)
     static let inner = CGSize(width: 951, height: 669)
     static let innerFold = CGRect(x: 475.5, y: 0, width: 0, height: 669)
-    static let statusCluster = CGRect(x: 878, y: 28, width: 48, height: 72)
 
-    static func coverInput(top: CGFloat, bottom: CGFloat, occlusions: [CGRect] = coverCamera) -> PageLayout.Input {
+    static func coverInput(top: CGFloat, bottom: CGFloat) -> PageLayout.Input {
         PageLayout.Input(size: cover, safeArea: EdgeInsets(top: top, leading: 0, bottom: bottom, trailing: 84),
-                         division: nil, divisionIsActive: false, occlusions: occlusions,
+                         division: nil, divisionIsActive: false, camera: coverCamera,
                          margin: 24, fontSize: 19, allowSpread: true, fullBleed: true)
     }
 
-    static func innerInput(top: CGFloat, bottom: CGFloat, occlusions: [CGRect] = [],
-                           foldActive: Bool = false) -> PageLayout.Input {
+    static func innerInput(top: CGFloat, bottom: CGFloat, foldActive: Bool = false) -> PageLayout.Input {
         PageLayout.Input(size: inner, safeArea: EdgeInsets(top: top, leading: 0, bottom: bottom, trailing: 84),
-                         division: innerFold, divisionIsActive: foldActive, occlusions: occlusions,
+                         division: innerFold, divisionIsActive: foldActive, camera: nil,
                          margin: 24, fontSize: 19, allowSpread: true, fullBleed: true)
     }
 
@@ -48,25 +44,21 @@ struct SteadyPageGeometryTests {
         // Long after opening: tap, the strip then the status bar arrive; tap, they leave in the other
         // order (this half-gone state laid the page 24 pt lower and repaginated it).
         replay.see(Self.coverInput(top: 0, bottom: 142.67), barsVisible: true, after: 10)
-        replay.see(Self.coverInput(top: 24, bottom: 142.67, occlusions: [Self.coverCamera[0],
-                                   CGRect(x: 382, y: 0, width: 84, height: 174)]), barsVisible: true)
+        replay.see(Self.coverInput(top: 24, bottom: 142.67), barsVisible: true)
         replay.see(Self.coverInput(top: 24, bottom: 34), barsVisible: false, after: 3)
         replay.see(Self.coverInput(top: 0, bottom: 34), barsVisible: false)
         for layout in replay.layouts { #expect(layout == reading) }
     }
 
-    @Test func theStatusClusterAndLiveActivitiesDoNotPushTheSpreadDown() {
+    @Test func togglingTheBarsOnTheInnerDisplayLeavesTheSpreadAlone() {
         var replay = Replay()
         replay.see(Self.innerInput(top: 0, bottom: 20), barsVisible: false)
         let reading = replay.layouts[0]
         #expect(reading.isSpread)
         #expect(reading.textInsets.top == PageLayout.headerHeight)
-        // The bars come up: status bar inset plus the clock/Wi-Fi cluster as an occlusion.
-        replay.see(Self.innerInput(top: 24, bottom: 20, occlusions: [Self.statusCluster]), barsVisible: true, after: 10)
+        #expect(reading.camera == nil)
+        replay.see(Self.innerInput(top: 24, bottom: 20), barsVisible: true, after: 10)
         replay.see(Self.innerInput(top: 0, bottom: 20), barsVisible: false, after: 3)
-        // A Live Activity pops in while reading, bars hidden.
-        replay.see(Self.innerInput(top: 0, bottom: 20, occlusions: [Self.statusCluster]), barsVisible: false, after: 20)
-        replay.see(Self.innerInput(top: 0, bottom: 20), barsVisible: false, after: 5)
         for layout in replay.layouts { #expect(layout == reading) }
     }
 
@@ -75,7 +67,7 @@ struct SteadyPageGeometryTests {
         replay.see(Self.coverInput(top: 0, bottom: 34), barsVisible: false)
         // The text starts 2 pt below the hole (29.33 + 37 + 2), as before.
         #expect(abs(replay.layouts[0].textInsets.top - 68.33) < 0.01)
-        #expect(replay.layouts[0].occlusions == [Self.coverCamera[0]])
+        #expect(replay.layouts[0].camera == Self.coverCamera)
     }
 
     @Test func foldingIntoBookPoseIsFollowedAtOnce() {

@@ -40,6 +40,7 @@ struct ReaderView: View {
     @State private var showQuickAppearance = false
     @State private var geometry = SteadyPageGeometry()
     @State private var regions: WindowRegions?
+    @State private var orientation: UIInterfaceOrientation = .unknown
     @State private var footnote: Footnote?
     @State private var editingAnnotation: Annotation?
     @State private var remotePrompt: RemotePrompt?
@@ -178,8 +179,8 @@ struct ReaderView: View {
 
     private func pages(_ session: BookSession) -> some View {
         // The proxy lives inside the safe area, so its size excludes the bars; the layout works in
-        // window coordinates (the size plus the insets). The reserved regions come from the
-        // full-window reader in the background, see `WindowRegions`.
+        // window coordinates (the size plus the insets). The fold comes from the full-window reader
+        // in the background (`WindowRegions`); the cover camera is a known spot (`CoverCamera`).
         GeometryReader { proxy in
             let insets = proxy.safeAreaInsets
             let full = CGSize(width: proxy.size.width + insets.leading + insets.trailing,
@@ -188,7 +189,9 @@ struct ReaderView: View {
             if let regions {
                 // Both displays read full width under the bars' strip; the bars overlay on tap.
                 let fresh = PageLayout.Input(size: full, safeArea: insets, division: regions.division,
-                                             divisionIsActive: regions.divisionIsActive, occlusions: regions.occlusions,
+                                             divisionIsActive: regions.divisionIsActive,
+                                             camera: CoverCamera.hole(window: full, hasFold: regions.division != nil,
+                                                                      orientation: orientation),
                                              margin: settings.margin, fontSize: settings.fontSize, allowSpread: true,
                                              fullBleed: true)
                 let layout = PageLayout.compute(geometry.input(for: fresh))
@@ -232,8 +235,8 @@ struct ReaderView: View {
                     geometry.observe(new, barsVisible: chromeVisible, now: ProcessInfo.processInfo.systemUptime)
                     let used = PageLayout.compute(geometry.input(for: new))
                     print("[layout] size=\(new.size) safe=\(new.safeArea) division=\(String(describing: new.division)) " +
-                          "active=\(new.divisionIsActive) occlusions=\(new.occlusions) → pages=\(used.pageFrames) " +
-                          "textInsets=\(used.textInsets) holes=\(used.occlusions) " +
+                          "active=\(new.divisionIsActive) camera=\(String(describing: new.camera)) orientation=\(orientation.rawValue) → pages=\(used.pageFrames) " +
+                          "textInsets=\(used.textInsets) " +
                           "holding=\(geometry.isHolding(new))")
                 }
                 .animation(.smooth, value: layout.deckFrame != nil)
@@ -243,6 +246,7 @@ struct ReaderView: View {
             GeometryReader { window in
                 let fresh = WindowRegions(proxy: window)
                 Color.clear.onChange(of: fresh, initial: true) { _, new in regions = new }
+                InterfaceOrientationReader { orientation = $0 }
             }
             .ignoresSafeArea()
         }

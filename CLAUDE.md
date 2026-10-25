@@ -185,7 +185,7 @@ regions (see Duo behaviour below), so check layout changes on the phone.
 Guidance followed: Apple's HIG "Designing for iPhone Duo" (size classes, don't move continuous
 reading content for the fold, vertical bars are the system's job, keep controls consistent across
 poses, even grid columns over the fold, reserved regions for custom layout, hinge angle only for
-effects). APIs used: `GeometryProxy.reservedRegions(kind: .division/.occlusion, options:
+effects). APIs used: `GeometryProxy.reservedRegions(kind: .division, options:
 [.includeInactive])`, standard `.toolbar` (the system puts items in the vertical bar on the cover
 display and inner-landscape), `toolbarVisibility(_:for: .statusBar)`, `ToolbarOverflowMenu`,
 `visibilityPriority`.
@@ -199,7 +199,8 @@ display and inner-landscape), `toolbarVisibility(_:for: .statusBar)`, `ToolbarOv
   2 pt) made the pages 441 vs 453 pt wide, so every line re-broke on unfolding;
 - tabletop/laptop (active horizontal division) → the page on the upper half, `ReaderDeck` (progress,
   prev/next, contents, text size, appearance) on the lower half;
-- a camera hole in the top quarter of the page (the cover display's) pushes the text below it.
+- the cover display's camera hole (`CoverCamera`, a known spot, not read from the system) pushes the
+  text below it (or the folio band up, if the interface turns it to the bottom).
 Both pages of a spread share one text size, so one pagination serves both. The reading position is
 the first character of the RIGHT-hand page of a spread (the left page shows what came just before,
 or is blank at the very start). Pagination is ANCHORED: the first layout of a chapter after a
@@ -217,27 +218,27 @@ window coordinates (`proxy.size` + insets, regions shifted by the insets) and th
 window view offset back by the insets. The system keeps an 84 pt trailing inset for the vertical
 bar even with the status bar hidden. Both displays read FULL BLEED under that strip and the bars
 overlay the page on tap (`fullBleed`); the only thing avoided is the cover display's camera hole.
-🔴 Reserved regions come from a SEPARATE full-window reader (`WindowRegions`, a background
-`GeometryReader` with `ignoresSafeArea`, stored in `@State`): the DEVICE reports only the regions
-that intersect the reader's frame, and the hole sits in the strip outside the safe area, so the
-inset reader saw none; the SIMULATOR reports every region regardless, which hid this until the first
-device test ("letters lost in the camera hole"). The cover display reports the camera twice, in
-window coordinates: the hole (400, 29, 37 × 37) and the strip around it (382, 0, 84 × 82; 174 tall
-while the chrome is up). `PageLayout.cameraHoles` keeps the holes in the top quarter that do not
-house another region, the text starts 2 pt below the hole (Books runs right up to it), and the
-running head (`PageView.headFrame`) narrows symmetrically to stay clear of it. Folio band 30 pt, the
+🔴 The fold comes from a SEPARATE full-window reader (`WindowRegions`, a background `GeometryReader`
+with `ignoresSafeArea`, stored in `@State`): the DEVICE reports only the regions that intersect the
+reader's frame; the SIMULATOR reports every region regardless.
+🔴 The cover camera is HARD-CODED (`CoverCamera`), not read from `.occlusion` reserved regions: the
+system also reports the status-bar cluster and Live Activities as occlusions, on both displays,
+coming and going while reading, and the API cannot tell them from hardware; avoiding them moved
+the text around (Live Activities pushed the inner spread down). The hole is a 37 pt square
+29⅓ pt (88 px) in from the top and right edges in portrait, i.e. window (399.67, 29.33, 37 × 37) on
+the 466 × 678 pt cover window, as the device reported it; it turns with the window scene's
+interface orientation (`InterfaceOrientationReader`); a window of that size without a fold is the
+cover display. The text starts 2 pt below the hole (Books runs right up to it), and the running head
+(`PageView.headFrame`) narrows symmetrically to stay clear of it. Don't bring occlusions back.
+Folio band 30 pt, the
 folio centred ~50 pt above the display's bottom edge, like Books; the page frame stops at the home
 indicator's zone. Page breaks are judged by a line's GLYPH bottom (`Paginator`), not its fragment
 rect, which carries the trailing line/paragraph spacing: otherwise the last line that fits is dropped.
 🔴 Nothing but the display itself moves the text (`SteadyPageGeometry`, `SteadyPageGeometryTests`).
-The bars change the safe areas, and the system reports the status-bar cluster and Live Activities as
-OCCLUSION regions, exactly like the cover camera (the API cannot tell hardware from system UI; on the
-inner display the clock/Wi-Fi cluster pushed both pages' text below it). So the safe areas and
-occlusions are learned per display state (window size + fold position/activity) during the first
-1.5 s, then LOCKED: later changes on the same display are ignored, and the bars overlay the page. A
-fold, unfold, rotation or book pose is a new display state and is followed at once; a size change
-while the bars are up hides them first. Known gap: a Live Activity animating in during those first
-1.5 s on a display gets learned as a hole until the next display change.
+The bars change the safe areas, so they are learned per display state (window size + fold
+position/activity + camera) during the first 1.5 s, then LOCKED: later changes on the same display
+are ignored, and the bars overlay the page. A fold, unfold, rotation or book pose is a new display
+state and is followed at once; a size change while the bars are up hides them first.
 
 ## Landmines
 - The reader forces a colour scheme only for a FIXED theme (`ReaderPalette.forcedColorScheme`; nil for

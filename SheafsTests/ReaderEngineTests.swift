@@ -70,7 +70,7 @@ struct ReaderEngineTests {
     @Test func coverDisplayIsOnePage() {
         let layout = PageLayout.compute(.init(size: CGSize(width: 466, height: 678),
                                               safeArea: EdgeInsets(top: 0, leading: 0, bottom: 20, trailing: 84),
-                                              division: nil, divisionIsActive: false, occlusions: [],
+                                              division: nil, divisionIsActive: false, camera: nil,
                                               margin: 24, fontSize: 19, allowSpread: true))
         #expect(layout.pageFrames.count == 1)
         #expect(layout.pageFrames[0].maxX <= 466 - 84)
@@ -81,7 +81,7 @@ struct ReaderEngineTests {
         let fold = CGRect(x: 475.5, y: 0, width: 0, height: 669)
         let layout = PageLayout.compute(.init(size: CGSize(width: 951, height: 669),
                                               safeArea: EdgeInsets(top: 0, leading: 0, bottom: 20, trailing: 84),
-                                              division: fold, divisionIsActive: false, occlusions: [],
+                                              division: fold, divisionIsActive: false, camera: nil,
                                               margin: 24, fontSize: 19, allowSpread: true, fullBleed: true))
         #expect(layout.isSpread)
         let left = layout.pageFrames[0], right = layout.pageFrames[1]
@@ -100,7 +100,7 @@ struct ReaderEngineTests {
         let fold = CGRect(x: 445, y: 0, width: 60, height: 669)
         let layout = PageLayout.compute(.init(size: CGSize(width: 951, height: 669),
                                               safeArea: EdgeInsets(top: 0, leading: 0, bottom: 20, trailing: 84),
-                                              division: fold, divisionIsActive: true, occlusions: [],
+                                              division: fold, divisionIsActive: true, camera: nil,
                                               margin: 24, fontSize: 19, allowSpread: true))
         #expect(layout.isSpread)
         #expect(layout.pageFrames[0].maxX <= fold.minX)
@@ -117,7 +117,7 @@ struct ReaderEngineTests {
         func layout(_ fold: CGRect, active: Bool) -> PageLayout {
             PageLayout.compute(.init(size: CGSize(width: 951, height: 669),
                                      safeArea: EdgeInsets(top: 0, leading: 0, bottom: 34, trailing: 84),
-                                     division: fold, divisionIsActive: active, occlusions: [],
+                                     division: fold, divisionIsActive: active, camera: nil,
                                      margin: 24, fontSize: 19, allowSpread: true, fullBleed: true))
         }
         let hinge = CGRect(x: 455.5, y: 0, width: 40, height: 669)
@@ -135,7 +135,7 @@ struct ReaderEngineTests {
         let fold = CGRect(x: 0, y: 450, width: 669, height: 50)
         let layout = PageLayout.compute(.init(size: CGSize(width: 669, height: 951),
                                               safeArea: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0),
-                                              division: fold, divisionIsActive: true, occlusions: [],
+                                              division: fold, divisionIsActive: true, camera: nil,
                                               margin: 24, fontSize: 19, allowSpread: true))
         #expect(layout.pageFrames.count == 1)
         #expect(layout.pageFrames[0].maxY <= fold.minY)
@@ -149,7 +149,7 @@ struct ReaderEngineTests {
         let fold = CGRect(x: 0, y: 475.5, width: 669, height: 0)
         let layout = PageLayout.compute(.init(size: CGSize(width: 669, height: 951),
                                               safeArea: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0),
-                                              division: fold, divisionIsActive: false, occlusions: [],
+                                              division: fold, divisionIsActive: false, camera: nil,
                                               margin: 24, fontSize: 19, allowSpread: true))
         #expect(layout.pageFrames.count == 1)
         #expect(layout.deckFrame == nil)
@@ -158,40 +158,62 @@ struct ReaderEngineTests {
     }
 
     @Test func coverCameraHoleStartsTheTextBelowItAndMovesTheHead() {
-        // What the Duo reports on its cover display (window coordinates): the hole and the strip it sits in.
-        let hole = CGRect(x: 399.67, y: 29.33, width: 37, height: 37)
-        let strip = CGRect(x: 382, y: 0, width: 84, height: 82)
-        let input = PageLayout.Input(size: CGSize(width: 466, height: 678),
+        // The hole the Duo's cover display reports on the device, in window coordinates (portrait).
+        let device = CGRect(x: 399.67, y: 29.33, width: 37, height: 37)
+        let cover = CGSize(width: 466, height: 678)
+        let hole = CoverCamera.hole(window: cover, hasFold: false, orientation: .portrait)
+        #expect(hole.map { abs($0.minX - device.minX) < 1 && abs($0.minY - device.minY) < 1 && $0.size == device.size } == true)
+        let input = PageLayout.Input(size: cover,
                                      safeArea: EdgeInsets(top: 0, leading: 0, bottom: 34, trailing: 84),
-                                     division: nil, divisionIsActive: false, occlusions: [hole, strip],
+                                     division: nil, divisionIsActive: false, camera: hole,
                                      margin: 24, fontSize: 19, allowSpread: true, fullBleed: true)
         let layout = PageLayout.compute(input)
         let zero: CGFloat = 0
         #expect(layout.pageFrames[0].minY == zero)
-        // The text starts just below the hole, not below the whole strip (Books runs up to the hole).
-        #expect(layout.textInsets.top > hole.maxY)
-        #expect(layout.textInsets.top < strip.maxY)
-        #expect(layout.occlusions == [hole])
+        // The text starts 2 pt below the hole (Books runs up to the hole).
+        #expect(abs(layout.textInsets.top - (device.maxY + 2)) < 1)
+        #expect(layout.textInsets.bottom == PageLayout.footerHeight)
+        #expect(layout.camera == hole)
         // The running head stays clear of the hole and above the text.
         let lineHeight: CGFloat = 20
         let head = PageView.headFrame(bounds: layout.pageFrames[0], textInsets: layout.textInsets,
-                                      lineHeight: lineHeight, occlusions: layout.occlusions)
-        #expect(!head.intersects(hole))
+                                      lineHeight: lineHeight, camera: layout.camera)
+        #expect(!head.intersects(device))
         #expect(head.maxY <= layout.textInsets.top)
         #expect(head.width > 250)
         // The folio sits inside the page, above the home indicator's zone.
         let folio = PageView.folioFrame(bounds: layout.pageFrames[0], textInsets: layout.textInsets, lineHeight: lineHeight)
         #expect(folio.maxY <= layout.pageFrames[0].height)
         #expect(folio.minY >= layout.pageFrames[0].height - layout.textInsets.bottom)
-        // The strip alone (no hole reported) is avoided as a whole.
-        var stripOnly = input
-        stripOnly.occlusions = [strip]
-        #expect(PageLayout.compute(stripOnly).textInsets.top > strip.maxY)
-        // A region away from the top (the cover camera's stale frame during a fold) changes nothing.
-        var low = input
-        low.occlusions = [CGRect(x: 29, y: 400, width: 37, height: 37)]
-        #expect(PageLayout.compute(low).textInsets.top == PageLayout.headerHeight)
-        #expect(PageLayout.compute(low).occlusions.isEmpty)
+    }
+
+    @Test func coverCameraTurnsWithTheInterfaceAndExistsNowhereElse() {
+        let cover = CGSize(width: 466, height: 678), wide = CGSize(width: 678, height: 466)
+        func near(_ a: CGRect?, _ b: CGRect) -> Bool {
+            guard let a else { return false }
+            return abs(a.minX - b.minX) < 0.5 && abs(a.minY - b.minY) < 0.5 && a.size == b.size
+        }
+        // Landscape as the device reports it (phone top on the left): (29, 29, 37 × 37).
+        #expect(near(CoverCamera.hole(window: wide, hasFold: false, orientation: .landscapeRight),
+                     CGRect(x: 29, y: 29, width: 37, height: 37)))
+        #expect(near(CoverCamera.hole(window: wide, hasFold: false, orientation: .landscapeLeft),
+                     CGRect(x: 612, y: 400, width: 37, height: 37)))
+        // Mid-rotation, the size decides.
+        #expect(CoverCamera.hole(window: cover, hasFold: false, orientation: .landscapeLeft).map { abs($0.minY - 29.33) < 0.01 } == true)
+        // The inner display (it has a fold, flat or not), other sizes: no camera at all, whatever
+        // the system reports as occlusions there (status cluster, Live Activities).
+        #expect(CoverCamera.hole(window: CGSize(width: 951, height: 669), hasFold: true, orientation: .landscapeRight) == nil)
+        #expect(CoverCamera.hole(window: CGSize(width: 669, height: 951), hasFold: true, orientation: .portrait) == nil)
+        #expect(CoverCamera.hole(window: cover, hasFold: true, orientation: .portrait) == nil)
+        #expect(CoverCamera.hole(window: CGSize(width: 402, height: 874), hasFold: false, orientation: .portrait) == nil)
+        // A hole at the bottom (phone top on the right) widens the folio band, not the head band.
+        let input = PageLayout.Input(size: wide, safeArea: EdgeInsets(top: 0, leading: 0, bottom: 21, trailing: 0),
+                                     division: nil, divisionIsActive: false,
+                                     camera: CoverCamera.hole(window: wide, hasFold: false, orientation: .landscapeLeft),
+                                     margin: 24, fontSize: 19, allowSpread: true, fullBleed: true)
+        let layout = PageLayout.compute(input)
+        #expect(layout.textInsets.top == PageLayout.headerHeight)
+        #expect(layout.pageFrames[0].maxY - layout.textInsets.bottom <= 399.67 - 2 + 0.01)
     }
 
     @Test func libraryColumnsAreEvenOverAFold() {

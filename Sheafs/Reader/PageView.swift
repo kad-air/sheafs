@@ -11,8 +11,8 @@ final class PageView: UIView {
     var head = "" { didSet { setNeedsDisplay() } }
     /// The page number.
     var folio = "" { didSet { setNeedsDisplay() } }
-    /// Camera holes in this view's coordinates; the running head keeps clear of them.
-    var occlusions: [CGRect] = [] { didSet { setNeedsDisplay() } }
+    /// The cover camera's hole in this view's coordinates; the running head keeps clear of it.
+    var camera: CGRect? { didSet { setNeedsDisplay() } }
     /// Highlights of this page's chapter (any page; the view keeps what falls on its own).
     var marks: [HighlightMark] = [] { didSet { if marks != oldValue { setNeedsDisplay() } } }
     /// The live text selection, in chapter coordinates, drawn over the glyphs like iOS does.
@@ -88,7 +88,7 @@ final class PageView: UIView {
         let attrs: [NSAttributedString.Key: Any] = [.font: marginFont, .foregroundColor: palette.secondary, .paragraphStyle: para]
         let lineHeight = marginFont.lineHeight + 2
         if !head.isEmpty {
-            let frame = Self.headFrame(bounds: bounds, textInsets: textInsets, lineHeight: lineHeight, occlusions: occlusions)
+            let frame = Self.headFrame(bounds: bounds, textInsets: textInsets, lineHeight: lineHeight, camera: camera)
             (head as NSString).draw(in: frame, withAttributes: attrs)
         }
         if !folio.isEmpty {
@@ -101,12 +101,12 @@ final class PageView: UIView {
     /// symmetrically so it stays clear of a camera hole in that band (the cover display's hole
     /// sits at the top right, in the vertical bar's strip).
     nonisolated static func headFrame(bounds: CGRect, textInsets: UIEdgeInsets, lineHeight: CGFloat,
-                                      occlusions: [CGRect]) -> CGRect {
+                                      camera: CGRect?) -> CGRect {
         let y = max(4, textInsets.top - lineHeight - 6)
         var left = textInsets.left
         var right = bounds.width - textInsets.right
         let center = (left + right) / 2
-        for hole in occlusions where hole.minY < y + lineHeight && hole.maxY > y {
+        if let hole = camera, hole.minY < y + lineHeight, hole.maxY > y {
             if hole.midX >= center { right = min(right, hole.minX - 8) } else { left = max(left, hole.maxX + 8) }
         }
         let half = max(0, min(center - left, right - center))
