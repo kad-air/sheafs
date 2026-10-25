@@ -16,12 +16,19 @@ scripts/swift-parse               # swiftc -parse of every Swift file (no SDK); 
                                   #   (macOS runner, newest Xcode; app build only if it has the 27.1 SDK)
 scripts/check-auto-theme          # end to end on a simulator (SIM="Sheafs Duo"): theme Automatic follows
                                   #   live Light/Dark flips (reads the page colour off screenshots)
+scripts/screenshots               # App Store screenshots, every Duo pose, on SIM="Sheafs Shots" (made if
+                                  #   missing) → OUT=/tmp/sheafs-screenshots/{inner,cover}/; fresh install,
+                                  #   Standard Ebooks books (CC0, cached); fails unless each shot is App Store
+                                  #   Connect's size for its display, the hinge reads back, the `[layout]` line
+                                  #   shows the pose and the frame has ink. NO_BUILD=1 reuses the last build
 cd Packages/SheafsKit && swift test            # the core package, on the Mac, ~1 s
 xcodebuild -project Sheafs.xcodeproj -scheme Sheafs -destination 'platform=iOS Simulator,name=iPhone Duo' build
 scripts/release                   # fallback only (Xcode Cloud ships, below): archive + upload with an API key
                                   #   (ASC_KEY_PATH/ASC_KEY_ID/ASC_ISSUER_ID; build = commit count,
                                   #   refuses a dirty tree; --no-upload archives and checks only)
 scripts/hinge/hinge 110           # fold the booted Duo simulator (0 closed … 180 flat); `get` reads it
+scripts/hinge/hinge orient ll     # turn it: portrait | landscape-left (ll) | landscape-right (lr) | faceup…
+                                  #   device landscape = inner display portrait; + a part fold = tabletop
 xcrun simctl io <udid> screenshot --display=primary-1 out.png   # inner display (`primary` = cover)
 ```
 `Sheafs.xcodeproj` and `Sheafs/Generated/Info.plist` are generated from `project.yml`; never edit
@@ -37,6 +44,9 @@ itself, so don't also upload with `scripts/release` for the same version: the nu
 Launch arguments: `-SheafsOpen <title fragment>` opens the first matching library book at launch;
 `-SheafsCatalogURL <url> [-SheafsCatalogName <name>]` adds an OPDS catalog once (keeps keys out of
 typed text and transcripts: build the URL in a shell variable);
+`-SheafsGoTo <contents title | 0…1>` (with `-SheafsOpen`) moves to a contents entry (exact title, else
+the first containing it) or to the paragraph at that fraction of the book that follows another paragraph
+(a full spread, no orphaned heading), without a "Back to page N" trail;
 `-SheafsAppearance quick|full` (with `-SheafsOpen`) opens the quick appearance panel or the detailed
 sheet once the book is ready.
 `-SheafsThemeSwitch paper|sepia|night|system` (with `-SheafsOpen`) switches the theme 5 s after the
@@ -290,5 +300,17 @@ state and is followed at once; a size change while the bars are up hides them fi
 - Simulator input: the iOS Simulator MCP's taps and rotation reach the inner display (coordinates in
   the lit screen's points); `-SheafsOpen` / launch args reach reader states and `scripts/hinge/hinge`
   sets poses. `xcrun simctl launch --console-pty <udid> io.sheafs.reader …` captures `print` output.
+- 🔴 Rotating the Duo simulator: `xcrun devicectl device orientation set` prints success and changes
+  NOTHING (Safari on the cover stays portrait), and Xcode 27 has no Simulator.app. `hinge
+  orient` works: it posts Device Hub's `orientation-picker-control` HID event (next to the hinge
+  slider's), which the simulator's `locationd` turns into the device pose SpringBoard rotates by
+  (`log show … 'process == "locationd"'` says "Orientation set to: …"). Test rotation with an app
+  that rotates: Settings and the home screen stay portrait on the cover display. `simctl io …
+  screenshot` comes out in the interface orientation, at App Store Connect's sizes as is. The
+  system's own `tabletopPose` stays "Ambiguous" (it wants gravity input we cannot send), but the
+  reserved regions do report the active horizontal fold, which is all `PageLayout` reads.
+- Page numbers of chapters not laid out yet are estimates (`BookSession.bookPages`) and shift when a
+  neighbour is laid out, most visibly deep into a book (a spread numbered 304 with 301 under the
+  turning leaf); `scripts/screenshots` keeps its positions early in each book.
 - kosync `progress` strings from other devices are treated as opaque for comparison
   (`book.lastSyncedPointer`) and only *resolved* via `XPointer`; never rewrite them.
