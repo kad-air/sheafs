@@ -8,6 +8,7 @@ headlines sit beside it. Fails loudly when a screenshot is missing, Chrome write
 result is not a transparent PNG.
 
   scripts/site-shots [name]...        all shots, or the named ones
+  scripts/site-shots --selftest       the closed Duo's frame is square at the hinge, round on the right
   RAW=/tmp/sheafs-screenshots         scripts/screenshots' OUT
   CHROME=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome
 """
@@ -179,7 +180,33 @@ def render(name):
     print(f"ok: {name}.png {w}×{h} {os.path.getsize(out) // 1024} KB")
 
 
+def selftest():
+    """The closed Duo's frame is asymmetrical: square at the hinge (left), round on the right."""
+    SHOTS["selftest-cover"] = ("duo-cover", "top", "duo-cover/cover-portrait-2-reader.png", 600)
+    global OUT
+    out_was, OUT = OUT, tempfile.mkdtemp(prefix="sheafs-site-shots-selftest-")
+    try:
+        render("selftest-cover")
+        path = os.path.join(OUT, "selftest-cover.png")
+        w, _, _ = marketing.png_size(path)
+        left, right = png_rgba(path, PAD + 2, PAD + 2), png_rgba(path, w - PAD - 3, PAD + 2)
+    finally:
+        shutil.rmtree(OUT, ignore_errors=True)
+        OUT = out_was
+        del SHOTS["selftest-cover"]
+    if left[3] != 255:
+        fail(f"closed Duo: the top-left corner (hinge side) is rounded (alpha {left[3]}); it must be square")
+    if right[3] == 255:
+        fail("closed Duo: the top-right corner is square; the free edge is rounded")
+    print("selftest ok: the closed Duo is square at the hinge and round on the right")
+
+
 def main():
+    if "--selftest" in sys.argv:
+        if not os.path.exists(CHROME):
+            fail(f"no Chrome at {CHROME} (set CHROME)")
+        selftest()
+        return
     names = sys.argv[1:] or list(SHOTS)
     for name in names:
         if name not in SHOTS:
