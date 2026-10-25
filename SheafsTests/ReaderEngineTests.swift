@@ -193,7 +193,8 @@ struct ReaderEngineTests {
             guard let a else { return false }
             return abs(a.minX - b.minX) < 0.5 && abs(a.minY - b.minY) < 0.5 && a.size == b.size
         }
-        // Landscape as the device reports it (phone top on the left): (29, 29, 37 × 37).
+        // Hinge down (phone top on the left, interface landscape-right): the hole is at the top left,
+        // as seen on the phone and as the device reported it, (29, 29, 37 × 37). Hinge up: bottom right.
         #expect(near(CoverCamera.hole(window: wide, hasFold: false, orientation: .landscapeRight),
                      CGRect(x: 29, y: 29, width: 37, height: 37)))
         #expect(near(CoverCamera.hole(window: wide, hasFold: false, orientation: .landscapeLeft),

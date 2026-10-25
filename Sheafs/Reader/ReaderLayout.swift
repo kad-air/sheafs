@@ -136,7 +136,9 @@ enum CoverCamera {
         let origin: CGPoint
         switch turned {
         case .portraitUpsideDown: origin = CGPoint(x: inset, y: far.y)
-        // Interface landscape-right = the phone's top edge on the left: the hole comes to the top left.
+        // The hinge runs down the cover's RIGHT edge in portrait (the camera's side). Hinge down =
+        // the phone's top edge on the left = interface landscape-right: the hole is at the top left
+        // (seen on the phone). Hinge up = interface landscape-left: the bottom right.
         case .landscapeRight: origin = CGPoint(x: inset, y: inset)
         case .landscapeLeft: origin = CGPoint(x: far.x, y: far.y)
         default: origin = CGPoint(x: far.x, y: inset)

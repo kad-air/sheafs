@@ -227,7 +227,10 @@ coming and going while reading, and the API cannot tell them from hardware; avoi
 the text around (Live Activities pushed the inner spread down). The hole is a 37 pt square
 29⅓ pt (88 px) in from the top and right edges in portrait, i.e. window (399.67, 29.33, 37 × 37) on
 the 466 × 678 pt cover window, as the device reported it; it turns with the window scene's
-interface orientation (`InterfaceOrientationReader`); a window of that size without a fold is the
+interface orientation (`InterfaceOrientationReader`): hinge down (the hinge is the cover's right edge
+in portrait; interface `.landscapeRight`) puts it at the TOP LEFT, hinge up at the bottom right, where
+it widens the folio band instead. The simulator does not rotate the cover display's UI, so landscape
+can only be checked on the phone (`[layout] … camera=… orientation=…`); a window of that size without a fold is the
 cover display. The text starts 2 pt below the hole (Books runs right up to it), and the running head
 (`PageView.headFrame`) narrows symmetrically to stay clear of it. Don't bring occlusions back.
 Folio band 30 pt, the
