@@ -1,0 +1,317 @@
+#!/usr/bin/env -S python3 -I
+"""App Store marketing tiles from the raw screenshots of `scripts/screenshots`.
+
+For every device (iPhone Duo inner and cover, iPhone 6.9", iPad 13"), style (marketing/styles/*.css)
+and voice (the copy sets in marketing/tiles.json) it lays a screenshot in a device frame next to a
+headline, renders the page with headless Chrome at App Store Connect's exact size, and writes
+OUT/<device>/<style>-<voice>/NN-<tile>.png, a gallery (OUT/index.html) and one contact sheet per
+device (OUT/sheet-<device>.png).
+
+A tile whose screenshot has not been taken yet uses its `stand_in` (another device's screenshot,
+letterboxed, with a badge) and its file name starts with STANDIN-, so it cannot be uploaded by
+mistake. Fails loudly when a tile is not the App Store size for its device, has an alpha channel
+(App Store Connect refuses those), its copy overflows or the device covers it (the page paints a
+magenta frame, read back here), or a screenshot is missing with no stand-in. --final also refuses
+stand-ins.
+
+  scripts/marketing [--final] [--device D]... [--style S]... [--voice V]...
+  RAW=/tmp/sheafs-screenshots (scripts/screenshots' OUT)  OUT=/tmp/sheafs-marketing
+  CHROME=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+"""
+import argparse, html, json, os, shutil, struct, subprocess, sys, tempfile, zlib
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MARKETING = os.path.join(ROOT, "marketing")
+RAW = os.environ.get("RAW", "/tmp/sheafs-screenshots")
+OUT = os.environ.get("OUT", "/tmp/sheafs-marketing")
+CHROME = os.environ.get("CHROME", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
+
+# Frames, in fractions of the device's width: bezel, outer corner radius, screen corner radius.
+FRAMES = {
+    "iphone":    (0.030, 0.165, 0.137),
+    "ipad":      (0.026, 0.062, 0.042),
+    "duo-cover": (0.036, 0.140, 0.108),
+    "duo-open":  (0.020, 0.058, 0.040),
+}
+# Device width as a fraction of the tile's width, per layout and frame.
+WIDTH = {
+    ("top", "iphone"): 0.80, ("top", "ipad"): 0.80, ("top", "duo-cover"): 0.80,
+    ("tilt", "iphone"): 0.78, ("tilt", "ipad"): 0.76, ("tilt", "duo-cover"): 0.78,
+    ("features", "iphone"): 0.60, ("features", "ipad"): 0.56, ("features", "duo-cover"): 0.60,
+    ("side", "duo-open"): 0.53, ("book", "duo-open"): 0.84, ("tabletop", "duo-open"): 0.38,
+    ("pair", "duo-open"): 0.50, ("pair", "duo-cover"): 0.19,
+}
+# The Duo cover display's camera, centre as fractions of the portrait screen (from the simulator's
+# reserved region: hole 400,29 37×37 in 466×678 points).
+COVER_CAMERA = (418.5 / 466, 47.5 / 678)
+
+
+def fail(message):
+    sys.exit(f"MARKETING FAILED: {message}")
+
+
+def png_size(path):
+    with open(path, "rb") as f:
+        head = f.read(26)
+    if head[:8] != b"\x89PNG\r\n\x1a\n":
+        fail(f"{path} is not a PNG")
+    width, height = struct.unpack(">II", head[16:24])
+    return width, height, head[25]  # colour type: 2 = RGB, 6 = RGBA
+
+
+def png_pixel(path, x, y):
+    """One pixel of an 8-bit RGB/RGBA PNG (enough for Chrome's output)."""
+    data = open(path, "rb").read()
+    width, height, colour = png_size(path)
+    channels = {2: 3, 6: 4}.get(colour) or fail(f"{path}: unexpected PNG colour type {colour}")
+    pos, chunks = 8, b""
+    while pos < len(data):
+        length, kind = struct.unpack(">I4s", data[pos:pos + 8])
+        if kind == b"IDAT":
+            chunks += data[pos + 8:pos + 8 + length]
+        pos += 12 + length
+    raw = zlib.decompress(chunks)
+    stride = width * channels
+    previous = bytearray(stride)
+    for row in range(y + 1):
+        start = row * (stride + 1)
+        kind, line = raw[start], bytearray(raw[start + 1:start + 1 + stride])
+        for i in range(stride):
+            a = line[i - channels] if i >= channels else 0
+            b = previous[i]
+            c = previous[i - channels] if i >= channels else 0
+            if kind == 1: line[i] = (line[i] + a) & 255
+            elif kind == 2: line[i] = (line[i] + b) & 255
+            elif kind == 3: line[i] = (line[i] + (a + b) // 2) & 255
+            elif kind == 4:
+                p = a + b - c
+                pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
+                line[i] = (line[i] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255
+        previous = line
+    return tuple(previous[x * channels:x * channels + 3])
+
+
+def chrome(url, out, width, height):
+    profile = tempfile.mkdtemp(prefix="sheafs-marketing-chrome-")
+    try:
+        result = subprocess.run([CHROME, "--headless=new", "--hide-scrollbars", "--force-device-scale-factor=1",
+                                 f"--window-size={width},{height}", "--allow-file-access-from-files",
+                                 "--virtual-time-budget=4000", "--run-all-compositor-stages-before-draw",
+                                 f"--user-data-dir={profile}", f"--screenshot={out}", url],
+                                capture_output=True, text=True, timeout=120)
+    finally:
+        shutil.rmtree(profile, ignore_errors=True)
+    if not os.path.exists(out):
+        fail(f"Chrome wrote no {out}: {result.stderr[-400:]}")
+
+
+FIT_SCRIPT = """
+<script>
+document.fonts.ready.then(() => {
+  const b = document.body, copy = document.querySelector('.copy'), h1 = copy.querySelector('h1');
+  const H = innerHeight, maxCopy = parseFloat(b.dataset.maxcopy) * H;
+  let size = parseFloat(getComputedStyle(h1).fontSize);
+  const tooBig = () => copy.getBoundingClientRect().height > maxCopy || h1.scrollWidth > h1.clientWidth + 1;
+  while (tooBig() && size > 12) { size *= 0.97; h1.style.fontSize = size + 'px'; }
+  for (const el of document.querySelectorAll('[data-follow]'))
+    el.style.top = (copy.getBoundingClientRect().bottom + parseFloat(b.dataset.gap) * H) + 'px';
+  const c = copy.getBoundingClientRect();
+  const covered = [...document.querySelectorAll('.device, .book, .tabletop')].some(el => {
+    const r = el.getBoundingClientRect();
+    return !(r.left >= c.right || r.right <= c.left || r.top >= c.bottom || r.bottom <= c.top);
+  });
+  if (tooBig() || covered) b.classList.add('overflow');
+});
+</script>"""
+
+
+def device_html(frame, shot, tile_w, layout, native_aspect, stand_in, fill, extra_class="", follow=True):
+    """One framed screen. `shot` is a file path; `native_aspect` the real screen's width/height."""
+    bezel_f, radius_f, screen_f = FRAMES[frame]
+    dw = WIDTH[(layout, frame)] * tile_w
+    sw = dw * (1 - 2 * bezel_f)
+    style = (f"--dw:{dw:.1f}px;--bezel:{dw * bezel_f:.1f}px;--radius:{dw * radius_f:.1f}px;"
+             f"--screen-radius:{dw * screen_f:.1f}px;--sw:{sw:.1f}px;--screen-aspect:{native_aspect:.5f};--fill:{fill}")
+    url = "file://" + shot
+    if layout in ("book", "tabletop"):
+        kind = "book" if layout == "book" else "tabletop"
+        halves = ("left", "right") if kind == "book" else ("upper", "lower")
+        pages = "".join(f'<div class="half {h}"><div class="page" style="background-image:url(\'{url}\')"></div></div>'
+                        for h in halves)
+        attr = ' data-follow' if follow and kind == "book" else ""
+        return f'<div class="{kind}" style="{style}"{attr}>{pages}</div>'
+    extras = ""
+    if frame == "iphone":
+        extras = '<div class="island"></div>'
+    elif frame == "duo-cover" and native_aspect < 1:
+        extras = f'<div class="camera" style="left:{COVER_CAMERA[0] * 100:.2f}%;top:{COVER_CAMERA[1] * 100:.2f}%"></div>'
+    elif frame == "duo-open":
+        extras = '<div class="crease"></div>'
+    img_class = ' class="stand-in"' if stand_in else ""
+    attr = ' data-follow' if follow and layout in ("top", "tilt", "features") else ""
+    return (f'<div class="device {extra_class}" style="{style}"{attr}><div class="screen">{extras}'
+            f'<img{img_class} src="{url}"></div></div>')
+
+
+def resolve(tile, device_key):
+    """The screenshot to show, and whether it is a stand-in."""
+    path = os.path.join(RAW, tile["shot"])
+    if os.path.exists(path):
+        return path, False
+    if "stand_in" in tile and os.path.exists(os.path.join(RAW, tile["stand_in"])):
+        return os.path.join(RAW, tile["stand_in"]), True
+    fail(f"{device_key}: no screenshot {path} and no stand-in (run scripts/screenshots first)")
+
+
+def render_tile(spec, device_key, device, style, voice, index, tile, out_dir, final):
+    W, H = device["size"]
+    frame = device["frame"]
+    orientation = "landscape" if W > H else "portrait"
+    layout = tile["layout"]
+    copy = spec["voices"][voice][tile["copy"]]
+    shot, stand_in = resolve(tile, device_key)
+    if stand_in and final:
+        fail(f"{device_key} {tile['copy']}: still a stand-in ({tile['shot']} not taken)")
+    sw, sh, _ = png_size(shot)
+    native = {"iphone": 1320 / 2868, "ipad": 2064 / 2752, "duo-cover": 1398 / 2034}.get(frame, sw / sh)
+    if stand_in and frame == "duo-open":
+        native = 2853 / 2007
+    fill = "#faf9f4"  # the paper theme's page, behind a letterboxed stand-in
+
+    if layout == "pair":
+        open_shot = shot
+        closed_shot = os.path.join(RAW, tile["second"])
+        if not os.path.exists(closed_shot):
+            fail(f"{device_key}: no screenshot {closed_shot}")
+        devices = (device_html("duo-open", open_shot, W, "pair", 2853 / 2007, False, fill, "open", follow=False)
+                   + device_html("duo-cover", closed_shot, W, "pair", 1398 / 2034, False, fill, "closed", follow=False))
+    elif layout == "tabletop":
+        devices = device_html("duo-open", shot, W, "tabletop", sw / sh, stand_in, fill)
+    else:
+        devices = device_html(frame, shot, W, layout, native, stand_in, fill)
+
+    kicker = f'<p class="kicker">{html.escape(copy["kicker"])}</p>' if copy.get("kicker") else ""
+    sub = f'<p class="sub">{html.escape(copy["sub"])}</p>' if copy.get("sub") else ""
+    items = "".join(f"<li>{html.escape(item)}</li>" for item in copy.get("list", [])) if layout == "features" else ""
+    listing = f"<ul>{items}</ul>" if items else ""
+    max_copy = {"top": 0.30, "tilt": 0.30, "features": 0.52, "book": 0.30}.get(layout, 0.80)
+    badge = f'<div class="standin-badge">STAND-IN · {html.escape(device["name"])} capture pending</div>' if stand_in else ""
+    page = f"""<!doctype html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="file://{MARKETING}/base.css">
+<link rel="stylesheet" href="file://{MARKETING}/styles/{style}.css">
+</head><body class="{orientation} layout-{layout} tint-{tile.get('tint', 'pride')} device-{device_key}"
+ data-maxcopy="{max_copy}" data-gap="{0.034 if orientation == 'portrait' else 0.05}">
+<div class="copy">{kicker}<h1>{html.escape(copy["title"])}</h1>{sub}{listing}</div>
+{devices}{badge}
+{FIT_SCRIPT}
+</body></html>"""
+    name = f"{'STANDIN-' if stand_in else ''}{index:02d}-{tile['copy']}.png"
+    out = os.path.join(out_dir, name)
+    with tempfile.NamedTemporaryFile("w", suffix=".html", delete=False, dir=out_dir) as f:
+        f.write(page)
+        page_path = f.name
+    try:
+        chrome("file://" + page_path, out, W, H)
+    finally:
+        os.unlink(page_path)
+
+    width, height, colour = png_size(out)
+    if (width, height) != (W, H):
+        fail(f"{out}: {width}×{height}, App Store Connect wants {W}×{H} for {device['name']}")
+    if colour != 2:
+        fail(f"{out}: has an alpha channel (PNG colour type {colour}); App Store Connect refuses those")
+    if png_pixel(out, 4, 4) == (255, 0, 255):
+        fail(f"{out}: the copy does not fit or the device covers it (magenta frame)")
+    return name, stand_in
+
+
+def contact_sheet(device_key, device, rows, out):
+    """rows: [(label, [file, …])]. One PNG with every candidate set for the device."""
+    W, H = device["size"]
+    thumb_h = 520 if H > W else 360
+    thumb_w = round(thumb_h * W / H)
+    columns = max(len(files) for _, files in rows)
+    width = 80 + columns * (thumb_w + 24)
+    height = 140 + len(rows) * (thumb_h + 96)
+    cells = "".join(
+        f'<section><h2>{html.escape(label)}</h2><div>' +
+        "".join(f'<img src="file://{f}" style="height:{thumb_h}px">' for f in files) + "</div></section>"
+        for label, files in rows)
+    page = f"""<!doctype html><html><head><meta charset="utf-8"><style>
+body {{ margin: 0; padding: 40px; background: #d9d6d0; font: 600 28px/1 "Avenir Next", sans-serif; color: #222; }}
+h1 {{ margin: 0 0 30px; font-size: 40px; }} h2 {{ margin: 0 0 14px; font-size: 26px; font-weight: 600; }}
+section {{ margin-bottom: 40px; }} div {{ display: flex; gap: 24px; }}
+img {{ border-radius: 10px; box-shadow: 0 4px 14px rgba(0,0,0,.25); }}
+</style></head><body><h1>{html.escape(device["name"])} · {W}×{H}</h1>{cells}</body></html>"""
+    with tempfile.NamedTemporaryFile("w", suffix=".html", delete=False, dir=OUT) as f:
+        f.write(page)
+        page_path = f.name
+    try:
+        chrome("file://" + page_path, out, width, height)
+    finally:
+        os.unlink(page_path)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--final", action="store_true", help="refuse stand-ins")
+    parser.add_argument("--device", action="append")
+    parser.add_argument("--style", action="append")
+    parser.add_argument("--voice", action="append")
+    args = parser.parse_args()
+    if not os.path.exists(CHROME):
+        fail(f"no Chrome at {CHROME} (set CHROME)")
+    spec = json.load(open(os.path.join(MARKETING, "tiles.json")))
+    styles = args.style or sorted(f[:-4] for f in os.listdir(os.path.join(MARKETING, "styles")) if f.endswith(".css"))
+    voices = args.voice or list(spec["voices"])
+    devices = args.device or list(spec["devices"])
+    os.makedirs(OUT, exist_ok=True)
+    gallery, standins = [], 0
+    for device_key in devices:
+        device = spec["devices"][device_key]
+        tiles = spec["tiles"][device_key]
+        if len(tiles) > 10:
+            fail(f"{device_key}: {len(tiles)} tiles; App Store Connect takes at most 10")
+        rows = []
+        for style in styles:
+            for voice in voices:
+                out_dir = os.path.join(OUT, device_key, f"{style}-{voice}")
+                shutil.rmtree(out_dir, ignore_errors=True)
+                os.makedirs(out_dir)
+                files = []
+                for index, tile in enumerate(tiles, 1):
+                    name, stand_in = render_tile(spec, device_key, device, style, voice, index, tile, out_dir, args.final)
+                    standins += stand_in
+                    files.append(os.path.join(out_dir, name))
+                print(f"ok: {device_key} {style}-{voice}: {len(files)} tiles")
+                rows.append((f"{style} · {voice}", files))
+        sheet = os.path.join(OUT, f"sheet-{device_key}.png")
+        contact_sheet(device_key, device, rows, sheet)
+        gallery.append((device_key, device, rows, sheet))
+
+    sections = []
+    for device_key, device, rows, sheet in gallery:
+        body = "".join(f'<h3>{html.escape(label)}</h3><div class="row">' +
+                       "".join(f'<a href="{os.path.relpath(f, OUT)}"><img src="{os.path.relpath(f, OUT)}"></a>' for f in files) +
+                       "</div>" for label, files in rows)
+        sections.append(f'<h2>{html.escape(device["name"])} <small>{device["size"][0]}×{device["size"][1]}</small></h2>{body}')
+    with open(os.path.join(OUT, "index.html"), "w") as f:
+        f.write("""<!doctype html><meta charset="utf-8"><title>Sheafs App Store candidates</title><style>
+body{font:15px/1.4 -apple-system,sans-serif;margin:32px;background:#eceae6}h2{margin:48px 0 8px}small{color:#777;font-weight:400}
+h3{margin:18px 0 8px;font-weight:600;color:#444}.row{display:flex;gap:14px;overflow-x:auto;padding-bottom:8px}
+.row img{height:340px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.2)}</style>
+<h1>Sheafs · App Store candidates</h1><p>Styles: folio, night, cover. Voices: quiet, plain. Files named STANDIN- use another
+device's screenshot until that device's capture runs; they are not for upload.</p>""" + "".join(sections))
+    with open(os.path.join(OUT, "COPY.md"), "w") as f:
+        f.write("# Sheafs App Store copy\n\n")
+        for voice in voices:
+            f.write(f"## {voice}\n\n| tile | kicker | headline | line |\n|---|---|---|---|\n")
+            for key, copy in spec["voices"][voice].items():
+                line = copy.get("sub") or " · ".join(copy.get("list", []))
+                f.write(f"| {key} | {copy.get('kicker', '')} | {copy['title']} | {line} |\n")
+            f.write("\n")
+    print(f"MARKETING OK: {OUT}/index.html" + (f" ({standins} stand-in tiles)" if standins else ""))
+
+
+if __name__ == "__main__":
+    main()

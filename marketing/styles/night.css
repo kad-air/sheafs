@@ -1,0 +1,17 @@
+/* Night: reading by lamplight. Ink-dark ground, a warm pool of light behind the device, Didot. */
+body {
+  --bg: #0c0c0e; --ink: #f2e9d8; --accent: #e3ab62; --muted: rgba(242,233,216,0.70);
+  --frame: #26262b; --frame-edge: rgba(255,240,215,0.16);
+  --device-shadow: 0 0 10vmin rgba(227,171,98,0.20), 0 3vmin 9vmin rgba(0,0,0,0.65);
+  background:
+    radial-gradient(ellipse 55% 45% at var(--glow-x, 62%) var(--glow-y, 68%), rgba(227,171,98,0.26), transparent 70%),
+    radial-gradient(ellipse 60% 40% at 12% 0%, rgba(96,110,160,0.16), transparent 70%),
+    var(--bg);
+}
+body.portrait { --glow-x: 50%; --glow-y: 72%; }
+body.portrait .copy { text-align: center; }
+.copy h1 { font-family: "Didot", "Bodoni 72", serif; line-height: 1.04; letter-spacing: -0.01em; }
+.copy h1 em { font-style: italic; }
+.copy .kicker { font-family: "Optima", sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.34em; color: var(--accent); }
+.copy .sub, .copy ul { font-family: "Optima", sans-serif; color: var(--muted); }
+.copy li::before { content: "·"; color: var(--accent); margin-right: 0.5em; font-weight: 700; }

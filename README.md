@@ -45,7 +45,9 @@ display in portrait; partly folded, that is tabletop). See `THIRD_PARTY_NOTICES.
 
 `scripts/screenshots` takes the App Store screenshots in every pose on its own simulator, with
 public-domain books from [Standard Ebooks](https://standardebooks.org), and checks each against
-App Store Connect's iPhone Duo sizes.
+App Store Connect's iPhone Duo sizes. `scripts/marketing` turns them into App Store tiles (a headline
+and the screenshot in a device frame) in each style under `marketing/styles`, from the copy in
+`marketing/tiles.json`.
 
 ## Layout
 

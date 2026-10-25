@@ -16,11 +16,20 @@ scripts/swift-parse               # swiftc -parse of every Swift file (no SDK); 
                                   #   (macOS runner, newest Xcode; app build only if it has the 27.1 SDK)
 scripts/check-auto-theme          # end to end on a simulator (SIM="Sheafs Duo"): theme Automatic follows
                                   #   live Light/Dark flips (reads the page colour off screenshots)
-scripts/screenshots               # App Store screenshots, every Duo pose, on SIM="Sheafs Shots" (made if
-                                  #   missing) → OUT=/tmp/sheafs-screenshots/{inner,cover}/; fresh install,
-                                  #   Standard Ebooks books (CC0, cached); fails unless each shot is App Store
-                                  #   Connect's size for its display, the hinge reads back, the `[layout]` line
-                                  #   shows the pose and the frame has ink. NO_BUILD=1 reuses the last build
+scripts/screenshots [duo|iphone|ipad]  # App Store screenshots: every Duo pose on "Sheafs Shots", portrait
+                                  #   on "Sheafs Shots iPhone"/"iPad" (all made if missing) → OUT=/tmp/sheafs-
+                                  #   screenshots/{duo-inner,duo-cover,iphone,ipad}/; fresh install, Standard
+                                  #   Ebooks books (CC0, cached); fails unless each shot is App Store Connect's
+                                  #   size for its display, the hinge reads back, the `[layout]` line shows the
+                                  #   pose and the frame has ink. NO_BUILD=1 reuses the last build. iPhone/iPad
+                                  #   need `scripts/screenshots prepare` (the iOS 27.0 runtime, 8 GB on the SSD,
+                                  #   refused under 12 GB free) and an app whose minimum is 27.0;
+                                  #   `scripts/screenshots teardown` deletes those simulators and that runtime
+scripts/marketing                 # App Store marketing tiles from those shots: marketing/tiles.json (copy
+                                  #   voices, tiles per device) × marketing/styles/*.css, rendered by headless
+                                  #   Chrome at the exact App Store sizes → OUT=/tmp/sheafs-marketing (index.html,
+                                  #   sheet-<device>.png). Fails on a wrong size, an alpha channel, copy that
+                                  #   overflows or is covered; missing shots use a STANDIN- tile; --final refuses them
 cd Packages/SheafsKit && swift test            # the core package, on the Mac, ~1 s
 xcodebuild -project Sheafs.xcodeproj -scheme Sheafs -destination 'platform=iOS Simulator,name=iPhone Duo' build
 scripts/release                   # fallback only (Xcode Cloud ships, below): archive + upload with an API key
