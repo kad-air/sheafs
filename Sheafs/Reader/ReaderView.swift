@@ -25,7 +25,9 @@ struct ReaderView: View {
     }
 
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.colorScheme) private var colorScheme
+    /// The device's Light/Dark setting, from the window scene (`SystemColorSchemeReader`).
+    @State private var systemScheme: ColorScheme?
+    @Environment(\.colorScheme) private var environmentScheme
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
     @Environment(ReaderSettings.self) private var settings
@@ -67,6 +69,11 @@ struct ReaderView: View {
         var timestamp: Date?
     }
 
+    /// The scheme the reader runs in (`ReaderPalette.colorScheme(for:system:)`); the environment's
+    /// only until the window scene has answered.
+    private var colorScheme: ColorScheme {
+        ReaderPalette.colorScheme(for: settings.theme, system: systemScheme ?? environmentScheme)
+    }
     private var palette: ReaderPalette { ReaderPalette.resolve(settings.theme, colorScheme: colorScheme) }
     private var style: TypesetStyle { settings.typesetStyle(colorScheme: colorScheme, language: book.language) }
 
@@ -98,7 +105,8 @@ struct ReaderView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .preferredColorScheme(ReaderPalette.forcedColorScheme(for: settings.theme))
+        .preferredColorScheme(colorScheme)
+        .background { SystemColorSchemeReader { systemScheme = $0 } }
         .tint(Color(uiColor: palette.link))
         .sheet(isPresented: $showContents) {
             if let session {
@@ -588,10 +596,19 @@ struct ReaderView: View {
     }
 
     /// `-SheafsAppearance quick|full` opens the quick panel or the detailed sheet once per launch, so
-    /// screenshots and simulator checks can reach them without taps.
+    /// screenshots and simulator checks can reach them without taps. `-SheafsThemeSwitch <theme>`
+    /// (paper, sepia, night, system) switches the theme 5 s later, as a tap on its swatch would
+    /// (`scripts/check-auto-theme`: Night → Automatic must follow the device).
     private func openAppearanceFromLaunchArgument() {
         guard !Self.appearanceArgumentConsumed else { return }
         Self.appearanceArgumentConsumed = true
+        if let raw = UserDefaults.standard.string(forKey: "SheafsThemeSwitch"), let theme = ReaderTheme(rawValue: raw) {
+            Task {
+                try? await Task.sleep(for: .seconds(5))
+                print("[theme] launch argument switches the theme to \(theme)")
+                settings.theme = theme
+            }
+        }
         switch UserDefaults.standard.string(forKey: "SheafsAppearance") {
         case "quick": openQuickAppearance()
         case "full": showAppearance = true

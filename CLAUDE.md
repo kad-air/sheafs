@@ -39,6 +39,8 @@ Launch arguments: `-SheafsOpen <title fragment>` opens the first matching librar
 typed text and transcripts: build the URL in a shell variable);
 `-SheafsAppearance quick|full` (with `-SheafsOpen`) opens the quick appearance panel or the detailed
 sheet once the book is ready.
+`-SheafsThemeSwitch paper|sepia|night|system` (with `-SheafsOpen`) switches the theme 5 s after the
+book is ready, as tapping its swatch would.
 `-SheafsFlipAuto forward|back
 -SheafsFlipFreeze <0…1> [-SheafsFlipGrab <0…1 down the page>]` starts one page flip on its own
 once the book is up and holds it at that amount, so `simctl io … screenshot` can catch the leaf
@@ -240,10 +242,12 @@ while the bars are up hides them first. Known gap: a Live Activity animating in 
 1.5 s on a display gets learned as a hole until the next display change.
 
 ## Landmines
-- The reader forces a colour scheme only for a FIXED theme (`ReaderPalette.forcedColorScheme`; nil for
-  Automatic). It resolves the palette from the environment's `colorScheme`, which a forced
-  `preferredColorScheme` overrides for the whole presentation, so forcing one for Automatic latched the
-  first value and live Light/Dark changes never reached the page. `scripts/check-auto-theme` pins it.
+- The reader ALWAYS forces a colour scheme (`ReaderPalette.colorScheme(for:system:)`): the theme's own
+  for a fixed theme, the device's for Automatic. Two traps: `preferredColorScheme(nil)` does not undo
+  an earlier forced scheme on the presentation (Night → Automatic stayed dark in Light mode), and the
+  environment's `colorScheme` is the forced one, so reading the device's scheme from it latched the
+  first value. The device's scheme comes from the window scene's traits (`SystemColorSchemeReader`),
+  which no override touches. `scripts/check-auto-theme` pins both (`-SheafsThemeSwitch`).
 - The pager's `UIScrollView` has `contentInsetAdjustmentBehavior = .never` (set on every layout pass,
   the scroll view is created lazily): the page frames already include the safe areas. The same pass
   makes its pan `require(toFail:)` the selection handles' pans, so dragging a handle never swipes

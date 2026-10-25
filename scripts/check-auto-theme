@@ -87,4 +87,18 @@ xcrun simctl ui "$UDID" appearance dark
 expect dark "device switched to Dark while reading"
 xcrun simctl ui "$UDID" appearance light
 expect light "device switched back to Light"
+
+# Night chosen first, then Automatic while the book is open (the regression: the forced dark scheme
+# stuck once the reader stopped forcing one, so the page stayed Night in Light mode).
+xcrun simctl terminate "$UDID" io.sheafs.reader >/dev/null 2>&1 || true
+NIGHT='{"theme":"night","font":"newYork","fontSize":19,"lineHeight":1.4,"margin":24,"justified":false,"hyphenate":true,"paragraphStyle":"indented","keepScreenAwake":true,"tapToTurn":true}'
+xcrun simctl spawn "$UDID" defaults write io.sheafs.reader reader.settings.v1 -data "$(printf '%s' "$NIGHT" | xxd -p | tr -d '\n')"
+xcrun simctl launch "$UDID" io.sheafs.reader -SheafsOpen Pride -SheafsThemeSwitch system >/dev/null
+sleep 3
+expect dark "opened with the Night theme, device in Light"
+expect light "switched from Night to Automatic, device in Light"
+xcrun simctl ui "$UDID" appearance dark
+expect dark "then device switched to Dark"
+xcrun simctl ui "$UDID" appearance light
+expect light "then device switched back to Light"
 echo "AUTO THEME OK"
