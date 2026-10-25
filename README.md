@@ -1,6 +1,6 @@
 # Sheafs
 
-A small, native EPUB reader for iPhone, built for iOS 27.1 and the foldable iPhone Duo.
+A small, native EPUB reader for iPhone and iPad (iOS 27.0 and later), built for the foldable iPhone Duo.
 SwiftUI, TextKit and Foundation only. No web views, no third-party dependencies.
 
 - **Reads EPUB 2 and 3** with the system's own typography: New York, Georgia, Palatino, Charter and

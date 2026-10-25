@@ -111,7 +111,7 @@ struct CatalogEntryView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let division = proxy.reservedRegions(kind: .division, options: [.includeInactive]).first?.frame
+            let division = proxy.divisions().first?.frame
             if let division, division.height > division.width {
                 // A vertical fold: cover on one page, text on the other, nothing on the crease.
                 HStack(spacing: 0) {

@@ -43,10 +43,8 @@ struct GeometryReport: Equatable, CustomStringConvertible {
         self.label = label
         frame = proxy.frame(in: .global)
         insets = proxy.safeAreaInsets
-        divisions = proxy.reservedRegions(kind: .division, options: [.includeInactive])
-            .map { Region(frame: $0.frame, active: $0.isActive) }
-        occlusions = proxy.reservedRegions(kind: .occlusion, options: [.includeInactive])
-            .map { Region(frame: $0.frame, active: $0.isActive) }
+        divisions = proxy.divisions().map { Region(frame: $0.frame, active: $0.isActive) }
+        occlusions = proxy.occlusions().map { Region(frame: $0.frame, active: $0.isActive) }
     }
 
     var description: String {

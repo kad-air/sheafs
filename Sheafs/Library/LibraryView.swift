@@ -90,7 +90,7 @@ struct LibraryView: View {
 
     private var grid: some View {
         GeometryReader { proxy in
-            let hasFold = !proxy.reservedRegions(kind: .division, options: [.includeInactive]).isEmpty
+            let hasFold = !proxy.divisions().isEmpty
             let width = proxy.size.width - proxy.safeAreaInsets.leading - proxy.safeAreaInsets.trailing
             let columns = Self.columnCount(for: width, evenRequired: hasFold)
             ScrollView {
