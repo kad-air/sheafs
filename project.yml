@@ -3,7 +3,7 @@
 name: Sheafs
 options:
   deploymentTarget:
-    iOS: "27.1"
+    iOS: "27.0"
   createIntermediateGroups: true
   generateEmptyDirectories: true
   xcodeVersion: "27.1"

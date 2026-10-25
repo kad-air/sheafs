@@ -186,8 +186,8 @@ struct WindowRegions: Equatable {
     init(proxy: GeometryProxy) {
         let origin = proxy.frame(in: .global).origin
         func inWindow(_ rect: CGRect) -> CGRect { rect.offsetBy(dx: origin.x, dy: origin.y) }
-        division = proxy.reservedRegions(kind: .division, options: [.includeInactive]).first.map { inWindow($0.frame) }
-        divisionIsActive = !proxy.reservedRegions(kind: .division).isEmpty
+        division = proxy.divisions().first.map { inWindow($0.frame) }
+        divisionIsActive = !proxy.divisions(includeInactive: false).isEmpty
     }
 }
 

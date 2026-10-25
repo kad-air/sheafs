@@ -1,6 +1,6 @@
 # Sheafs
 
-Native EPUB reader for iOS 27.1 and the foldable iPhone Duo. SwiftUI + TextKit + Foundation (plus
+Native EPUB reader for iPhone, iPad and the foldable iPhone Duo, iOS 27.0 and later. SwiftUI + TextKit + Foundation (plus
 Metal for the page flip) only; no web views, no third-party packages. Open source (MIT), so **no personal names, emails,
 hostnames or secrets anywhere in the tree** — `scripts/check` greps for them and fails.
 
@@ -246,6 +246,11 @@ are ignored, and the bars overlay the page. A fold, unfold, rotation or book pos
 state and is followed at once; a size change while the bars are up hides them first.
 
 ## Landmines
+- 🔴 The app runs on iOS 27.0, but the Duo's APIs (`reservedRegions`, `ReservedRegion`) are 27.1, the
+  Duo's own release: iPhones and iPads go from 27.0 to 27.2, so a 27.1 minimum would install on the Duo
+  only. Read the fold and the camera through `GeometryProxy.divisions()` / `occlusions()`
+  (`Support/ReservedRegions.swift`, empty before 27.1), never `reservedRegions` directly; building at the
+  27.0 target makes the compiler refuse an unguarded call. `Packages/SheafsKit` declares 27.0 too.
 - The reader ALWAYS forces a colour scheme (`ReaderPalette.colorScheme(for:system:)`): the theme's own
   for a fixed theme, the device's for Automatic. Two traps: `preferredColorScheme(nil)` does not undo
   an earlier forced scheme on the presentation (Night → Automatic stayed dark in Light mode), and the
