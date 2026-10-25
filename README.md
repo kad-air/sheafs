@@ -40,7 +40,14 @@ leaked personal data, regenerates the Python reference data the tests are anchor
 tests there.
 
 `scripts/hinge/hinge 110` folds the booted iPhone Duo simulator to 110° (book pose); `0` closes it,
-`180` lays it flat. See `THIRD_PARTY_NOTICES.md`.
+`180` lays it flat, and `hinge orient landscape-left` turns it (device landscape shows the inner
+display in portrait; partly folded, that is tabletop). See `THIRD_PARTY_NOTICES.md`.
+
+`scripts/screenshots` takes the App Store screenshots in every pose on its own simulator, with
+public-domain books from [Standard Ebooks](https://standardebooks.org), and checks each against
+App Store Connect's iPhone Duo sizes. `scripts/marketing` turns them into App Store tiles (a headline
+and the screenshot in a device frame) in each style under `marketing/styles`, from the copy in
+`marketing/tiles.json`.
 
 ## Layout
 

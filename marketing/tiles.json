@@ -1,0 +1,336 @@
+{
+  "devices": {
+    "duo-inner": {
+      "name": "iPhone Duo, inner display",
+      "size": [
+        2853,
+        2007
+      ],
+      "frame": "duo-open"
+    },
+    "duo-cover": {
+      "name": "iPhone Duo, cover display",
+      "size": [
+        1398,
+        2034
+      ],
+      "frame": "duo-cover"
+    },
+    "iphone": {
+      "name": "iPhone 6.9\"",
+      "size": [
+        1320,
+        2868
+      ],
+      "frame": "iphone"
+    },
+    "ipad": {
+      "name": "iPad 13\"",
+      "size": [
+        2064,
+        2752
+      ],
+      "frame": "ipad"
+    }
+  },
+  "voices": {
+    "quiet": {
+      "spread": {
+        "kicker": "Made for iPhone Duo",
+        "title": "A book that opens.",
+        "sub": "Unfold it and the page becomes a spread: two pages side by side, the fold for a gutter."
+      },
+      "both": {
+        "kicker": "Made for iPhone Duo",
+        "title": "Fold it, unfold it, read on.",
+        "sub": "One page on the cover, two inside, and the line you were on stays at the top."
+      },
+      "tabletop": {
+        "kicker": "Made for iPhone Duo",
+        "title": "Stand it up.",
+        "sub": "Fold it halfway and set it down: the page above, the controls below."
+      },
+      "flip": {
+        "kicker": "Page turns",
+        "title": "Turn the page.",
+        "sub": "The paper bends under your finger and falls over, like the real thing."
+      },
+      "appearance": {
+        "kicker": "Typography",
+        "title": "Set in type you love.",
+        "sub": "Nine typefaces. Size, spacing and margins, tuned with the page in view."
+      },
+      "night": {
+        "kicker": "Themes",
+        "title": "Read into the night.",
+        "sub": "Paper, sepia and night, or follow the system's light and dark."
+      },
+      "library": {
+        "kicker": "Library",
+        "title": "Your books, your shelf.",
+        "sub": "Import EPUBs from Files, or browse OPDS catalogs and download in a tap."
+      },
+      "reader": {
+        "kicker": "Sheafs",
+        "title": "Just the page.",
+        "sub": "Nothing between you and the book. A tap in the middle brings the controls back."
+      },
+      "features": {
+        "kicker": "Sheafs",
+        "title": "A quiet, native reader.",
+        "sub": "",
+        "list": [
+          "EPUB 2 and 3",
+          "Highlights and notes, shared as Markdown",
+          "KOReader sync",
+          "OPDS catalogs",
+          "Continue-reading widget",
+          "Open source. No ads, no tracking"
+        ]
+      },
+      "ipad-spread": {
+        "kicker": "iPad",
+        "title": "Two pages, side by side.",
+        "sub": "Turn it sideways and the page becomes a spread, like a book laid open."
+      }
+    },
+    "plain": {
+      "spread": {
+        "kicker": "iPhone Duo",
+        "title": "Two pages, open like a book",
+        "sub": "A real spread on the inner display."
+      },
+      "both": {
+        "kicker": "iPhone Duo",
+        "title": "Never lose your line",
+        "sub": "Fold or unfold mid-chapter. Your place stays put."
+      },
+      "tabletop": {
+        "kicker": "iPhone Duo",
+        "title": "Tabletop reading",
+        "sub": "Page on top, controls below."
+      },
+      "flip": {
+        "kicker": "Sheafs",
+        "title": "Pages that really turn",
+        "sub": "A paper page curl that follows your finger."
+      },
+      "appearance": {
+        "kicker": "Sheafs",
+        "title": "Your font, your margins",
+        "sub": "Nine typefaces, three themes, every spacing."
+      },
+      "night": {
+        "kicker": "Sheafs",
+        "title": "Easy on the eyes",
+        "sub": "Paper, sepia and night themes."
+      },
+      "library": {
+        "kicker": "Sheafs",
+        "title": "Bring your own books",
+        "sub": "EPUB import and OPDS catalogs."
+      },
+      "reader": {
+        "kicker": "Sheafs",
+        "title": "Made for reading",
+        "sub": "Real pages, not an endless scroll."
+      },
+      "features": {
+        "kicker": "Sheafs",
+        "title": "Everything a reader needs",
+        "sub": "",
+        "list": [
+          "EPUB 2 and 3",
+          "Highlights and notes",
+          "KOReader sync",
+          "OPDS catalogs",
+          "Home Screen widget",
+          "Open source (MIT)"
+        ]
+      },
+      "ipad-spread": {
+        "kicker": "iPad",
+        "title": "A two-page spread on iPad",
+        "sub": "Landscape lays out two pages, like a book."
+      }
+    }
+  },
+  "tiles": {
+    "duo-inner": [
+      {
+        "copy": "spread",
+        "shot": "duo-inner/inner-landscape-2-spread.png",
+        "layout": "book",
+        "tint": "pride"
+      },
+      {
+        "copy": "flip",
+        "shot": "duo-inner/inner-landscape-3-flip.png",
+        "layout": "side",
+        "tint": "pride"
+      },
+      {
+        "copy": "both",
+        "shot": "duo-inner/inner-landscape-8-moby.png",
+        "layout": "pair",
+        "tint": "moby",
+        "second": "duo-cover/cover-portrait-2-reader.png",
+        "stand_in": "duo-inner/inner-landscape-2-spread.png"
+      },
+      {
+        "copy": "appearance",
+        "shot": "duo-inner/inner-landscape-4-appearance.png",
+        "layout": "side",
+        "tint": "gatsby"
+      },
+      {
+        "copy": "tabletop",
+        "shot": "duo-inner/inner-portrait-5-tabletop.png",
+        "layout": "tabletop",
+        "tint": "moby"
+      },
+      {
+        "copy": "night",
+        "shot": "duo-inner/inner-landscape-7-night.png",
+        "layout": "side",
+        "tint": "dracula"
+      },
+      {
+        "copy": "library",
+        "shot": "duo-inner/inner-landscape-1-library.png",
+        "layout": "side",
+        "tint": "frankenstein"
+      }
+    ],
+    "duo-cover": [
+      {
+        "copy": "reader",
+        "shot": "duo-cover/cover-portrait-2-reader.png",
+        "layout": "top",
+        "tint": "moby"
+      },
+      {
+        "copy": "flip",
+        "shot": "duo-cover/cover-portrait-4-flip.png",
+        "layout": "tilt",
+        "tint": "pride",
+        "stand_in": "duo-cover/cover-portrait-2-reader.png"
+      },
+      {
+        "copy": "appearance",
+        "shot": "duo-cover/cover-portrait-5-appearance.png",
+        "layout": "top",
+        "tint": "gatsby",
+        "stand_in": "duo-cover/cover-portrait-2-reader.png"
+      },
+      {
+        "copy": "night",
+        "shot": "duo-cover/cover-portrait-6-night.png",
+        "layout": "top",
+        "tint": "dracula",
+        "stand_in": "duo-cover/cover-portrait-2-reader.png"
+      },
+      {
+        "copy": "library",
+        "shot": "duo-cover/cover-portrait-1-library.png",
+        "layout": "top",
+        "tint": "frankenstein"
+      }
+    ],
+    "iphone": [
+      {
+        "copy": "reader",
+        "shot": "iphone/iphone-portrait-2-reader.png",
+        "layout": "top",
+        "tint": "moby",
+        "stand_in": "duo-cover/cover-portrait-2-reader.png"
+      },
+      {
+        "copy": "flip",
+        "shot": "iphone/iphone-portrait-3-flip.png",
+        "layout": "tilt",
+        "tint": "pride",
+        "stand_in": "duo-cover/cover-portrait-2-reader.png"
+      },
+      {
+        "copy": "appearance",
+        "shot": "iphone/iphone-portrait-4-appearance.png",
+        "layout": "top",
+        "tint": "gatsby",
+        "stand_in": "duo-cover/cover-portrait-2-reader.png"
+      },
+      {
+        "copy": "night",
+        "shot": "iphone/iphone-portrait-6-night.png",
+        "layout": "top",
+        "tint": "dracula",
+        "stand_in": "duo-cover/cover-portrait-2-reader.png"
+      },
+      {
+        "copy": "library",
+        "shot": "iphone/iphone-portrait-1-library.png",
+        "layout": "top",
+        "tint": "frankenstein",
+        "stand_in": "duo-cover/cover-portrait-1-library.png"
+      },
+      {
+        "copy": "features",
+        "shot": "iphone/iphone-portrait-5-page.png",
+        "layout": "features",
+        "tint": "pride",
+        "stand_in": "duo-cover/cover-portrait-2-reader.png"
+      }
+    ],
+    "ipad": [
+      {
+        "copy": "reader",
+        "shot": "ipad/ipad-portrait-2-reader.png",
+        "layout": "top",
+        "tint": "moby",
+        "stand_in": "duo-cover/cover-portrait-2-reader.png"
+      },
+      {
+        "copy": "ipad-spread",
+        "shot": "ipad/ipad-landscape-7-spread.png",
+        "layout": "wide",
+        "tint": "pride",
+        "orientation": "landscape"
+      },
+      {
+        "copy": "flip",
+        "shot": "ipad/ipad-landscape-8-flip.png",
+        "layout": "wide",
+        "tint": "pride",
+        "orientation": "landscape"
+      },
+      {
+        "copy": "appearance",
+        "shot": "ipad/ipad-portrait-4-appearance.png",
+        "layout": "top",
+        "tint": "gatsby",
+        "stand_in": "duo-cover/cover-portrait-2-reader.png"
+      },
+      {
+        "copy": "night",
+        "shot": "ipad/ipad-portrait-6-night.png",
+        "layout": "top",
+        "tint": "dracula",
+        "stand_in": "duo-cover/cover-portrait-2-reader.png"
+      },
+      {
+        "copy": "library",
+        "shot": "ipad/ipad-portrait-1-library.png",
+        "layout": "top",
+        "tint": "frankenstein",
+        "stand_in": "duo-cover/cover-portrait-1-library.png"
+      },
+      {
+        "copy": "features",
+        "shot": "ipad/ipad-portrait-5-page.png",
+        "layout": "features",
+        "tint": "pride",
+        "stand_in": "duo-cover/cover-portrait-2-reader.png"
+      }
+    ]
+  }
+}

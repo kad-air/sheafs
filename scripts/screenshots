@@ -1,0 +1,414 @@
+#!/usr/bin/env bash
+# App Store screenshots, headless, on the simulators of the three displays Sheafs is shot for:
+#   scripts/screenshots [duo|iphone|ipad]...   (default duo; several run in that order)
+#   scripts/screenshots prepare                download an iOS runtime for the iPhone and iPad simulators
+#   scripts/screenshots teardown               delete our simulators and the runtimes `prepare` added
+# Builds the app once (generic iOS Simulator), then for each device installs it fresh on the device's
+# own simulator (created if missing), imports public-domain books from Standard Ebooks (CC0 text and
+# covers, cached) and takes the shots into OUT:
+#   duo     "iPhone Duo" (the one shared Duo simulator; the run reinstalls Sheafs there, so its Sheafs
+#           library starts empty), every pose headless: cover and inner display, portrait and landscape, flat
+#           and tabletop. Per shot it sets the fold (`hinge`) and the device orientation (`hinge orient`)
+#           → $OUT/duo-inner/ and $OUT/duo-cover/. Sizes: cover 1398×2034 / 2034×1398, inner 2853×2007 /
+#           2007×2853
+#   iphone  "Sheafs Shots iPhone", an iPhone 17 Pro Max, portrait → $OUT/iphone/ (1320×2868, the 6.9")
+#   ipad    "Sheafs Shots iPad", an iPad Pro 13-inch (M5), portrait and a landscape spread → $OUT/ipad/
+#           (2064×2752 / 2752×2064, the 13")
+# Only the folders of the devices being run are cleared. Fails loudly when a shot is not one of App Store
+# Connect's sizes for its display (Apple's screenshot specifications), the hinge reads back wrong (Duo),
+# the reader's `[layout]` line shows the wrong pose, a `-SheafsGoTo` target is missing, or a shot is blank.
+# The iPhone and iPad simulators need an iOS runtime that supports them: the Duo-only iOS 27.1 runtime
+# does not, so `prepare` downloads the iOS runtime (8 GB; it refuses with under 12 GB free on /) and
+# records what it added in $CACHE/runtimes-added, which `teardown` deletes again together with the iPhone
+# and iPad simulators; the Duo's is shared and stays (TEARDOWN_DRY_RUN=1 only prints what it would delete). The app's minimum iOS must not
+# be newer than that runtime's, or the install fails (and says so).
+#   SIM="iPhone Duo" (the Duo's simulator; created and booted if missing)
+#   OUT=/tmp/sheafs-screenshots (simctl cannot write screenshots to some external volumes)
+#   DERIVED_DATA=/tmp/sheafs-derived (builds there, incrementally)
+#   NO_BUILD=1 reuses the last build in DERIVED_DATA
+set -euo pipefail
+cd "$(dirname "$0")/.."
+fail() { echo "SCREENSHOTS FAILED: $*" >&2; exit 1; }
+NAME_DUO="iPhone Duo"
+NAME_IPHONE="Sheafs Shots iPhone"
+NAME_IPAD="Sheafs Shots iPad"
+TYPE_DUO=com.apple.CoreSimulator.SimDeviceType.iPhone-Duo
+TYPE_IPHONE=com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro-Max
+TYPE_IPAD=com.apple.CoreSimulator.SimDeviceType.iPad-Pro-13-inch-M5-12GB
+OUT=${OUT:-/tmp/sheafs-screenshots}
+DD=${DERIVED_DATA:-/tmp/sheafs-derived}
+CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/sheafs-screenshots
+HINGE=scripts/hinge/hinge
+WORK=""
+CONSOLE_PID=""
+UDID=""        # the simulator being shot
+ORIGINAL=""    # its appearance before we set Light
+DEVICE=""      # duo | iphone | ipad
+SHOTS=0
+
+device_name() {
+  case $1 in duo) echo "${SIM:-$NAME_DUO}" ;; iphone) echo "$NAME_IPHONE" ;; ipad) echo "$NAME_IPAD" ;; esac
+}
+device_type() {
+  case $1 in duo) echo "$TYPE_DUO" ;; iphone) echo "$TYPE_IPHONE" ;; ipad) echo "$TYPE_IPAD" ;; esac
+}
+
+# Every simulator with exactly this name, on any runtime: "<udid> <runtime identifier> <1 if available>".
+sims_named() {
+  xcrun simctl list devices -j | python3 -I -c '
+import json, sys
+for runtime, devices in json.load(sys.stdin)["devices"].items():
+    for d in devices:
+        if d["name"] == sys.argv[1]: print(d["udid"], runtime, int(bool(d.get("isAvailable"))))
+' "$1"
+}
+find_sim() {  # the first usable simulator with this name, or nothing
+  sims_named "$1" | awk '$3 == 1 {print $1; exit}'
+}
+sim_runtime() {  # the runtime a simulator runs, e.g. com.apple.CoreSimulator.SimRuntime.iOS-27-1
+  sims_named "$2" | awk -v u="$1" '$1 == u {print $2; exit}'
+}
+runtime_for() {  # the newest available iOS runtime that supports a device type, or nothing
+  xcrun simctl list runtimes -j | python3 -I -c '
+import json, sys
+def version(r): return tuple(int(p) for p in r["version"].split(".") if p.isdigit())
+ios = [r for r in json.load(sys.stdin)["runtimes"] if r["platform"] == "iOS" and r["isAvailable"]
+       and any(t["identifier"] == sys.argv[1] for t in r.get("supportedDeviceTypes", []))]
+print(max(ios, key=version)["identifier"] if ios else "")' "$1"
+}
+runtime_ids() {  # what `simctl runtime delete` takes, one per line, sorted
+  xcrun simctl runtime list -j | python3 -I -c '
+import json, sys
+for key, r in json.load(sys.stdin).items(): print(r.get("identifier", key))' | LC_ALL=C sort
+}
+free_kb() { df -k / | awk 'NR==2 {print $4}'; }
+free_gb() { df -k / | awk 'NR==2 {printf "%.1f GB", $4 / 1024 / 1024}'; }
+no_runtime() { fail "no iOS runtime supports $1; run scripts/screenshots prepare"; }
+
+# scripts/screenshots prepare: the iOS runtime the iPhone and iPad simulators need.
+prepare() {
+  local existing before after added rc=0 id
+  existing=$(runtime_for "$TYPE_IPHONE")
+  if [[ -n $existing ]]; then
+    echo "an iOS runtime that supports the iPhone 17 Pro Max already exists ($existing); nothing to do"
+    return 0
+  fi
+  [[ $(free_kb) -ge $((12 * 1024 * 1024)) ]] \
+    || fail "only $(free_gb) free on /; the iOS runtime download needs 8 GB and the simulators more: free 12 GB first (ssd-check)"
+  before=$(runtime_ids)
+  echo "downloading the iOS runtime (arm64); $(free_gb) free on /"
+  xcodebuild -downloadPlatform iOS -architectureVariant arm64 || rc=$?
+  after=$(runtime_ids)
+  added=$(LC_ALL=C comm -13 <(echo "$before") <(echo "$after"))
+  if [[ -n $added ]]; then
+    mkdir -p "$CACHE"
+    echo "$added" >>"$CACHE/runtimes-added"
+    echo "runtimes added (recorded in $CACHE/runtimes-added for teardown):"
+    while read -r id; do echo "  $id"; done <<<"$added"
+  else
+    echo "no runtime was added"
+  fi
+  ((rc == 0)) || fail "xcodebuild -downloadPlatform iOS exited $rc"
+  [[ -n $(runtime_for "$TYPE_IPHONE") ]] || fail "downloaded, but still no iOS runtime supports $TYPE_IPHONE"
+  echo "PREPARE OK: $(runtime_for "$TYPE_IPHONE"), $(free_gb) free on /"
+}
+
+# scripts/screenshots teardown: the iPhone and iPad simulators and the runtimes prepare added, nothing else.
+teardown() {
+  local dry=${TEARDOWN_DRY_RUN:-} name udid runtime avail found file=$CACHE/runtimes-added current id
+  [[ -n $dry ]] && echo "dry run: nothing is deleted"
+  for name in "$NAME_IPHONE" "$NAME_IPAD"; do   # the Duo simulator is shared and stays
+    found=""
+    while read -r udid runtime avail; do
+      [[ -n $udid ]] || continue
+      found=1
+      if [[ -n $dry ]]; then
+        echo "would shut down and delete simulator \"$name\" $udid ($runtime)"
+      else
+        xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true
+        xcrun simctl delete "$udid" || fail "could not delete simulator \"$name\" $udid"
+        echo "deleted simulator \"$name\" $udid"
+      fi
+    done < <(sims_named "$name")
+    [[ -n $found ]] || echo "no simulator named \"$name\""
+  done
+  if [[ -s $file ]]; then
+    current=$(runtime_ids)
+    while read -r id; do
+      [[ -n $id ]] || continue
+      [[ $id =~ ^[0-9A-Fa-f-]{36}$ ]] || { echo "ignoring a malformed line in $file: $id" >&2; continue; }
+      if ! grep -qx "$id" <<<"$current"; then
+        echo "runtime $id is already gone"
+      elif [[ -n $dry ]]; then
+        echo "would delete runtime $id"
+      else
+        xcrun simctl runtime delete "$id" || fail "could not delete runtime $id (still listed in $file)"
+        echo "deleted runtime $id"
+      fi
+    done <"$file"
+    if [[ -n $dry ]]; then echo "would remove $file"; else rm -f "$file"; echo "removed $file"; fi
+  else
+    echo "no runtimes recorded in $file (only prepare records them)"
+  fi
+  echo "free space on /: $(free_gb)"
+}
+
+case ${1:-} in
+  prepare|teardown)
+    (($# == 1)) || fail "$1 takes no other arguments"
+    "$1"
+    exit 0 ;;
+esac
+if (($# == 0)); then DEVICES=(duo); else DEVICES=("$@"); fi
+for dev in "${DEVICES[@]}"; do
+  case $dev in duo|iphone|ipad) ;; *) fail "unknown argument \"$dev\": scripts/screenshots [duo|iphone|ipad]... | prepare | teardown" ;; esac
+done
+# Before any download or build: every device needs a simulator already, or a runtime to create one on.
+for dev in "${DEVICES[@]}"; do
+  [[ -n $(find_sim "$(device_name "$dev")") || -n $(runtime_for "$(device_type "$dev")") ]] \
+    || no_runtime "$(device_type "$dev")"
+done
+
+WORK=$(mktemp -d)
+restore_device() {
+  [[ -n $CONSOLE_PID ]] && { kill "$CONSOLE_PID" >/dev/null 2>&1 || true; }
+  CONSOLE_PID=""
+  if [[ -n $UDID ]]; then
+    xcrun simctl ui "$UDID" appearance "$ORIGINAL" >/dev/null 2>&1 || true
+    xcrun simctl status_bar "$UDID" clear >/dev/null 2>&1 || true
+  fi
+  UDID=""
+}
+cleanup() {
+  restore_device
+  rm -rf "$WORK"
+}
+trap cleanup EXIT
+
+# Public-domain books, each download in its own folder.
+BOOKS=(jane-austen/pride-and-prejudice herman-melville/moby-dick mary-shelley/frankenstein
+  f-scott-fitzgerald/the-great-gatsby bram-stoker/dracula charlotte-bronte/jane-eyre
+  arthur-conan-doyle/the-adventures-of-sherlock-holmes louisa-may-alcott/little-women
+  emily-bronte/wuthering-heights oscar-wilde/the-picture-of-dorian-gray)
+for slug in "${BOOKS[@]}"; do
+  file=${slug//\//_}.epub
+  dir=$CACHE/${slug##*/}
+  [[ -s $dir/$file ]] && continue
+  mkdir -p "$dir"
+  curl -fsSL -o "$dir/$file.part" "https://standardebooks.org/ebooks/$slug/downloads/$file?source=download" \
+    || fail "download $slug"
+  [[ $(head -c 2 "$dir/$file.part") == PK ]] || fail "$slug did not download as an EPUB"
+  mv "$dir/$file.part" "$dir/$file"
+done
+
+# One build for every device: the generic simulator destination needs no simulator.
+if [[ -z ${NO_BUILD:-} ]]; then
+  [[ -f Config/Signing.xcconfig ]] || cp Config/Signing.example.xcconfig Config/Signing.xcconfig
+  xcodegen generate --quiet
+  xcodebuild -project Sheafs.xcodeproj -scheme Sheafs -destination 'generic/platform=iOS Simulator' \
+    -derivedDataPath "$DD" -quiet build >"$WORK/build.log" 2>&1 || { tail -n 30 "$WORK/build.log" >&2; fail "build"; }
+fi
+APP=$DD/Build/Products/Debug-iphonesimulator/Sheafs.app
+[[ -d $APP ]] || fail "no app at $APP"
+
+# The pixel checks: the size App Store Connect accepts for the display, and not a blank frame.
+inspect() {  # inspect <png> → "<width> <height> <ink: per mille of 10 000 samples off the page colour>"
+  sips -s format bmp "$1" --out "$WORK/shot.bmp" >/dev/null
+  python3 -I - "$WORK/shot.bmp" <<'PY'
+import struct, sys
+data = open(sys.argv[1], "rb").read()
+offset, = struct.unpack_from("<I", data, 10)
+width, height = struct.unpack_from("<ii", data, 18)
+step = struct.unpack_from("<H", data, 28)[0] // 8
+row = (width * step + 3) & ~3
+h = abs(height)
+samples = [data[offset + (y * h // 100) * row + (x * width // 100) * step:][:3] for x in range(100) for y in range(100)]
+page = max(set(samples), key=samples.count)
+ink = sum(1 for s in samples if sum(abs(a - b) for a, b in zip(s, page)) > 60)
+print(width, h, ink * 1000 // len(samples))
+PY
+}
+
+app_store_size() {  # macOS ships bash 3.2: no associative arrays
+  case $1 in
+    cover-portrait) echo "1398 2034" ;; cover-landscape) echo "2034 1398" ;;
+    inner-portrait) echo "2007 2853" ;; inner-landscape) echo "2853 2007" ;;
+    iphone-portrait) echo "1320 2868" ;; iphone-landscape) echo "2868 1320" ;;
+    ipad-portrait) echo "2064 2752" ;; ipad-landscape) echo "2752 2064" ;;
+  esac
+}
+
+# shot <file> <cover|inner|iphone|ipad> <device orientation|-> <hinge°|-> <expected layout|-> [launch arguments…]
+# The file is relative to OUT and contains the shot's kind (inner-landscape, iphone-portrait…). Orientation
+# and hinge are the Duo's (`-` for the iPhone and iPad). The expected layout is a regex the reader's last
+# `[layout]` line must match ("-" for the library).
+shot() {
+  local file=$1 display=$2 orient=$3 angle=$4 layout=$5
+  shift 5
+  echo "• $file"
+  xcrun simctl terminate "$UDID" io.sheafs.reader >/dev/null 2>&1 || true
+  [[ -n $CONSOLE_PID ]] && { kill "$CONSOLE_PID" >/dev/null 2>&1 || true; CONSOLE_PID=""; }
+  if [[ $DEVICE == duo ]]; then
+    "$HINGE" -d "$UDID" orient "$orient"
+    "$HINGE" -d "$UDID" "$angle"
+    sleep 2
+    local measured
+    measured=$("$HINGE" -d "$UDID" get) || fail "$file: cannot read the hinge back"
+    python3 -I -c 'import sys; sys.exit(abs(float(sys.argv[1]) - float(sys.argv[2])) > 1)' "$measured" "$angle" \
+      || fail "$file: hinge reads $measured°, set $angle°"
+  else
+    # The iPhone and iPad simulators do rotate with devicectl (only the Duo's ignores it); "-" is
+    # portrait. The size check below proves the rotation took.
+    local turn=portrait
+    case $orient in landscape-left) turn=landscapeLeft ;; landscape-right) turn=landscapeRight ;; esac
+    xcrun devicectl device orientation set -d "$UDID" "$turn" >/dev/null 2>&1 || fail "$file: could not turn the $DEVICE to $turn"
+    sleep 2
+  fi
+  : >"$WORK/console.log"
+  xcrun simctl launch --console-pty "$UDID" io.sheafs.reader "$@" >"$WORK/console.log" 2>&1 &
+  CONSOLE_PID=$!
+  if [[ $layout == - ]]; then
+    sleep 6
+  else
+    for _ in $(seq 1 30); do grep -a -q '^\[layout\]' "$WORK/console.log" && break; sleep 1; done
+    sleep "${SETTLE:-5}"
+    grep -aq 'nothing in the contents matches' "$WORK/console.log" && fail "$file: $(grep -a '\[goto\]' "$WORK/console.log")"
+    local line
+    line=$(grep -a '^\[layout\]' "$WORK/console.log" | tail -1)
+    [[ -n $line ]] || fail "$file: the reader logged no [layout] line (did the book open?)"
+    [[ $line =~ $layout ]] || fail "$file: layout is not /$layout/: $line"
+  fi
+  local display_flag="" png=$OUT/$file   # the iPhone and iPad have one display: no flag
+  [[ $display == cover ]] && display_flag=--display=primary
+  [[ $display == inner ]] && display_flag=--display=primary-1
+  mkdir -p "$(dirname "$png")"
+  xcrun simctl io "$UDID" screenshot $display_flag "$png" >/dev/null 2>&1 || fail "$file: screenshot"
+  local w h ink kind
+  read -r w h ink <<<"$(inspect "$png")"
+  if ((w > h)); then kind=$display-landscape; else kind=$display-portrait; fi
+  [[ "$w $h" == "$(app_store_size "$kind")" ]] \
+    || fail "$file: ${w}×${h} is not App Store Connect's $kind size $(app_store_size "$kind")"
+  [[ $file == *$kind* ]] || fail "$file: came out $kind (the orientation did not take?)"
+  ((ink >= 5)) || fail "$file: looks blank (ink on $ink‰ of it)"
+  echo "  ok: ${w}×${h} $kind, ink on $ink‰"
+  SHOTS=$((SHOTS + 1))
+}
+
+SPREAD='pages=\[\([^)]*\), \([^)]*\)\]'             # two pages side by side
+TABLETOP='division=Optional\(\(0\.0, [0-9.]+, [0-9.]+, 40\.0\)\) active=true .*pages=\[\([^)]*\)\]'
+SINGLE='pages=\[\([^)]*\)\]'
+COVER='camera=Optional.*pages=\[\([^)]*\)\]'        # the cover display: one page below the camera
+
+# Every Duo pose. Libraries first: opening a book reorders them.
+shots_duo() {
+  shot duo-inner/inner-landscape-1-library.png   inner portrait        180 -
+  # Early in a book: page numbers of chapters not laid out yet are estimates, and drift further on.
+  shot duo-inner/inner-landscape-2-spread.png    inner portrait        180 "$SPREAD"  -SheafsOpen Pride -SheafsGoTo 0.05
+  SETTLE=8 \
+  shot duo-inner/inner-landscape-3-flip.png      inner portrait        180 "$SPREAD"  -SheafsOpen Pride -SheafsGoTo 0.05 \
+    -SheafsFlipAuto forward -SheafsFlipFreeze 0.5 -SheafsFlipGrab 0.9
+  shot duo-inner/inner-landscape-4-appearance.png inner portrait       180 "$SPREAD"  -SheafsOpen Gatsby -SheafsGoTo II -SheafsAppearance quick
+  shot duo-inner/inner-portrait-5-tabletop.png   inner landscape-left  95 "$TABLETOP" -SheafsOpen Moby -SheafsGoTo Loomings
+  shot duo-inner/inner-portrait-6-page.png       inner landscape-left 180 "$SINGLE"   -SheafsOpen Frankenstein -SheafsGoTo "Letter I"
+  shot duo-inner/inner-landscape-8-moby.png      inner portrait        180 "$SPREAD"  -SheafsOpen Moby -SheafsGoTo Loomings
+  shot duo-cover/cover-portrait-1-library.png    cover portrait          0 -
+  shot duo-cover/cover-portrait-2-reader.png     cover portrait          0 "$COVER"   -SheafsOpen Moby -SheafsGoTo Loomings
+  shot duo-cover/cover-landscape-3-reader.png    cover landscape-left    0 "$SINGLE"  -SheafsOpen Pride -SheafsGoTo II
+  SETTLE=8 \
+  shot duo-cover/cover-portrait-4-flip.png       cover portrait          0 "$COVER"   -SheafsOpen Pride -SheafsGoTo 0.05 \
+    -SheafsFlipAuto forward -SheafsFlipFreeze 0.5 -SheafsFlipGrab 0.9
+  shot duo-cover/cover-portrait-5-appearance.png cover portrait          0 "$COVER"   -SheafsOpen Gatsby -SheafsGoTo II -SheafsAppearance quick
+  # Night last: the theme is a saved setting.
+  SETTLE=9 \
+  shot duo-inner/inner-landscape-7-night.png     inner portrait        180 "$SPREAD"  -SheafsOpen Dracula -SheafsGoTo 0.05 \
+    -SheafsThemeSwitch night
+  SETTLE=9 \
+  shot duo-cover/cover-portrait-6-night.png      cover portrait          0 "$COVER"   -SheafsOpen Dracula -SheafsGoTo 0.05 \
+    -SheafsThemeSwitch night
+}
+
+# The iPhone and iPad: portrait, one page, one display.
+shots_single_display() {
+  local d=$1
+  shot "$d/$d-portrait-1-library.png"    "$d" - - -
+  shot "$d/$d-portrait-2-reader.png"     "$d" - - "$SINGLE" -SheafsOpen Moby -SheafsGoTo Loomings
+  # A single page is narrow: an early frame with the corner leading reads as a page turn.
+  SETTLE=8 \
+  shot "$d/$d-portrait-3-flip.png"       "$d" - - "$SINGLE" -SheafsOpen Pride -SheafsGoTo 0.05 \
+    -SheafsFlipAuto forward -SheafsFlipFreeze 0.24 -SheafsFlipGrab 0.92
+  shot "$d/$d-portrait-4-appearance.png" "$d" - - "$SINGLE" -SheafsOpen Gatsby -SheafsGoTo II -SheafsAppearance quick
+  shot "$d/$d-portrait-5-page.png"       "$d" - - "$SINGLE" -SheafsOpen Pride -SheafsGoTo 0.05
+  if [[ $d == ipad ]]; then
+    # iPad landscape: no fold, but wide enough for a two-page spread (`PageLayout.compute`); the
+    # turn is a book's, the leaf's back landing on the left.
+    shot "$d/$d-landscape-7-spread.png"  "$d" landscape-left - "$SPREAD" -SheafsOpen Pride -SheafsGoTo 0.05
+    SETTLE=8 \
+    shot "$d/$d-landscape-8-flip.png"    "$d" landscape-left - "$SPREAD" -SheafsOpen Pride -SheafsGoTo 0.05 \
+      -SheafsFlipAuto forward -SheafsFlipFreeze 0.5 -SheafsFlipGrab 0.9
+  fi
+  # Night last: the theme is a saved setting.
+  SETTLE=9 \
+  shot "$d/$d-portrait-6-night.png"      "$d" - - "$SINGLE" -SheafsOpen Dracula -SheafsGoTo 0.05 -SheafsThemeSwitch night
+}
+
+run_device() {
+  DEVICE=$1
+  local name type runtime
+  name=$(device_name "$DEVICE")
+  type=$(device_type "$DEVICE")
+  echo "== $DEVICE: \"$name\""
+  UDID=$(find_sim "$name")
+  if [[ -z $UDID ]]; then
+    runtime=$(runtime_for "$type")
+    [[ -n $runtime ]] || no_runtime "$type"
+    UDID=$(xcrun simctl create "$name" "$type" "$runtime")
+    echo "created simulator \"$name\" $UDID"
+  fi
+  xcrun simctl boot "$UDID" >/dev/null 2>&1 || true
+  xcrun simctl bootstatus "$UDID" -b >/dev/null
+  ORIGINAL=$(xcrun simctl ui "$UDID" appearance)
+
+  # A fresh install: empty library, default reader settings (theme Automatic, so Light = Paper).
+  xcrun simctl terminate "$UDID" io.sheafs.reader >/dev/null 2>&1 || true
+  xcrun simctl uninstall "$UDID" io.sheafs.reader >/dev/null 2>&1 || true
+  xcrun simctl install "$UDID" "$APP" 2>"$WORK/install.log" || {
+    cat "$WORK/install.log" >&2
+    local minimum
+    minimum=$(/usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP/Info.plist" 2>/dev/null || echo "?")
+    fail "installing on \"$name\" failed: the app's minimum iOS ($minimum) is probably newer than the simulator's runtime ($(sim_runtime "$UDID" "$name" | sed 's/.*SimRuntime\.//'))"
+  }
+  xcrun simctl ui "$UDID" appearance light
+  xcrun simctl status_bar "$UDID" override --time 9:41 --dataNetwork wifi --wifiMode active --wifiBars 3 \
+    --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100
+  local data slug imported=0
+  data=$(xcrun simctl get_app_container "$UDID" io.sheafs.reader data)
+  mkdir -p "$data/Documents"
+  for slug in "${BOOKS[@]}"; do cp "$CACHE/${slug##*/}/${slug//\//_}.epub" "$data/Documents/"; done
+  if [[ $DEVICE == duo ]]; then
+    "$HINGE" -d "$UDID" orient portrait
+    "$HINGE" -d "$UDID" 180
+  fi
+  xcrun simctl launch "$UDID" io.sheafs.reader >/dev/null   # imports Documents/
+  for _ in $(seq 1 60); do
+    imported=$( (find "$data/Library/Application Support/Books" -name '*.epub' 2>/dev/null || true) | wc -l | tr -d ' ')
+    [[ $imported -ge ${#BOOKS[@]} ]] && break
+    sleep 1
+  done
+  [[ $imported -ge ${#BOOKS[@]} ]] || fail "only $imported of ${#BOOKS[@]} books imported"
+  sleep 3   # covers render
+
+  if [[ $DEVICE == duo ]]; then
+    rm -rf "$OUT/duo-inner" "$OUT/duo-cover"
+    shots_duo
+  else
+    rm -rf "${OUT:?}/$DEVICE"
+    shots_single_display "$DEVICE"
+  fi
+
+  xcrun simctl terminate "$UDID" io.sheafs.reader >/dev/null 2>&1 || true
+  [[ $DEVICE == duo ]] && "$HINGE" -d "$UDID" orient portrait
+  restore_device
+}
+
+for dev in "${DEVICES[@]}"; do run_device "$dev"; done
+echo "SCREENSHOTS OK: $SHOTS shots (${DEVICES[*]}) in $OUT"

@@ -565,6 +565,7 @@ struct ReaderView: View {
         book.lastOpenedAt = .now
         library.save()
         library.publishRecentBook()
+        goToFromLaunchArgument(session: fresh)
         openAppearanceFromLaunchArgument()
         if let remote = await sync.pull(for: book) {
             offer(remote, session: fresh, force: false)
@@ -621,6 +622,40 @@ struct ReaderView: View {
     }
 
     private static var appearanceArgumentConsumed = false
+
+    /// `-SheafsGoTo <contents title | 0…1>` moves to a table-of-contents entry (an exact title
+    /// first, else the first title containing it) or to the paragraph at a fraction of the book
+    /// that follows another paragraph (so the page starts on a whole paragraph, no heading is left
+    /// alone on the page before, and the spread is full), once per launch, for screenshots
+    /// (`scripts/screenshots`). Unlike `jump(to:)` it leaves no "Back to page N" trail.
+    private func goToFromLaunchArgument(session: BookSession) {
+        guard !Self.goToArgumentConsumed else { return }
+        Self.goToArgumentConsumed = true
+        guard let wanted = UserDefaults.standard.string(forKey: "SheafsGoTo"), !wanted.isEmpty else { return }
+        let target: ReadingLocation?
+        if let fraction = Double(wanted), (0...1).contains(fraction) {
+            let spot = session.location(forProgress: fraction)
+            let blocks = session.chapters[spot.spineIndex].blocks
+            let before = blocks.indices.filter { blocks[$0].textOffset <= spot.textOffset }
+            let index = before.last { $0 > 0 && blocks[$0].kind == .paragraph && blocks[$0 - 1].kind == .paragraph }
+                ?? before.last
+            let start = index.map { blocks[$0].textOffset } ?? spot.textOffset
+            target = ReadingLocation(spineIndex: spot.spineIndex, textOffset: start)
+        } else {
+            let entry = session.flatTOC.first { $0.title.caseInsensitiveCompare(wanted) == .orderedSame }
+                ?? session.flatTOC.first { $0.title.localizedCaseInsensitiveContains(wanted) }
+            target = entry.flatMap(session.location(for:))
+        }
+        guard let target else {
+            print("[goto] nothing in the contents matches \"\(wanted)\"")
+            return
+        }
+        print("[goto] \(wanted) → \(target.spineIndex):\(target.textOffset)")
+        session.location = session.clamp(target)
+        persist(session.location)
+    }
+
+    private static var goToArgumentConsumed = false
 
     private func accept(_ prompt: RemotePrompt) {
         jump(to: prompt.location)

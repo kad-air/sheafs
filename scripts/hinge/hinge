@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# hinge — control the hinge angle of a foldable iPhone Simulator (iPhone Duo).
+# hinge — control the hinge angle and orientation of a foldable iPhone Simulator (iPhone Duo).
 set -euo pipefail
 
-VERSION="0.1.0"
+VERSION="0.2.0"
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 HELPER_SRC="$SCRIPT_DIR/hinge_helper.c"
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/hinge"
@@ -20,6 +20,10 @@ Commands:
   half                        Half-open (90°)
   sweep <from> <to> [seconds] Animate between two angles (default 1s)
   get                         Print current hinge angle
+  orient <orientation>        Turn the device: portrait (p), landscape-left (ll),
+                              landscape-right (lr), faceup, facedown. Device landscape
+                              shows the inner display in portrait (and a partly folded
+                              inner display then folds horizontally: tabletop)
   help                        Show this help
 
 Options:
@@ -126,6 +130,16 @@ main() {
       run_helper sweep "$1" "$2" "$seconds"
       ;;
     get) get_angle ;;
+    orient)
+      [[ $# -eq 1 ]] || die "usage: hinge orient <orientation>"
+      local o="$1"
+      case "$o" in
+        p) o=portrait ;; ll) o=landscape-left ;; lr) o=landscape-right ;;
+        portrait|landscape-left|landscape-right|faceup|facedown) ;;
+        *) die "unknown orientation: $o (portrait, landscape-left, landscape-right, faceup, facedown)" ;;
+      esac
+      run_helper orient "$o"
+      ;;
     *)
       is_number "$cmd" || { usage >&2; exit 64; }
       set_angle "$cmd"

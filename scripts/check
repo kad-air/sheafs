@@ -57,7 +57,7 @@ command -v xcodegen >/dev/null || fail "xcodegen not found (brew install xcodege
 [[ -f Config/Signing.xcconfig ]] || cp Config/Signing.example.xcconfig Config/Signing.xcconfig
 run "xcodegen generate" xcodegen.log xcodegen generate --quiet
 DD=${DERIVED_DATA:-/tmp/sheafs-derived}
-SIM=${SIM:-iPhone Duo}   # any iOS 27.1 iPhone Duo simulator; SIM="Sheafs Duo" keeps the shared one free
+SIM=${SIM:-iPhone Duo}   # any iOS 27.1 iPhone Duo simulator
 run "xcodebuild build" build.log xcodebuild -project Sheafs.xcodeproj -scheme Sheafs \
   -destination "${DESTINATION:-platform=iOS Simulator,name=$SIM}" -derivedDataPath "$DD" -quiet build
 if grep -E "^/.*\.swift:[0-9]+:[0-9]+: warning:" "$LOG/build.log" >/dev/null; then

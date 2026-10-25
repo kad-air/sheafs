@@ -3,12 +3,12 @@
 # Opens a book on a simulator with the reader settings reset (theme = Automatic), flips the simulator's
 # appearance light → dark → light, and reads the page colour off screenshots. Fails loudly when the
 # page doesn't follow (the regression: a forced `preferredColorScheme` latched the first scheme).
-#   SIM="Sheafs Duo" (default; flips that simulator's appearance, restored on exit)
+#   SIM="iPhone Duo" (default; flips that simulator's appearance, restored on exit)
 #   DERIVED_DATA=/tmp/sheafs-derived (builds there, incrementally)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 fail() { echo "AUTO THEME CHECK FAILED: $*" >&2; exit 1; }
-SIM=${SIM:-Sheafs Duo}
+SIM=${SIM:-iPhone Duo}
 DD=${DERIVED_DATA:-/tmp/sheafs-derived}
 WORK=$(mktemp -d)
 
