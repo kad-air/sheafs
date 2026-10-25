@@ -6,7 +6,8 @@
 # Builds the app once (generic iOS Simulator), then for each device installs it fresh on the device's
 # own simulator (created if missing), imports public-domain books from Standard Ebooks (CC0 text and
 # covers, cached) and takes the shots into OUT:
-#   duo     "Sheafs Shots", every pose headless: cover and inner display, portrait and landscape, flat
+#   duo     "iPhone Duo" (the one shared Duo simulator; the run reinstalls Sheafs there, so its Sheafs
+#           library starts empty), every pose headless: cover and inner display, portrait and landscape, flat
 #           and tabletop. Per shot it sets the fold (`hinge`) and the device orientation (`hinge orient`)
 #           → $OUT/duo-inner/ and $OUT/duo-cover/. Sizes: cover 1398×2034 / 2034×1398, inner 2853×2007 /
 #           2007×2853
@@ -17,17 +18,17 @@
 # the reader's `[layout]` line shows the wrong pose, a `-SheafsGoTo` target is missing, or a shot is blank.
 # The iPhone and iPad simulators need an iOS runtime that supports them: the Duo-only iOS 27.1 runtime
 # does not, so `prepare` downloads the iOS runtime (8 GB; it refuses with under 12 GB free on /) and
-# records what it added in $CACHE/runtimes-added, which `teardown` deletes again together with the three
-# simulators above (TEARDOWN_DRY_RUN=1 only prints what it would delete). The app's minimum iOS must not
+# records what it added in $CACHE/runtimes-added, which `teardown` deletes again together with the iPhone
+# and iPad simulators; the Duo's is shared and stays (TEARDOWN_DRY_RUN=1 only prints what it would delete). The app's minimum iOS must not
 # be newer than that runtime's, or the install fails (and says so).
-#   SIM="Sheafs Shots" (the Duo's simulator; created and booted if missing)
+#   SIM="iPhone Duo" (the Duo's simulator; created and booted if missing)
 #   OUT=/tmp/sheafs-screenshots (simctl cannot write screenshots to some external volumes)
 #   DERIVED_DATA=/tmp/sheafs-derived (builds there, incrementally)
 #   NO_BUILD=1 reuses the last build in DERIVED_DATA
 set -euo pipefail
 cd "$(dirname "$0")/.."
 fail() { echo "SCREENSHOTS FAILED: $*" >&2; exit 1; }
-NAME_DUO="Sheafs Shots"
+NAME_DUO="iPhone Duo"
 NAME_IPHONE="Sheafs Shots iPhone"
 NAME_IPAD="Sheafs Shots iPad"
 TYPE_DUO=com.apple.CoreSimulator.SimDeviceType.iPhone-Duo
@@ -111,11 +112,11 @@ prepare() {
   echo "PREPARE OK: $(runtime_for "$TYPE_IPHONE"), $(free_gb) free on /"
 }
 
-# scripts/screenshots teardown: our three simulators and the runtimes prepare added, nothing else.
+# scripts/screenshots teardown: the iPhone and iPad simulators and the runtimes prepare added, nothing else.
 teardown() {
   local dry=${TEARDOWN_DRY_RUN:-} name udid runtime avail found file=$CACHE/runtimes-added current id
   [[ -n $dry ]] && echo "dry run: nothing is deleted"
-  for name in "$NAME_DUO" "$NAME_IPHONE" "$NAME_IPAD"; do
+  for name in "$NAME_IPHONE" "$NAME_IPAD"; do   # the Duo simulator is shared and stays
     found=""
     while read -r udid runtime avail; do
       [[ -n $udid ]] || continue

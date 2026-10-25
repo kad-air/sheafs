@@ -14,10 +14,10 @@ scripts/check                     # THE gate: hygiene grep, Python reference fre
 scripts/swift-parse               # swiftc -parse of every Swift file (no SDK); part of scripts/check step 3
                                   # CI: .github/workflows/check.yml runs scripts/check on PRs and main pushes
                                   #   (macOS runner, newest Xcode; app build only if it has the 27.1 SDK)
-scripts/check-auto-theme          # end to end on a simulator (SIM="Sheafs Duo"): theme Automatic follows
+scripts/check-auto-theme          # end to end on a simulator (SIM="iPhone Duo"): theme Automatic follows
                                   #   live Light/Dark flips (reads the page colour off screenshots)
-scripts/screenshots [duo|iphone|ipad]  # App Store screenshots: every Duo pose on "Sheafs Shots", portrait
-                                  #   on "Sheafs Shots iPhone"/"iPad" (all made if missing) → OUT=/tmp/sheafs-
+scripts/screenshots [duo|iphone|ipad]  # App Store screenshots: every Duo pose on "iPhone Duo" (Sheafs is
+                                  #   reinstalled there), portrait on "Sheafs Shots iPhone"/"iPad" (made if missing) → OUT=/tmp/sheafs-
                                   #   screenshots/{duo-inner,duo-cover,iphone,ipad}/; fresh install, Standard
                                   #   Ebooks books (CC0, cached); fails unless each shot is App Store Connect's
                                   #   size for its display, the hinge reads back, the `[layout]` line shows the
