@@ -13,7 +13,7 @@ body {
 .copy .kicker { font-family: "Gill Sans", sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.24em;
   color: var(--accent); display: flex; align-items: center; gap: 0.9em; }
 .copy .kicker::before { content: ""; width: 2.6em; height: 0.09em; background: var(--accent); }
-body.layout-book .copy .kicker { justify-content: center; }
-body.layout-book .copy .kicker::after { content: ""; width: 2.6em; height: 0.09em; background: var(--accent); }
+body.layout-book .copy .kicker, body.layout-wide .copy .kicker { justify-content: center; }
+body.layout-book .copy .kicker::after, body.layout-wide .copy .kicker::after { content: ""; width: 2.6em; height: 0.09em; background: var(--accent); }
 .copy .sub, .copy ul { font-family: "Hoefler Text", "Baskerville", serif; color: var(--muted); }
 .copy li::before { content: "❧"; color: var(--accent); margin-right: 0.55em; }

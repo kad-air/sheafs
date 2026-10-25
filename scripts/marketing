@@ -39,7 +39,8 @@ WIDTH = {
     ("tilt", "iphone"): 0.78, ("tilt", "ipad"): 0.76, ("tilt", "duo-cover"): 0.78,
     ("features", "iphone"): 0.60, ("features", "ipad"): 0.56, ("features", "duo-cover"): 0.60,
     ("side", "duo-open"): 0.53, ("book", "duo-open"): 0.84, ("tabletop", "duo-open"): 0.38,
-    ("pair", "duo-open"): 0.50, ("pair", "duo-cover"): 0.19,
+    ("pair", "duo-open"): 0.50, ("pair", "duo-cover"): 0.235,
+    ("wide", "ipad"): 0.82,
 }
 # The Duo cover display's camera, centre as fractions of the portrait screen (from the simulator's
 # reserved region: hole 400,29 37×37 in 466×678 points).
@@ -148,7 +149,7 @@ def device_html(frame, shot, tile_w, layout, native_aspect, stand_in, fill, extr
     elif frame == "duo-open":
         extras = '<div class="crease"></div>'
     img_class = ' class="stand-in"' if stand_in else ""
-    attr = ' data-follow' if follow and layout in ("top", "tilt", "features") else ""
+    attr = ' data-follow' if follow and layout in ("top", "tilt", "features", "wide") else ""
     return (f'<div class="device {extra_class}" style="{style}"{attr}><div class="screen">{extras}'
             f'<img{img_class} src="{url}"></div></div>')
 
@@ -165,6 +166,8 @@ def resolve(tile, device_key):
 
 def render_tile(spec, device_key, device, style, voice, index, tile, out_dir, final):
     W, H = device["size"]
+    if tile.get("orientation") == "landscape" and W < H:
+        W, H = H, W  # App Store Connect takes the device's landscape size in the same set
     frame = device["frame"]
     orientation = "landscape" if W > H else "portrait"
     layout = tile["layout"]
@@ -174,6 +177,8 @@ def render_tile(spec, device_key, device, style, voice, index, tile, out_dir, fi
         fail(f"{device_key} {tile['copy']}: still a stand-in ({tile['shot']} not taken)")
     sw, sh, _ = png_size(shot)
     native = {"iphone": 1320 / 2868, "ipad": 2064 / 2752, "duo-cover": 1398 / 2034}.get(frame, sw / sh)
+    if orientation == "landscape" and frame in ("iphone", "ipad"):
+        native = 1 / native
     if stand_in and frame == "duo-open":
         native = 2853 / 2007
     fill = "#faf9f4"  # the paper theme's page, behind a letterboxed stand-in
@@ -194,7 +199,7 @@ def render_tile(spec, device_key, device, style, voice, index, tile, out_dir, fi
     sub = f'<p class="sub">{html.escape(copy["sub"])}</p>' if copy.get("sub") else ""
     items = "".join(f"<li>{html.escape(item)}</li>" for item in copy.get("list", [])) if layout == "features" else ""
     listing = f"<ul>{items}</ul>" if items else ""
-    max_copy = {"top": 0.30, "tilt": 0.30, "features": 0.52, "book": 0.30}.get(layout, 0.80)
+    max_copy = {"top": 0.30, "tilt": 0.30, "features": 0.52, "book": 0.30, "wide": 0.30}.get(layout, 0.80)
     badge = f'<div class="standin-badge">STAND-IN · {html.escape(device["name"])} capture pending</div>' if stand_in else ""
     page = f"""<!doctype html><html><head><meta charset="utf-8">
 <link rel="stylesheet" href="file://{MARKETING}/base.css">
@@ -217,7 +222,7 @@ def render_tile(spec, device_key, device, style, voice, index, tile, out_dir, fi
 
     width, height, colour = png_size(out)
     if (width, height) != (W, H):
-        fail(f"{out}: {width}×{height}, App Store Connect wants {W}×{H} for {device['name']}")
+        fail(f"{out}: {width}×{height}, App Store Connect wants {W}×{H} for {device['name']} ({orientation})")
     if colour != 2:
         fail(f"{out}: has an alpha channel (PNG colour type {colour}); App Store Connect refuses those")
     if png_pixel(out, 4, 4) == (255, 0, 255):
@@ -229,9 +234,9 @@ def contact_sheet(device_key, device, rows, out):
     """rows: [(label, [file, …])]. One PNG with every candidate set for the device."""
     W, H = device["size"]
     thumb_h = 520 if H > W else 360
-    thumb_w = round(thumb_h * W / H)
-    columns = max(len(files) for _, files in rows)
-    width = 80 + columns * (thumb_w + 24)
+    def row_width(files):  # tiles of one set may mix portrait and landscape
+        return sum(round(thumb_h * png_size(f)[0] / png_size(f)[1]) + 24 for f in files)
+    width = 80 + max(row_width(files) for _, files in rows)
     height = 140 + len(rows) * (thumb_h + 96)
     cells = "".join(
         f'<section><h2>{html.escape(label)}</h2><div>' +

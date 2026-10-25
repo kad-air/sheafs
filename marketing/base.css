@@ -22,8 +22,8 @@ body.landscape { --title-size: 6.3vw; --sub-size: 2.2vw; --kicker-size: 1.5vw; }
 body.landscape.layout-side .copy, body.landscape.layout-tabletop .copy, body.landscape.layout-pair .copy {
   left: 6vw; width: 33vw; top: 50%; transform: translateY(-50%);
 }
-body.landscape.layout-book .copy { left: 14vw; right: 14vw; top: 5.2vw; text-align: center; }
-body.landscape.layout-book .copy .sub { margin-left: auto; margin-right: auto; max-width: 48vw; }
+body.landscape.layout-book .copy, body.landscape.layout-wide .copy { left: 14vw; right: 14vw; top: 5.2vw; text-align: center; }
+body.landscape.layout-book .copy .sub, body.landscape.layout-wide .copy .sub { margin-left: auto; margin-right: auto; max-width: 48vw; }
 
 /* ---- device frames ---- */
 .device { position: absolute; z-index: 2; width: var(--dw); padding: var(--bezel); border-radius: var(--radius);
@@ -46,7 +46,7 @@ body.landscape.layout-book .copy .sub { margin-left: auto; margin-right: auto; m
 
 /* ---- layouts ---- */
 /* top / tilt / features: the device hangs below the copy and runs off the bottom edge. */
-body.layout-top .device, body.layout-tilt .device, body.layout-features .device { left: 50%; transform: translateX(-50%); }
+body.layout-top .device, body.layout-tilt .device, body.layout-features .device, body.layout-wide .device { left: 50%; transform: translateX(-50%); }
 body.layout-tilt .device { transform: translateX(-46%) rotate(-5deg); transform-origin: 50% 0; }
 body.layout-features .device { left: auto; right: -9vw; transform: rotate(-7deg); transform-origin: 50% 0; }
 
@@ -82,7 +82,8 @@ body.layout-side .device { right: 5vw; top: 50%; transform: translateY(-50%); }
 
 /* pair: the closed Duo in front of the open one. */
 body.layout-pair .device.open { right: -3vw; top: 50%; transform: translateY(-40%); }
-body.layout-pair .device.closed { right: 39vw; top: 50%; transform: translateY(-58%) rotate(-4deg); z-index: 3; }
+/* The closed Duo covers the open one's whole left page: only the page it shares with the cover shows. */
+body.layout-pair .device.closed { right: 22.5vw; top: 50%; transform: translateY(-56%) rotate(-4deg); z-index: 3; }
 
 /* ---- stand-ins and errors ---- */
 .standin-badge { position: absolute; z-index: 9; top: 0; right: 0; padding: 0.6em 1.1em; font: 600 max(1.6vmin, 18px)/1 Menlo, monospace;
