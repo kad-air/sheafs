@@ -323,6 +323,10 @@ state and is followed at once; a size change while the bars are up hides them fi
   bars off). Use `laidOutChapter` (cache only); the back button stores its page number when leaving.
 - Pagination runs on the main actor, synchronously, on demand (neighbours prefetched). A single
   huge spine item (whole-book-in-one-file EPUBs) will hitch on open; move it off-main if it bites.
+- The closed iPhone Duo is asymmetrical: the hinge runs down the LEFT edge of the cover display
+  (cover facing you) with square corners; only the right edge is rounded. The `duo-cover` frame in
+  `scripts/marketing`/`marketing/base.css` (`.hinge-left`) draws it so for both the App Store tiles
+  and the site's shots; `scripts/site-shots --selftest` fails if it goes round again.
 - `hub-fixture.epub`'s manifest lists an NCX that isn't in the archive — `toc` is empty, no error.
 - Simulator input: the iOS Simulator MCP's taps and rotation reach the inner display (coordinates in
   the lit screen's points); `-SheafsOpen` / launch args reach reader states and `scripts/hinge/hinge`

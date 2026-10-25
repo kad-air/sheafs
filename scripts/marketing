@@ -145,7 +145,10 @@ def device_html(frame, shot, tile_w, layout, native_aspect, stand_in, fill, extr
     if frame == "iphone":
         extras = '<div class="island"></div>'
     elif frame == "duo-cover" and native_aspect < 1:
+        # The closed Duo is asymmetrical: the hinge runs down its LEFT edge (cover facing you), with
+        # square corners; only the free edge on the right is rounded.
         extras = f'<div class="camera" style="left:{COVER_CAMERA[0] * 100:.2f}%;top:{COVER_CAMERA[1] * 100:.2f}%"></div>'
+        extra_class = (extra_class + " hinge-left").strip()
     elif frame == "duo-open":
         extras = '<div class="crease"></div>'
     img_class = ' class="stand-in"' if stand_in else ""
