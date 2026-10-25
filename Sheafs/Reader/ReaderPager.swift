@@ -664,7 +664,7 @@ final class SpreadViewController: UIViewController {
             let pageView = PageView(frame: frame)
             pageView.palette = palette
             pageView.textInsets = layout.textInsets
-            pageView.occlusions = layout.occlusions.map { $0.offsetBy(dx: -frame.minX, dy: -frame.minY) }
+            pageView.camera = layout.camera?.offsetBy(dx: -frame.minX, dy: -frame.minY)
             if index < slots.count, let slot = slots[index], let chapter = session.paginatedChapter(slot.spineIndex) {
                 pageView.chapter = chapter
                 pageView.page = slot.page
