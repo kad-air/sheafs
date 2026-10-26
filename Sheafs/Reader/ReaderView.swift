@@ -466,7 +466,7 @@ struct ReaderView: View {
 
     private func open(link href: String, from spine: Int) {
         guard let session else { return }
-        if href.hasPrefix("http://") || href.hasPrefix("https://") || href.hasPrefix("mailto:") {
+        if Typesetter.isExternal(href) {
             if let url = URL(string: href) { openURL(url) }
             return
         }

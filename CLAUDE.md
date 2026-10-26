@@ -325,6 +325,16 @@ state and is followed at once; a size change while the bars are up hides them fi
   the scroll view is created lazily): the page frames already include the safe areas. The same pass
   makes its pan `require(toFail:)` the selection handles' pans, so dragging a handle never swipes
   the page; the long press disables scrolling while the finger is down.
+- 🔴 Links are stored under `.sheafsLink`, never `NSAttributedString.Key.link`: TextKit draws a
+  `.link` run system blue and underlined whatever its foreground colour says. Links within the book
+  (index entries, glossary terms; note markers are superscripts) draw in the text colour, like the
+  publisher's stylesheet almost always asks; only `Typesetter.isExternal` links get `palette.link`.
+  `LinkStyleTests` renders pages and counts blue pixels.
+- 🔴 Links are stored under `.sheafsLink`, never `NSAttributedString.Key.link`: TextKit draws a
+  `.link` run system blue and underlined whatever its foreground colour says (it hid the theme's
+  link colour, and made an edition's index links look like web links). Every link draws in
+  `palette.link` with a dotted underline, none under a superscript note marker.
+  `LinkStyleTests` renders pages and counts the pixels.
 - Highlights are painted by `PageView` UNDER the glyphs (`PaginatedChapter.rects(for:page:)` =
   TextKit enclosing rects shifted by the page top) and the selection over them; nothing is added to
   the attributed string, so the offsets contract and the pagination cache are untouched. Highlights

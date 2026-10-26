@@ -23,6 +23,9 @@ extension NSAttributedString.Key {
     /// Marks the characters of an image block so taps can find it.
     nonisolated static let sheafsImageSource = NSAttributedString.Key("sheafs.imageSource")
     nonisolated static let sheafsBlockIndex = NSAttributedString.Key("sheafs.blockIndex")
+    /// A link's href. Not `.link`: TextKit draws `.link` text system blue and underlined whatever
+    /// the foreground colour says, which put index and glossary links all over the page.
+    nonisolated static let sheafsLink = NSAttributedString.Key("sheafs.link")
 }
 
 /// Turns a `Chapter` into an `NSAttributedString` whose UTF-16 layout matches the chapter's
@@ -79,6 +82,11 @@ enum Typesetter {
         return false
     }
 
+    nonisolated static func isExternal(_ href: String) -> Bool {
+        let lower = href.lowercased()
+        return lower.hasPrefix("http://") || lower.hasPrefix("https://") || lower.hasPrefix("mailto:")
+    }
+
     nonisolated private static func attributes(for run: InlineRun, block: Block, style: TypesetStyle) -> [NSAttributedString.Key: Any] {
         let base = CGFloat(style.fontSize)
         var size = base
@@ -122,8 +130,15 @@ enum Typesetter {
         if run.style.contains(.underline) { attrs[.underlineStyle] = NSUnderlineStyle.single.rawValue }
         if run.style.contains(.strikethrough) { attrs[.strikethroughStyle] = NSUnderlineStyle.single.rawValue }
         if let link = run.link {
-            attrs[.link] = link
+            attrs[.sheafsLink] = link
+            // The theme's link colour and a dotted underline: a quiet hint that there is something
+            // to look at (index entries, glossary terms), not a web link. A note marker is already
+            // a superscript; a dotted line under a raised "1" is only noise.
             color = style.palette.link
+            if !run.style.contains(.superscript) {
+                attrs[.underlineStyle] = NSUnderlineStyle([.single, .patternDot]).rawValue
+                attrs[.underlineColor] = style.palette.link.withAlphaComponent(0.7)
+            }
         }
         attrs[.foregroundColor] = color
         return attrs
