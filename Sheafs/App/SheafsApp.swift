@@ -3,11 +3,19 @@ import SwiftData
 
 @main
 struct SheafsApp: App {
-    @State private var library = LibraryStore()
+    @State private var library: LibraryStore
     @State private var settings = ReaderSettings()
-    @State private var navigation = AppNavigation()
+    @State private var navigation: AppNavigation
     @State private var sync = SyncService()
     @Environment(\.scenePhase) private var scenePhase
+
+    init() {
+        let library = LibraryStore(), navigation = AppNavigation()
+        _library = State(initialValue: library)
+        _navigation = State(initialValue: navigation)
+        // The control's intent runs in this process (foreground mode) once the app is up.
+        ContinueReading.handler = { navigation.openMostRecentBook(in: library) }
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -47,6 +55,13 @@ final class AppNavigation {
         guard let book = try? library.context.fetch(fetch).first else { return }
         selectedTab = .library
         openBook = book
+    }
+
+    /// The control's press: the book read last (the widget's book), from any tab; an empty library
+    /// just shows itself.
+    func openMostRecentBook(in library: LibraryStore) {
+        selectedTab = .library
+        if let book = library.mostRecentBook() { openBook = book }
     }
 }
 

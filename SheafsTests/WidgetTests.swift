@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import SwiftData
+import UIKit
 @testable import Sheafs
 
 /// The "Continue Reading" widget: the app and widget share an app group, the app embeds the
@@ -16,6 +17,23 @@ struct WidgetTests {
         #expect(SheafsLink.bookID(in: URL(filePath: "/tmp/\(id.uuidString).epub")) == nil)
         #expect(SheafsLink.bookID(in: try #require(URL(string: "sheafs://open?book=nope"))) == nil)
         #expect(SheafsLink.bookID(in: try #require(URL(string: "https://open?book=\(id.uuidString)"))) == nil)
+    }
+
+    /// The control: its intent must be in the App Intents metadata of BOTH bundles (the build
+    /// extracts it; the extension declares the control, the app runs the foreground intent, and
+    /// the one missing it leaves the press doing nothing), and its icon must compile as a SYMBOL
+    /// image: controls take only symbols, which the system tints and scales, and a bitmap there
+    /// draws nothing.
+    @Test func widgetExportsTheControlIntentAndItsSymbol() throws {
+        let plugins = try #require(Bundle.main.builtInPlugInsURL)
+        let widget = try #require(Bundle(url: plugins.appending(path: "SheafsWidget.appex")))
+        for bundle in [Bundle.main, widget] {
+            let actions = bundle.bundleURL.appending(path: "Metadata.appintents/extract.actionsdata")
+            let metadata = try String(contentsOf: actions, encoding: .utf8)
+            #expect(metadata.contains("ContinueReadingIntent"), "intent missing from \(bundle.bundleURL.lastPathComponent)")
+        }
+        let icon = try #require(UIImage(named: "sheafs", in: widget, with: nil), "sheafs.symbolset missing from the extension")
+        #expect(icon.isSymbolImage, "the control's icon compiled as a bitmap, not a symbol")
     }
 
     /// Without the URL type the tap only launches the app; without the embedded extension there's

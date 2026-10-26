@@ -171,8 +171,9 @@ final class LibraryStore {
         return books.max { ($0.lastOpenedAt ?? $0.addedAt) < ($1.lastOpenedAt ?? $1.addedAt) }
     }
 
-    /// Hands the most recent book to the "Continue Reading" widget through the app group, and
-    /// reloads it only when what it shows changed (progress is rounded to whole percents).
+    /// Hands the most recent book to the "Continue Reading" widget and control through the app
+    /// group, and reloads them only when what they show changed (progress is rounded to whole
+    /// percents).
     func publishRecentBook() {
         guard let shelf = RecentBookShelf.shared else {
             log.error("widget: app group \(RecentBookShelf.appGroup, privacy: .public) unavailable")
@@ -195,6 +196,7 @@ final class LibraryStore {
             publishedRecent = recent
             hasPublished = true
             WidgetCenter.shared.reloadTimelines(ofKind: RecentBookShelf.widgetKind)
+            ControlCenter.shared.reloadControls(ofKind: RecentBookShelf.controlKind)
             log.info("widget: now \(recent?.title ?? "empty", privacy: .public) \(recent?.progress ?? 0)")
         } catch {
             log.error("widget: write failed: \(error)")
