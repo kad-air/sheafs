@@ -13,6 +13,10 @@ final class PageView: UIView {
     var folio = "" { didSet { setNeedsDisplay() } }
     /// The cover camera's hole in this view's coordinates; the running head keeps clear of it.
     var camera: CGRect? { didSet { setNeedsDisplay() } }
+    /// The page stands on the fold (tabletop): its last points turn away from the light as the
+    /// paper curves over the hinge. Drawn under the text, and carried by the turning leaf.
+    var curvesOverFold = false { didSet { if curvesOverFold != oldValue { setNeedsDisplay() } } }
+    static let foldCurve: CGFloat = 22
     /// Highlights of this page's chapter (any page; the view keeps what falls on its own).
     var marks: [HighlightMark] = [] { didSet { if marks != oldValue { setNeedsDisplay() } } }
     /// The live text selection, in chapter coordinates, drawn over the glyphs like iOS does.
@@ -36,10 +40,24 @@ final class PageView: UIView {
         guard let ctx = UIGraphicsGetCurrentContext() else { return }
         ctx.setFillColor(palette.background.cgColor)
         ctx.fill(bounds)
+        if curvesOverFold { drawFoldCurve(ctx) }
         drawMarks(ctx)
         chapter?.draw(page: page, at: textOrigin)
         drawSelection(ctx)
         drawMargins()
+    }
+
+    private func drawFoldCurve(_ ctx: CGContext) {
+        let depth: CGFloat = palette.isDark ? 0.3 : 0.055
+        let colors = [UIColor.black.withAlphaComponent(0).cgColor, UIColor.black.withAlphaComponent(depth).cgColor] as CFArray
+        guard let gradient = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: colors, locations: [0, 1]) else { return }
+        let top = bounds.maxY - Self.foldCurve
+        ctx.saveGState()
+        ctx.clip(to: CGRect(x: 0, y: top, width: bounds.width, height: Self.foldCurve))
+        // Eased toward the edge, like light falling off a curve, not a straight ramp.
+        ctx.drawLinearGradient(gradient, start: CGPoint(x: 0, y: top + Self.foldCurve * 0.35), end: CGPoint(x: 0, y: bounds.maxY),
+                               options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
+        ctx.restoreGState()
     }
 
     /// Highlights go under the glyphs (a translucent band, or a 2 pt underline); the text stays crisp.
