@@ -57,6 +57,10 @@ for _ in $(seq 1 "$limit"); do
   now=$(wc -c <"$WORK/console.log")
   if ((now == size)); then quiet=$((quiet + 1)); else quiet=0; size=$now; fi
   grep -aq "\[volume\] probe $count/$count" "$WORK/console.log" && ((quiet >= 3)) && break
+  if grep -aq '^\[open\] no book' "$WORK/console.log"; then
+    kill "$LAUNCH" >/dev/null 2>&1 || true
+    fail "$(grep -a '^\[open\] no book' "$WORK/console.log") (set BOOK=<a title fragment on the phone>)"
+  fi
 done
 kill "$LAUNCH" >/dev/null 2>&1 || true
 grep -a '^\[volume\]' "$WORK/console.log" >"$WORK/volume.log" || {
