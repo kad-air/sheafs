@@ -30,28 +30,35 @@ struct ReaderPalette: Hashable, Sendable {
         link: UIColor(red: 0.78, green: 0.64, blue: 0.45, alpha: 1),
         isDark: true)
 
-    static func resolve(_ theme: ReaderTheme, colorScheme: ColorScheme) -> ReaderPalette {
+    /// Pure black for OLED: the unlit pixels are the page. The text is dimmed a little further than
+    /// Night's so white-on-black does not glare in the dark.
+    static let black = ReaderPalette(
+        background: UIColor(red: 0, green: 0, blue: 0, alpha: 1),
+        text: UIColor(red: 0.74, green: 0.73, blue: 0.71, alpha: 1),
+        secondary: UIColor(red: 0.45, green: 0.45, blue: 0.44, alpha: 1),
+        link: UIColor(red: 0.72, green: 0.59, blue: 0.42, alpha: 1),
+        isDark: true)
+
+    /// The colours of `theme` while the device is in `system` mode; Automatic stands for `light` or
+    /// `dark` (the user's picks in the appearance settings).
+    static func resolve(_ theme: ReaderTheme, system: ColorScheme, light: ReaderTheme, dark: ReaderTheme) -> ReaderPalette {
         switch theme {
         case .paper: .paper
         case .sepia: .sepia
         case .night: .night
-        case .system: colorScheme == .dark ? .night : .paper
+        case .black: .black
+        case .system: resolve(system == .dark ? dark : light, system: system, light: .paper, dark: .night)
         }
     }
 
-    /// The colour scheme the reader runs in: the theme's own for a fixed theme, else the system's.
+    /// The colour scheme the reader runs in, so its bars and sheets match the page: the palette's
+    /// own, so Automatic with Night as its Light-mode theme still gets dark bars.
     /// 🔴 Always a value, never nil. `preferredColorScheme(nil)` does NOT undo an earlier forced
     /// scheme on the presentation: after Night, choosing Automatic kept the reader dark in Light
     /// mode. And the system's scheme must come from the window scene (`SystemColorSchemeReader`),
     /// not the environment's `colorScheme`, which the forced scheme itself overrides (reading it
     /// latched the first value, so live Light/Dark changes never reached the page).
-    static func colorScheme(for theme: ReaderTheme, system: ColorScheme) -> ColorScheme {
-        switch theme {
-        case .paper, .sepia: .light
-        case .night: .dark
-        case .system: system
-        }
-    }
+    var colorScheme: ColorScheme { isDark ? .dark : .light }
 }
 
 /// Reports the device's Light/Dark setting from the window scene's traits, which no view

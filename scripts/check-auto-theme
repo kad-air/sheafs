@@ -47,7 +47,8 @@ xcrun simctl launch --terminate-running-process "$UDID" io.sheafs.reader -Sheafs
 sleep 4
 
 # The page's left margin, sampled down the middle of the screen. Paper is (251, 249, 244), Night
-# (18, 18, 19): `ReaderPalette` in Sheafs/Reader/Theme.swift. Answers "light", "dark" or the RGB.
+# (18, 18, 19), Sepia (245, 236, 217), Black exactly (0, 0, 0): `ReaderPalette` in
+# Sheafs/Reader/Theme.swift. Answers "light", "dark", "sepia", "black" or the RGB.
 page_colour() {
   xcrun simctl io "$UDID" screenshot --display=primary "$WORK/shot.png" >/dev/null 2>&1
   sips -s format bmp "$WORK/shot.png" --out "$WORK/shot.bmp" >/dev/null
@@ -67,11 +68,15 @@ h = abs(height)
 samples = sorted(pixel(30, h * k // 10) for k in range(3, 8))
 r, g, b = samples[len(samples) // 2]
 close = lambda c, t: all(abs(a - e) <= 4 for a, e in zip(c, t))
-print("light" if close((r, g, b), (251, 249, 244)) else "dark" if close((r, g, b), (18, 18, 19)) else f"rgb({r},{g},{b})")
+names = {"light": (251, 249, 244), "dark": (18, 18, 19), "sepia": (245, 236, 217)}
+if (r, g, b) == (0, 0, 0):
+    print("black")
+else:
+    print(next((n for n, t in names.items() if close((r, g, b), t)), f"rgb({r},{g},{b})"))
 PY
 }
 
-expect() {  # expect <light|dark> <what>: polls for up to 10 s, the switch animates
+expect() {  # expect <light|dark|sepia|black> <what>: polls for up to 10 s, the switch animates
   local got
   for _ in $(seq 1 10); do
     got=$(page_colour)
@@ -101,4 +106,19 @@ xcrun simctl ui "$UDID" appearance dark
 expect dark "then device switched to Dark"
 xcrun simctl ui "$UDID" appearance light
 expect light "then device switched back to Light"
+
+# Automatic with the user's own picks: Sepia for Light, pure Black for Dark.
+xcrun simctl terminate "$UDID" io.sheafs.reader >/dev/null 2>&1 || true
+# The Night phase saved its settings into the app container's plist, which outranks the domain
+# `simctl spawn defaults` writes; drop that copy as at the start.
+plutil -remove 'reader\.settings\.v1' "$PREFS" >/dev/null 2>&1 || true
+PICKS='{"theme":"system","lightTheme":"sepia","darkTheme":"black","font":"newYork","fontSize":19,"lineHeight":1.4,"margin":24,"justified":false,"hyphenate":true,"paragraphStyle":"indented","keepScreenAwake":true,"tapToTurn":true}'
+xcrun simctl spawn "$UDID" defaults write io.sheafs.reader reader.settings.v1 -data "$(printf '%s' "$PICKS" | xxd -p | tr -d '\n')"
+xcrun simctl launch "$UDID" io.sheafs.reader -SheafsOpen Pride >/dev/null
+sleep 3
+expect sepia "Automatic picks Sepia/Black, device in Light"
+xcrun simctl ui "$UDID" appearance dark
+expect black "then device switched to Dark (pure black, not Night)"
+xcrun simctl ui "$UDID" appearance light
+expect sepia "then device switched back to Light"
 echo "AUTO THEME OK"

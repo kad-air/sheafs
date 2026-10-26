@@ -70,13 +70,12 @@ struct ReaderView: View {
         var timestamp: Date?
     }
 
-    /// The scheme the reader runs in (`ReaderPalette.colorScheme(for:system:)`); the environment's
-    /// only until the window scene has answered.
-    private var colorScheme: ColorScheme {
-        ReaderPalette.colorScheme(for: settings.theme, system: systemScheme ?? environmentScheme)
-    }
-    private var palette: ReaderPalette { ReaderPalette.resolve(settings.theme, colorScheme: colorScheme) }
-    private var style: TypesetStyle { settings.typesetStyle(colorScheme: colorScheme, language: book.language) }
+    /// The device's Light/Dark setting; the environment's only until the window scene has answered.
+    private var deviceScheme: ColorScheme { systemScheme ?? environmentScheme }
+    /// The scheme the reader runs in (`ReaderPalette.colorScheme`).
+    private var colorScheme: ColorScheme { palette.colorScheme }
+    private var palette: ReaderPalette { settings.palette(system: deviceScheme) }
+    private var style: TypesetStyle { settings.typesetStyle(system: deviceScheme, language: book.language) }
 
     var body: some View {
         NavigationStack {
@@ -611,7 +610,7 @@ struct ReaderView: View {
 
     /// `-SheafsAppearance quick|full` opens the quick panel or the detailed sheet once per launch, so
     /// screenshots and simulator checks can reach them without taps. `-SheafsThemeSwitch <theme>`
-    /// (paper, sepia, night, system) switches the theme 5 s later, as a tap on its swatch would
+    /// (paper, sepia, night, black, system) switches the theme 5 s later, as a tap on its swatch would
     /// (`scripts/check-auto-theme`: Night → Automatic must follow the device).
     private func openAppearanceFromLaunchArgument() {
         guard !Self.appearanceArgumentConsumed else { return }

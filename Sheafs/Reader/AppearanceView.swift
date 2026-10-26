@@ -34,6 +34,18 @@ struct AppearanceView: View {
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets())
             }
+            Section {
+                Picker("Light", systemImage: "sun.max", selection: $settings.lightTheme) {
+                    ForEach(ReaderTheme.fixed) { Text($0.title).tag($0) }
+                }
+                Picker("Dark", systemImage: "moon", selection: $settings.darkTheme) {
+                    ForEach(ReaderTheme.fixed) { Text($0.title).tag($0) }
+                }
+            } header: {
+                Text("Automatic")
+            } footer: {
+                Text("The themes Automatic uses while the device is in Light and Dark mode.")
+            }
             Section("Type") {
                 NavigationLink {
                     FontList(selection: $settings.font)
