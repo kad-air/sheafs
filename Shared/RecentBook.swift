@@ -19,6 +19,8 @@ nonisolated struct RecentBookShelf: Sendable {
     static let appGroup = "group.io.sheafs.reader"
     /// The widget kind, for `WidgetCenter.reloadTimelines(ofKind:)`.
     static let widgetKind = "ContinueReading"
+    /// The control kind, for `ControlCenter.reloadControls(ofKind:)` (its label is the book's title).
+    static let controlKind = "ContinueReadingControl"
 
     let directory: URL
 

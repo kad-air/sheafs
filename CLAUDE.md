@@ -47,6 +47,8 @@ scripts/release                   # fallback only (Xcode Cloud ships, below): ar
                                   #   (ASC_KEY_PATH/ASC_KEY_ID/ASC_ISSUER_ID; build = commit count,
                                   #   refuses a dirty tree; --no-upload archives and checks only)
 scripts/hinge/hinge 110           # fold the booted Duo simulator (0 closed … 180 flat); `get` reads it
+scripts/gen-symbol [preview.svg]  # redraws the control's icon (SheafsWidget/…/sheafs.symbolset/sheafs.svg);
+                                  #   a uv script (shapely); commit the SVG, the build validates it
 scripts/hinge/hinge orient ll     # turn it: portrait | landscape-left (ll) | landscape-right (lr) | faceup…
                                   #   device landscape = inner display portrait; + a part fold = tabletop
 xcrun simctl io <udid> screenshot --display=primary-1 out.png   # inner display (`primary` = cover)
@@ -226,6 +228,17 @@ regions (see Duo behaviour below), so check layout changes on the phone.
   timeline policy is `.never`. `SheafsApp.onOpenURL` sends `sheafs://` to
   `AppNavigation.open(bookWithID:in:)` and everything else to import. `WidgetTests` pins the URL
   type, the embedded extension and the app group entitlement (fails without it).
+  `ContinueReadingControl` (same extension) is the Lock Screen corner / Control Center / Action
+  button CONTROL: a `ControlWidgetButton` running `ContinueReadingIntent` (`Shared/`, compiled into
+  BOTH targets, also a Shortcuts action). 🔴 The intent is FOREGROUND mode: the system brings the
+  app up and runs it in the APP process, where `ContinueReading.handler` (set in `SheafsApp.init`)
+  opens `library.mostRecentBook()`. A background intent in the extension returning `OpenURLIntent`
+  ran but opened nothing from Control Center (`openAppWhenRun: NO`, the link was dropped). Its icon
+  is the custom symbol `sheafs` (SheafsWidget/Assets.xcassets/sheafs.symbolset, an SF Symbols v3
+  template with Regular-S/M/L drawn by `scripts/gen-symbol`): controls take only symbol images
+  (tinted and scaled by the system), a bitmap draws nothing. Its label is the book's title, so
+  `publishRecentBook()` also calls `ControlCenter.reloadControls`. `WidgetTests` checks the intent
+  is in BOTH bundles' `Metadata.appintents` and the icon loads as a symbol (`isSymbolImage`).
 
 ## iPhone Duo behaviour (the point of the app)
 

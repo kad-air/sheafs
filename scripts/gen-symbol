@@ -1,0 +1,137 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.9"
+# dependencies = ["shapely>=2"]
+# ///
+# Draws the mono Sheafs symbol (the app icon's three tilted sheets, the top one with text lines and
+# a drop cap) as an SF Symbols v3 template with Regular-S/M/L variants, and writes it to
+# SheafsWidget/Assets.xcassets/sheafs.symbolset/sheafs.svg: the control's icon (controls take only
+# symbol images). Optional second argument: a preview SVG of the M variant, white on grey.
+# The build (actool) validates the template; `WidgetTests` checks it compiled as a symbol.
+import sys
+from shapely.geometry import box, Polygon
+from shapely.geometry.polygon import orient
+from shapely.ops import unary_union
+from shapely import affinity
+
+# --- design, in template units at M scale, origin at the symbol centre, y down ---
+W, H, R = 56.0, 74.0, 6.0          # sheet size and corner radius
+GAP = 4.2                          # knockout gap between sheets
+LINE, PITCH = 4.8, 10.5            # text line thickness and pitch
+RING = 2.8                         # the drop cap: a square hole with a smaller square inside
+MARGIN = 7.0                       # inside the sheet
+SCALE = 1.4                        # the whole drawing: system glyphs (flashlight, camera) fill
+                                   # ~60% of a control's bubble; at 1.0 this filled ~45%
+SHEETS = [                         # (rotation deg, dx, dy), back to front
+    (0.0, -17.0, 15.0),
+    (-5.0, -8.5, 7.5),
+    (-11.0, 0.0, 0.0),
+]
+
+def rounded_rect(w, h, r):
+    return box(-w/2 + r, -h/2 + r, w/2 - r, h/2 - r).buffer(r, quad_segs=12)
+
+def place(shape, rot, dx, dy):
+    return affinity.translate(affinity.rotate(shape, rot, origin=(0, 0)), dx, dy)
+
+def top_sheet_holes():
+    """Text lines and the drop-cap square, in the sheet's own frame."""
+    x0, x1 = -W/2 + MARGIN, W/2 - MARGIN
+    y0 = -H/2 + MARGIN + LINE/2
+    n = int((H - 2*MARGIN - LINE) // PITCH) + 1
+    square = 2*PITCH - (PITCH - LINE)          # spans lines 1–2
+    sq = box(x0, y0 - LINE/2, x0 + square, y0 - LINE/2 + square)
+    holes = [sq.difference(sq.buffer(-RING))]
+    for i in range(n):
+        y = y0 + i*PITCH
+        start = x0 + square + 4.0 if i < 2 else x0
+        end = x1 - 10.0 if i in (3, 5) else x1
+        holes.append(box(start, y - LINE/2, end, y + LINE/2))
+    return holes
+
+def build():
+    placed, outlines = [], []
+    for i, (rot, dx, dy) in enumerate(SHEETS):
+        outline = rounded_rect(W, H, R)
+        sheet = outline
+        if i == len(SHEETS) - 1:
+            for hole in top_sheet_holes():
+                sheet = sheet.difference(hole)
+        placed.append(place(sheet, rot, dx, dy))
+        outlines.append(place(outline, rot, dx, dy))
+    # every sheet loses a gap around the OUTLINE of each sheet in front of it (a hole in the top
+    # sheet is not a window onto the sheet beneath)
+    visible = []
+    for i, sheet in enumerate(placed):
+        for front in outlines[i+1:]:
+            sheet = sheet.difference(front.buffer(GAP, quad_segs=12))
+        visible.append(sheet)
+    shape = unary_union(visible)
+    minx, miny, maxx, maxy = shape.bounds
+    shape = affinity.translate(shape, -(minx + maxx)/2, -(miny + maxy)/2)
+    return affinity.scale(shape, SCALE, SCALE, origin=(0, 0))
+
+def path_d(geom, scale=1.0, dx=0.0, dy=0.0, nd=3):
+    polys = [geom] if geom.geom_type == "Polygon" else list(geom.geoms)
+    parts = []
+    for poly in polys:
+        poly = orient(poly, 1.0)      # exterior CCW, holes CW: holes knock through
+        for ring in [poly.exterior, *poly.interiors]:
+            pts = list(ring.coords)[:-1]
+            parts.append("M" + " L".join(f"{x*scale+dx:.{nd}f} {y*scale+dy:.{nd}f}" for x, y in pts) + " Z")
+    return " ".join(parts)
+
+SCALES = {"S": 0.783, "M": 1.0, "L": 1.29}
+BASELINE = {"S": 696.0, "M": 1126.0, "L": 1556.0}
+CAP = 70.46
+CENTER_X = 1450.0
+
+def template(shape):
+    minx, miny, maxx, maxy = shape.bounds
+    guides, symbols = [], []
+    for s, k in SCALES.items():
+        base = BASELINE[s]
+        cy = base - CAP/2                           # the symbol sits on the cap-height's centre
+        guides.append(f'  <line id="Capline-{s}" x1="263" x2="3063" y1="{base-CAP:.2f}" y2="{base-CAP:.2f}" style="fill:none;stroke:#27AAE1;stroke-width:0.5"/>')
+        guides.append(f'  <line id="Baseline-{s}" x1="263" x2="3063" y1="{base:.2f}" y2="{base:.2f}" style="fill:none;stroke:#27AAE1;stroke-width:0.5"/>')
+        for side, x in (("left", minx), ("right", maxx)):
+            gx = CENTER_X + x*k
+            guides.append(f'  <line id="{side}-margin-Regular-{s}" x1="{gx:.3f}" x2="{gx:.3f}" y1="{cy+miny*k-10:.3f}" y2="{cy+maxy*k+10:.3f}" style="fill:none;stroke:#00AEEF;stroke-width:0.5"/>')
+        d = path_d(shape, k, CENTER_X, cy)
+        symbols.append(f'  <g id="Regular-{s}">\n    <path class="monochrome-0" d="{d}"/>\n  </g>')
+    return f'''<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="3300" height="2200" viewBox="0 0 3300 2200">
+<style>
+  .monochrome-0 {{fill:#000000}}
+</style>
+<g id="Notes">
+  <rect id="artboard" x="0" y="0" width="3300" height="2200" style="fill:#ffffff;opacity:1"/>
+  <text id="template-version" style="font-family:'SFProText-Regular';font-size:13px" x="263" y="120">Template v.3.0</text>
+  <text id="descriptive-name" style="font-family:'SFProText-Regular';font-size:13px" x="263" y="150">sheafs</text>
+</g>
+<g id="Guides">
+{chr(10).join(guides)}
+</g>
+<g id="Symbols">
+{chr(10).join(symbols)}
+</g>
+</svg>
+'''
+
+def preview(shape, size=512):
+    minx, miny, maxx, maxy = shape.bounds
+    span = max(maxx - minx, maxy - miny) * 1.15
+    k = size / span
+    d = path_d(shape, k, size/2, size/2)
+    return f'<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" viewBox="0 0 {size} {size}"><rect width="{size}" height="{size}" fill="#444"/><path d="{d}" fill="#fff" fill-rule="nonzero"/></svg>'
+
+if __name__ == "__main__":
+    import os
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    out_template = os.path.join(root, "SheafsWidget/Assets.xcassets/sheafs.symbolset/sheafs.svg")
+    out_preview = sys.argv[1] if len(sys.argv) > 1 else None
+    shape = build()
+    print("bounds", [round(v, 2) for v in shape.bounds], "polygons", 1 if shape.geom_type == "Polygon" else len(shape.geoms))
+    open(out_template, "w").write(template(shape))
+    if out_preview: open(out_preview, "w").write(preview(shape))

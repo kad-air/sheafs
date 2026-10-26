@@ -4,9 +4,13 @@ import WidgetKit
 
 /// "Continue Reading": the most recently read book's cover; a tap opens it in the reader.
 /// The app writes the snapshot (`RecentBookShelf`) and reloads this widget when it changes.
+/// `ContinueReadingControl` is the same thing as a Lock Screen / Control Center button.
 @main
 struct SheafsWidgetBundle: WidgetBundle {
-    var body: some Widget { ContinueReadingWidget() }
+    var body: some Widget {
+        ContinueReadingWidget()
+        ContinueReadingControl()
+    }
 }
 
 struct ContinueReadingWidget: Widget {
