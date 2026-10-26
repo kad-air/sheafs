@@ -6,14 +6,15 @@ import os
 /// Turns pages with the volume buttons: up = next page, down = previous (`Press.turnsForward`; the
 /// owner's choice, the reverse of Kindle and Readest).
 ///
-/// iOS has no public volume-button event outside a camera session, so this is the usual trick:
-/// an active audio session makes `outputVolume` observable, every press is a step from the last
-/// reading (`PressReader`), and a hidden `MPVolumeView`'s slider puts the volume straight back, so
-/// the level never really changes and the system volume HUD stays away (an `MPVolumeView` in the
-/// window suppresses it). The session is `.playback` + `.mixWithOthers` (Readest's, proven on
-/// devices): nothing is played, and other apps' audio keeps going. On stop the user's volume is
-/// restored and the session deactivated. The approach is credited in the README; Readest is
-/// AGPL, so its code must not be copied into this MIT tree.
+/// iOS has no public volume-button event outside a camera session (`AVCaptureEventInteraction` is
+/// delivered only to apps actively using the camera), so this is the usual trick, the one Readest
+/// uses too: an active audio session makes `outputVolume` observable, every press is a step from
+/// the last reading (`PressReader`), and a hidden `MPVolumeView`'s slider puts the volume straight
+/// back after EVERY press, so the level is back where it was within a few milliseconds and the
+/// system volume HUD stays away (an `MPVolumeView` on screen suppresses it). The session is
+/// `.playback` + `.mixWithOthers`: nothing is played, and other apps' audio keeps going. On stop
+/// the user's volume is restored and the session deactivated. The approach is credited in the
+/// README; Readest is AGPL, so its code must not be copied into this MIT tree.
 final class VolumeButtonPager {
     enum Press: Equatable {
         case up, down
@@ -94,15 +95,24 @@ final class VolumeButtonPager {
         }
     }
 
-    /// Debug: `-SheafsVolumeProbe up|down` moves the volume one step through the slider 1.5 s after
-    /// starting, standing in for a button press (the simulator has no volume buttons).
+    /// Debug: `-SheafsVolumeProbe up,down,…` moves the volume one step through the slider for each
+    /// entry, `-SheafsVolumeProbeGap` seconds apart (0.8 by default), starting 1.5 s after arming:
+    /// what a button press does, for the simulator (which has no volume buttons, and no volume
+    /// route, so there it changes nothing) and for `scripts/check-volume-device` on a phone.
     private func probeIfAsked() {
-        guard let direction = UserDefaults.standard.string(forKey: "SheafsVolumeProbe") else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
-            guard let self, isRunning else { return }
-            let target = reader.reference + (direction == "up" ? 0.0625 : -0.0625)
-            VolumeLog.shared.note("probe: slider=\(self.slider != nil) → \(target)")
-            slider?.value = target
+        let defaults = UserDefaults.standard
+        guard let list = defaults.string(forKey: "SheafsVolumeProbe") else { return }
+        let steps = list.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        let gap = defaults.object(forKey: "SheafsVolumeProbeGap").map { _ in defaults.double(forKey: "SheafsVolumeProbeGap") } ?? 0.8
+        for (index, direction) in steps.enumerated() {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5 + gap * Double(index)) { [weak self] in
+                guard let self, isRunning else { return }
+                // From the reference, where every put-back leaves the volume; 1/16 is iOS's nominal
+                // step, and the device rounds it onto its own grid like a press.
+                let target = reader.reference + (direction == "up" ? 0.0625 : -0.0625)
+                VolumeLog.shared.note("probe \(index + 1)/\(steps.count) \(direction): slider=\(self.slider != nil) → \(target)")
+                slider?.value = target
+            }
         }
     }
 
@@ -127,14 +137,14 @@ final class VolumeButtonPager {
     private func volumeChanged(_ volume: Float) {
         guard isRunning else { return }
         let press = reader.read(volume, at: ProcessInfo.processInfo.systemUptime)
-        VolumeLog.shared.note("outputVolume=\(volume) press=\(press.map { "\($0)" } ?? "none") slider=\(self.slider != nil)")
+        VolumeLog.shared.note("outputVolume=\(volume) press=\(press.map { "\($0)" } ?? "none") reference=\(self.reader.reference)")
         guard let press else { return }
         putBack()
         onPress?(press)
     }
 
-    /// Near either end of the range the next press that way could not move the volume (and would go
-    /// unseen), so put it back to the reference. Only there: every put-back is a reading of its own.
+    /// Puts the volume back to the reference, after every press (and at the start if the reference
+    /// clamp moved it), so the level a press changed is back within milliseconds.
     private func putBack() {
         guard let slider, reader.needsPutBack else { return }
         VolumeLog.shared.note("put back: \(reader.previous) → \(reader.reference) (slider at \(slider.value))")
@@ -147,22 +157,25 @@ final class VolumeButtonPager {
 }
 
 
-/// Turns `outputVolume` readings into presses. A press is a step from the PREVIOUS reading. The
-/// volume is put back (to the reference) only near either end of the range, and the reading that
-/// answers a put-back is not a press: the first one within `putBackWindow` that lands nearer the
-/// reference than the volume was. 🔴 It does NOT land on the reference: the device's volume moves
-/// in its own steps (an iPhone Duo on iOS 27.1 read 0.0, 0.05, 0.15, 0.2, 0.25), so build 7, which
-/// put back after every press and only recognised an exact landing, read each put-back as a press
-/// the other way and turned pages at random.
+/// Turns `outputVolume` readings into presses. A press is a step from the PREVIOUS reading. After
+/// every press the volume is put back to the reference, and the reading that answers a put-back is
+/// not a press: the first one within `putBackWindow` that lands nearer the reference than the
+/// volume was. 🔴 The landing becomes the reference. The device moves in its own steps (an iPhone
+/// Duo on iOS 27.1 reports 0.0, 0.05, 0.15, 0.2, 0.25, 0.3), so a put-back to a value off that
+/// grid lands beside it (0.125 → 0.15), and build 7, which kept aiming at 0.125, read every
+/// landing as a press and turned pages at random. A put-back to a value the device itself
+/// reported lands on it exactly (0.25 → 0.25 in the same log), so once the reference is a landing
+/// every later put-back is clean. `VolumeButtonTests` replays the device's log.
 struct PressReader {
     nonisolated static let tolerance: Float = 0.01
     /// How long after a put-back its reading may arrive.
     nonisolated static let putBackWindow: TimeInterval = 1.0
-    /// Within this of either end, a press toward that end might not move the volume.
-    nonisolated static let edge: Float = 0.1
+    /// The reference stays at least this far inside the range, so a press either way moves the
+    /// volume (at 0 a down press changes nothing and goes unseen).
+    nonisolated static let margin: Float = 0.1
 
     private(set) var previous: Float
-    let reference: Float
+    private(set) var reference: Float
     private var putBackAt: TimeInterval?
 
     nonisolated init(previous: Float, reference: Float) {
@@ -170,14 +183,14 @@ struct PressReader {
         self.reference = reference
     }
 
-    /// The level put-backs aim for: the user's volume, kept well inside the range.
+    /// The level put-backs aim for at first: the user's volume, kept inside the range.
     nonisolated static func reference(for volume: Float) -> Float {
-        min(max(volume, 0.25), 0.75)
+        min(max(volume, margin), 1 - margin)
     }
 
-    /// Whether the volume is so near an end that it should be put back before the next press.
+    /// Whether the volume rests off the reference (a press moved it, or the clamp did).
     nonisolated var needsPutBack: Bool {
-        previous <= Self.edge + Self.tolerance || previous >= 1 - Self.edge - Self.tolerance
+        abs(previous - reference) > Self.tolerance
     }
 
     nonisolated mutating func didPutBack(at time: TimeInterval) {
@@ -190,7 +203,10 @@ struct PressReader {
             let landing = time - putBackAt < Self.putBackWindow
                 && abs(volume - reference) + Self.tolerance < abs(previous - reference)
             if landing || time - putBackAt >= Self.putBackWindow { self.putBackAt = nil }
-            if landing { return nil }
+            if landing {
+                reference = volume
+                return nil
+            }
         }
         if volume > previous + Self.tolerance { return .up }
         if volume < previous - Self.tolerance { return .down }

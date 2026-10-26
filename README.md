@@ -73,8 +73,9 @@ can share the account; the same EPUB file (byte for byte) must be on each device
 ## Acknowledgements
 
 Volume-button page turns follow the approach of [Readest](https://github.com/readest/readest)
-(AGPL-3.0), which showed it working well on iOS; Sheafs' implementation is its own, and no Readest
-code is included.
+(AGPL-3.0), which showed it working well on iOS: iOS offers no volume-button event to a reader, so
+the app watches the system volume and puts it straight back after every press. Sheafs'
+implementation is its own, and no Readest code is included.
 
 ## License
 

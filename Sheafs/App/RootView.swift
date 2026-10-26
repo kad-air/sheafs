@@ -53,7 +53,11 @@ struct RootView: View {
         try? await Task.sleep(for: .milliseconds(800))
         let books = (try? library.context.fetch(FetchDescriptor<Book>())) ?? []
         if let book = books.first(where: { $0.title.localizedCaseInsensitiveContains(wanted) }) {
+            print("[open] \"\(wanted)\" → \"\(book.title)\"")
             navigation.open(book)
+        } else {
+            // Scripts wait on this line rather than on a library that never opens a book.
+            print("[open] no book in the library matches \"\(wanted)\"; titles: \(books.map { "\"\($0.title)\"" }.joined(separator: ", "))")
         }
     }
 }
