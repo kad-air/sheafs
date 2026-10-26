@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # The one command that must pass. Fails loudly (non-zero exit, one-line reason) at the first problem.
 #   1. no personal names, emails or secrets in the tree              (grep)
-#   2. the marketing site (docs/, GitHub Pages) is whole and its claims match the code (scripts/check-site)
+#   2. the marketing site (docs/, GitHub Pages) is whole and its claims match the code (scripts/check-site),
+#      and the app icon and the site's icons read back against the mark the control's symbol is
+#      drawn from (scripts/check-icon, with its self-test)
 #   3. reference data is fresh: the Python second sources regenerate byte-identical JSON
 #   4. SheafsKit unit tests (EPUB/ZIP vs Python zipfile, converter vs validated path algorithm,
 #      partial MD5 vs an independent digest, OPDS vs ElementTree)    (swift test, on the Mac),
@@ -28,9 +30,11 @@ if grep -rIniE --exclude-dir=.git --exclude-dir=.build --exclude-dir=Sheafs.xcod
 fi
 
 command -v python3 >/dev/null || fail "python3 not found"
-step "2/6 marketing site (docs/)"
+step "2/6 marketing site (docs/) and the icons"
 run "scripts/check-site" check-site.log python3 -I scripts/check-site
 tail -1 "$LOG/check-site.log"
+run "scripts/check-icon" check-icon.log python3 -I scripts/check-icon --selftest
+tail -1 "$LOG/check-icon.log"
 
 step "3/6 reference data freshness (Python second sources)"
 FIX=Packages/SheafsKit/Tests/SheafsKitTests/Fixtures
