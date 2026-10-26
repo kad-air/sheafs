@@ -160,7 +160,15 @@ final class PageFlipView: MTKView {
     /// the live page uses, so the leaf carries exactly what was on screen.
     func makeTexture(for page: PageView) -> MTLTexture? {
         guard let device else { return nil }
-        let scale = traitCollection.displayScale
+        return Self.texture(for: page, scale: traitCollection.displayScale, device: device)
+    }
+
+    /// 🔴 The page's bounds are stretched onto the WHOLE texture, not drawn at `scale`: a page
+    /// whose height is not a whole number of pixels (tabletop: the page ends at the fold, 455.5 pt
+    /// = 1366.5 px on the Duo) would leave the rounded-up last row half painted, alpha 0.5, and the
+    /// shader reads its premultiplied colour as half-dark paper: a line across the whole display
+    /// under the leaf and the page beneath for as long as the turn lasts. `PageFlipEdgeTests`.
+    static func texture(for page: PageView, scale: CGFloat, device: MTLDevice) -> MTLTexture? {
         let size = page.bounds.size
         let width = Int((size.width * scale).rounded()), height = Int((size.height * scale).rounded())
         guard width > 0, height > 0 else { return nil }
@@ -171,7 +179,7 @@ final class PageFlipView: MTKView {
         else { return nil }
         // UIKit draws y-down; row 0 of the bitmap is the top of the page, which is v = 0 in the shader.
         context.translateBy(x: 0, y: CGFloat(height))
-        context.scaleBy(x: scale, y: -scale)
+        context.scaleBy(x: CGFloat(width) / size.width, y: -CGFloat(height) / size.height)
         UIGraphicsPushContext(context)
         page.render(in: context)
         UIGraphicsPopContext()
@@ -181,7 +189,7 @@ final class PageFlipView: MTKView {
         guard let texture = device.makeTexture(descriptor: descriptor), let data = context.data else { return nil }
         texture.replace(region: MTLRegionMake2D(0, 0, width, height), mipmapLevel: 0, withBytes: data, bytesPerRow: context.bytesPerRow)
         let ms = (CFAbsoluteTimeGetCurrent() - started) * 1000
-        log.debug("page texture \(width)×\(height) in \(ms, format: .fixed(precision: 1)) ms")
+        Logger(subsystem: "io.sheafs.reader", category: "flip").debug("page texture \(width)×\(height) in \(ms, format: .fixed(precision: 1)) ms")
         return texture
     }
 }
