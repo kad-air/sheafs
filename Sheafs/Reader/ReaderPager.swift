@@ -717,7 +717,7 @@ final class SpreadViewController: UIViewController {
             let local = view.convert(point, to: pageView)
             guard let characterIndex = pageView.characterIndex(at: local),
                   characterIndex < chapter.textStorage.length,
-                  let href = chapter.textStorage.attribute(.link, at: characterIndex, effectiveRange: nil) as? String else { continue }
+                  let href = chapter.textStorage.attribute(.sheafsLink, at: characterIndex, effectiveRange: nil) as? String else { continue }
             return (href, slot.spineIndex)
         }
         return nil
