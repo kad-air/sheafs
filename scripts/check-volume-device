@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+# End-to-end check of the volume-button page turns ON A PHONE (the simulator has no volume buttons
+# and no volume route). Installs the app, opens a book with `-SheafsVolumeProbe`, which moves the
+# system volume one step at a time through the hidden slider exactly as a button press does, and
+# reads the app's `[volume] …` console lines back. Fails loudly unless every probe step was read
+# as a press the right way, turned the page the right way (the pager's landed location, a second
+# source), and was put back: the system then reported the volume at the reference again (the
+# landing), with no spurious press in between and the level at rest where it started.
+#   DEVICE=<udid>         the phone (default: the first paired physical iPhone devicectl lists)
+#   BOOK=<title fragment> a book in the phone's library (default: Pride)
+#   APP=<Sheafs.app>      skip the build and install this one
+#   ASC_KEY_PATH/ASC_KEY_ID/ASC_ISSUER_ID   for the build (as scripts/release)
+#   DERIVED_DATA=/tmp/sheafs-derived-device
+#   STEPS=up,up,down,up,down,down   GAP=1.0 (seconds between probe steps)
+# The phone must be unlocked.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+fail() { echo "VOLUME DEVICE CHECK FAILED: $*" >&2; exit 1; }
+BOOK=${BOOK:-Pride}
+STEPS=${STEPS:-up,up,down,up,down,down}
+GAP=${GAP:-1.0}
+WORK=$(mktemp -d)
+trap 'rm -rf "$WORK"' EXIT
+
+DEVICE=${DEVICE:-$(xcrun devicectl list devices -j "$WORK/devices.json" >/dev/null 2>&1; python3 -I -c '
+import json, sys
+for d in json.load(open(sys.argv[1]))["result"]["devices"]:
+    p = d.get("connectionProperties", {}); h = d.get("hardwareProperties", {})
+    if h.get("platform") == "iOS" and h.get("reality") == "physical" and p.get("pairingState") == "paired":
+        print(h["udid"]); break
+' "$WORK/devices.json")}
+[[ -n $DEVICE ]] || fail "no paired iPhone; set DEVICE=<udid>"
+
+if [[ -z ${APP:-} ]]; then
+  : "${ASC_KEY_PATH:?set ASC_KEY_PATH (or APP=<built Sheafs.app>)}"; : "${ASC_KEY_ID:?set ASC_KEY_ID}"; : "${ASC_ISSUER_ID:?set ASC_ISSUER_ID}"
+  DD=${DERIVED_DATA:-/tmp/sheafs-derived-device}
+  xcodegen generate --quiet
+  xcodebuild -project Sheafs.xcodeproj -scheme Sheafs -destination "platform=iOS,id=$DEVICE" -derivedDataPath "$DD" \
+    -allowProvisioningUpdates -allowProvisioningDeviceRegistration -authenticationKeyPath "$ASC_KEY_PATH" \
+    -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" -quiet build >"$WORK/build.log" 2>&1 \
+    || { tail -n 30 "$WORK/build.log" >&2; fail "build"; }
+  APP=$DD/Build/Products/Debug-iphoneos/Sheafs.app
+fi
+xcrun devicectl device install app --device "$DEVICE" "$APP" >/dev/null 2>&1 || fail "install (is the phone unlocked?)"
+
+count=$(tr ',' '\n' <<<"$STEPS" | wc -l | tr -d ' ')
+limit=$(python3 -I -c 'import sys; print(int(30 + float(sys.argv[1]) * int(sys.argv[2])))' "$GAP" "$count")
+echo "== probing $STEPS on $DEVICE (up to $limit s)"
+: >"$WORK/console.log"
+xcrun devicectl device process launch --console --terminate-existing --device "$DEVICE" io.sheafs.reader \
+  -- -SheafsOpen "$BOOK" -SheafsVolumeProbe "$STEPS" -SheafsVolumeProbeGap "$GAP" >"$WORK/console.log" 2>&1 &
+LAUNCH=$!
+# Done when the last probe step has been logged and the log has been quiet for 3 s.
+quiet=0; size=0
+for _ in $(seq 1 "$limit"); do
+  sleep 1
+  now=$(wc -c <"$WORK/console.log")
+  if ((now == size)); then quiet=$((quiet + 1)); else quiet=0; size=$now; fi
+  grep -aq "\[volume\] probe $count/$count" "$WORK/console.log" && ((quiet >= 3)) && break
+done
+kill "$LAUNCH" >/dev/null 2>&1 || true
+grep -a '^\[volume\]' "$WORK/console.log" >"$WORK/volume.log" || {
+  echo "console: $(wc -c <"$WORK/console.log") bytes" >&2; tail -n 20 "$WORK/console.log" >&2
+  fail "no [volume] lines (launch failed, or the book \"$BOOK\" isn't on the phone)"; }
+cat "$WORK/volume.log"
+grep -aq "\[volume\] probe $count/$count" "$WORK/volume.log" || fail "the probe never reached step $count (see the log above)"
+
+python3 -I - "$WORK/volume.log" "$STEPS" <<'PY' || fail "see above"
+import re, sys
+lines = [l.rstrip("\n") for l in open(sys.argv[1], encoding="utf-8", errors="replace")]
+steps = sys.argv[2].split(",")
+problems = []
+def num(pattern, line):
+    m = re.search(pattern, line); return float(m.group(1)) if m else None
+start = next((l for l in lines if "] start:" in l), None)
+if start is None: sys.exit("no 'start:' line: the buttons never armed")
+if "slider=true" not in start: problems.append("no slider in the volume view: nothing can be put back")
+reference0 = num(r"reference=([0-9.]+)", start)
+presses = [l for l in lines if re.search(r"press=(up|down)", l)]
+if len(presses) != len(steps):
+    problems.append(f"{len(presses)} presses read for {len(steps)} probe steps (a put-back landing read as a press, or a step was missed)")
+i = 0
+for n, step in enumerate(steps, 1):
+    probe = next((k for k in range(i, len(lines)) if f"] probe {n}/" in lines[k]), None)
+    if probe is None: problems.append(f"step {n}: no probe line"); break
+    rest = lines[probe + 1:]
+    def find(pred, what):
+        for k, l in enumerate(rest):
+            if pred(l): return k, l
+        problems.append(f"step {n} ({step}): no {what} after the probe"); return None, None
+    k, press = find(lambda l: "press=" in l, "reading")
+    if press is None: break
+    if f"press={step}" not in press: problems.append(f"step {n}: probed {step}, read as {press}")
+    k2, turn = find(lambda l: "] turn " in l, "turn")
+    if turn is None: break
+    want = "forward" if step == "up" else "back"
+    if f"turn {want}" not in turn: problems.append(f"step {n}: probed {step}, turned: {turn}")
+    frm = re.search(r"from spine=(-?\d+) offset=(-?\d+)", turn)
+    k3, landed = find(lambda l: "] landed at" in l, "landed location")
+    if landed is None: break
+    to = re.search(r"spine=(\d+) offset=(\d+)", landed)
+    if frm and to:
+        a = (int(frm.group(1)), int(frm.group(2))); b = (int(to.group(1)), int(to.group(2)))
+        if a[0] < 0: problems.append(f"step {n}: no displayed location before the turn")
+        elif (b > a) != (step == "up") or b == a: problems.append(f"step {n}: {step} went from {a} to {b}")
+    k4, back = find(lambda l: "] put back:" in l, "put back")
+    if back is None: break
+    target = num(r"→ ([0-9.]+) \(slider", back)
+    def at_reference(l):
+        v = num(r"outputVolume=([0-9.]+)", l); return v is not None and target is not None and abs(v - target) <= 0.011
+    k5, landing = find(lambda l: "press=none" in l and at_reference(l), "put-back landing (the system never reported the volume back at the reference)")
+    if landing is None: break
+    if any("press=" in l and "press=none" not in l for l in rest[k4 + 1:k5]):
+        problems.append(f"step {n}: a press was read between the put-back and its landing")
+    i = lines.index(landing) + 1
+readings = [l for l in lines if "outputVolume=" in l]
+if readings:
+    last = readings[-1]; v = num(r"outputVolume=([0-9.]+)", last); r = num(r"reference=([0-9.]+)", last)
+    if v is None or r is None or abs(v - r) > 0.011: problems.append(f"the volume did not end at rest: {last}")
+    if reference0 is not None and r is not None and abs(r - reference0) > 0.051:
+        problems.append(f"the reference drifted from {reference0} to {r}")
+if problems:
+    print("\n".join("  - " + p for p in problems), file=sys.stderr); sys.exit(1)
+print(f"OK: {len(steps)} probe steps, each read, turned and put back; volume at rest at {r}")
+PY

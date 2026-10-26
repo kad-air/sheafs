@@ -22,6 +22,10 @@ scripts/check-site [--render]     # the marketing site in docs/ (GitHub Pages, s
                                   #   enums in the code, asset weight; --render screenshots it with headless Chrome
 scripts/check-auto-theme          # end to end on a simulator (SIM="iPhone Duo"): theme Automatic follows
                                   #   live Light/Dark flips (reads the page colour off screenshots)
+scripts/check-volume-device       # on the PHONE (unlocked; DEVICE=<udid>, BOOK=<title>, APP=<built .app> or
+                                  #   ASC_KEY_* to build): probes the volume one step at a time like presses
+                                  #   and asserts each read, turned the right way (landed location) and was
+                                  #   put back (the system reported the reference again); the simulator can't
 scripts/screenshots [duo|iphone|ipad]  # App Store screenshots: every Duo pose on "iPhone Duo" (Sheafs is
                                   #   reinstalled there), portrait on "Sheafs Shots iPhone"/"iPad" (made if missing) → OUT=/tmp/sheafs-
                                   #   screenshots/{duo-inner,duo-cover,iphone,ipad}/; fresh install, Standard
@@ -158,27 +162,35 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     `Picker`: system menus draw every item in the system font. `FontTests` checks every family is
     really installed (a missing one falls back to the system font without a word).
   - `Reader/VolumeButtons` — `VolumeButtonPager` (setting `volumeButtonsTurn`, off by default):
-    up = next page, down = previous (`Press.turnsForward`, the owner's choice). An active `.playback` + `.mixWithOthers` session makes
-    `outputVolume` observable; `PressReader` reads a press as a step from the PREVIOUS reading.
-    The volume really moves with each press; only within 0.1 of either end does the hidden
-    `MPVolumeView`'s slider (searched for in its subtree each time, else the one it had when made;
-    on the simulator it swaps the slider for a label once in a window) put it back to a reference
-    (the user's volume kept within 0.25…0.75), and the first reading within 1 s that lands nearer
-    the reference is that put-back, not a press. 🔴 Device readings move in the device's own steps
-    (Duo, iOS 27.1: 0.0, 0.05, 0.15, 0.2…), so a put-back never lands exactly on the reference:
-    build 7 put back after EVERY press and read each landing as a press the other way (pages
-    turned at random). The volume view sits ON screen (origin, 1 pt, alpha 0.01): off-screen it no
-    longer hid the system volume HUD on iOS 27; on screen it does (confirmed on the Duo, keep it
-    there). `ReaderView.volumeButtonsArmed` runs it only while the scene is
-    active, the book is ready, the regions are known and no sheet is up, and arming RETRIES until
-    the pager is in a window (it appears after the regions; arming once gave up silently). Stop
-    restores the user's volume. `VolumeButtonTests` pins the press logic. The simulator can't
-    press the buttons (and setting the hidden slider there changes nothing: no volume route), so
-    verify on the phone. Every step (arming decisions with each condition, session state, the
-    volume view's subview tree, each reading, each turn) goes through `VolumeLog.note`: a public
-    `Logger` notice (category `volume`) AND an in-memory buffer shown and copied in Settings →
-    About → Volume Button Log, so a TestFlight run can be read without a Mac.
-    `-SheafsVolumeProbe up|down` moves the volume one step through the slider 1.5 s after arming.
+    up = next page, down = previous (`Press.turnsForward`, the owner's choice). iOS has no public
+    volume-button event outside a camera session (`AVCaptureEventInteraction` reaches only apps
+    actively using the camera), so this is the trick Readest uses too: an active `.playback` +
+    `.mixWithOthers` session makes `outputVolume` observable; `PressReader` reads a press as a step
+    from the PREVIOUS reading, and after EVERY press the hidden `MPVolumeView`'s slider (searched
+    for in its subtree each time, else the one it had when made; on the simulator it swaps the
+    slider for a label once in a window) puts the volume back to a reference, so the level is
+    back within milliseconds (a blip, if music is playing). The first reading within 1 s of a
+    put-back that lands nearer the reference is that landing, not a press, 🔴 and the landing
+    BECOMES the reference: the device moves in its own steps (Duo, iOS 27.1: 0.0, 0.05, 0.15,
+    0.2, 0.25, 0.3), a put-back to a value off that grid lands beside it (0.125 → 0.15) and one to
+    a value the device reported lands exactly (0.25 → 0.25), and build 7, which kept aiming at
+    0.125, read every landing as a press and turned pages at random. The reference starts as the
+    user's volume kept within 0.1…0.9 (at 0 a down press changes nothing and goes unseen; inside
+    that range the level is not moved at all). The volume view sits ON screen (origin, 1 pt,
+    alpha 0.01): off-screen it no longer hid the system volume HUD on iOS 27; on screen it does
+    (confirmed on the Duo, keep it there). `ReaderView.volumeButtonsArmed` runs it only while the
+    scene is active, the book is ready, the regions are known and no sheet is up, and arming
+    RETRIES until the pager is in a window (it appears after the regions; arming once gave up
+    silently). Stop restores the user's volume. `VolumeButtonTests` replays the device's log. The
+    simulator can't press the buttons (and setting the hidden slider there changes nothing: no
+    volume route), so `scripts/check-volume-device` runs on the phone. Every step (arming
+    decisions with each condition, session state, the volume view's subview tree, each reading
+    with the reference, each turn with the location before it and where it landed) goes through
+    `VolumeLog.note`: a public `Logger` notice (category `volume`), stdout (for `devicectl
+    … launch --console`) AND an in-memory buffer shown and copied in Settings → About → Volume
+    Button Log, so a TestFlight run can be read without a Mac.
+    `-SheafsVolumeProbe up,down,…` (arms the buttons whatever the setting says) moves the volume
+    one step through the slider per entry, `-SheafsVolumeProbeGap` s apart, from 1.5 s after arming.
   - `Reader/PageFlip/` — the default page turn (`ReaderSettings.pageTurn`, `.flip` or `.slide`): a
     leaf of paper hinged at the spine that bends and falls over. `PageFlipPhysics` is the model
     (`PageCurl`: the sheet lies flat to `flat`, wraps a cylinder of `radius`, the rest lies turned

@@ -208,6 +208,9 @@ struct ReaderView: View {
                                 location: session.location, tapTurnsPages: settings.tapToTurn,
                                 marks: annotations.map(\.mark), highlightColor: settings.highlightColor, pageTurn: settings.pageTurn, proxy: pagerProxy,
                                 onLocationChange: { location in
+                                    if volumeButtons.isRunning {
+                                        VolumeLog.shared.note("landed at spine=\(location.spineIndex) offset=\(location.textOffset)")
+                                    }
                                     session.location = location
                                     trail.arrived(at: location, samePage: samePage)
                                     persist(location)
@@ -363,8 +366,13 @@ struct ReaderView: View {
     /// sheet up (contents, appearance, a note, a footnote) they change the volume again. Leaving
     /// the foreground stops them, so Control Center's volume works and they re-arm on return.
     private var volumeButtonsArmed: Bool {
-        settings.volumeButtonsTurn && scenePhase == .active && session?.isReady == true && regions != nil
+        (settings.volumeButtonsTurn || volumeProbeRequested) && scenePhase == .active && session?.isReady == true && regions != nil
             && !showContents && !showAppearance && footnote == nil && editingAnnotation == nil
+    }
+
+    /// `-SheafsVolumeProbe` (a debug launch argument) arms the buttons whatever the setting says.
+    private var volumeProbeRequested: Bool {
+        UserDefaults.standard.string(forKey: "SheafsVolumeProbe") != nil
     }
 
     private func armVolumeButtons(_ armed: Bool) {
@@ -386,7 +394,8 @@ struct ReaderView: View {
             VolumeLog.shared.note("pager found after \(30 - tries) retries")
             volumeButtons.start(host: host) { press in
                 let hasPager = pagerProxy.controller != nil
-                VolumeLog.shared.note("turn \(press.turnsForward ? "forward" : "back") pager=\(hasPager)")
+                let at = pagerProxy.controller?.displayedLocation
+                VolumeLog.shared.note("turn \(press.turnsForward ? "forward" : "back") pager=\(hasPager) from spine=\(at?.spineIndex ?? -1) offset=\(at?.textOffset ?? -1)")
                 pagerProxy.turn(forward: press.turnsForward)
             }
             return

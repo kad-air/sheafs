@@ -21,6 +21,9 @@ final class VolumeLog {
 
     func note(_ line: String) {
         log.notice("[volume] \(line, privacy: .public)")
+        // stdout too: `devicectl device process launch --console` streams it, and
+        // `scripts/check-volume-device` reads the lines from there.
+        print("[volume] \(line)")
         lines.append("\(clock.string(from: Date())) \(line)")
         if lines.count > Self.limit { lines.removeFirst(lines.count - Self.limit) }
     }
