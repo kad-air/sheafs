@@ -21,7 +21,8 @@ scripts/check-site [--render]     # the marketing site in docs/ (GitHub Pages, s
                                   #   the page's counts ("nine typefaces", "five highlight colors") against the
                                   #   enums in the code, asset weight; --render screenshots it with headless Chrome
 scripts/check-auto-theme          # end to end on a simulator (SIM="iPhone Duo"): theme Automatic follows
-                                  #   live Light/Dark flips (reads the page colour off screenshots)
+                                  #   live Light/Dark flips, incl. the user's own Light/Dark picks (Sepia /
+                                  #   pure Black) (reads the page colour off screenshots)
 scripts/check-volume-device       # on the PHONE (unlocked; DEVICE=<udid>, BOOK=<title>, APP=<built .app> or
                                   #   ASC_KEY_* to build): probes the volume one step at a time like presses
                                   #   and asserts each read, turned the right way (landed location) and was
@@ -295,12 +296,18 @@ state and is followed at once; a size change while the bars are up hides them fi
   only. Read the fold and the camera through `GeometryProxy.divisions()` / `occlusions()`
   (`Support/ReservedRegions.swift`, empty before 27.1), never `reservedRegions` directly; building at the
   27.0 target makes the compiler refuse an unguarded call. `Packages/SheafsKit` declares 27.0 too.
-- The reader ALWAYS forces a colour scheme (`ReaderPalette.colorScheme(for:system:)`): the theme's own
-  for a fixed theme, the device's for Automatic. Two traps: `preferredColorScheme(nil)` does not undo
+- Themes: Paper, Sepia, Night, Black (pure #000 for OLED) and Automatic, which stands for the user's
+  `ReaderSettings.lightTheme` / `darkTheme` (Paper / Night by default; pickers in `AppearanceView`).
+  Resolve with `settings.palette(system:)` from the DEVICE scheme, never the reader's forced one:
+  Automatic with Night for Light mode forces `.dark`, and resolving from that jumped to the Dark pick.
+- The reader ALWAYS forces a colour scheme (`ReaderPalette.colorScheme`, the resolved palette's
+  `isDark`), so the bars match the page even when Automatic's Light pick is dark. Two traps: `preferredColorScheme(nil)` does not undo
   an earlier forced scheme on the presentation (Night → Automatic stayed dark in Light mode), and the
   environment's `colorScheme` is the forced one, so reading the device's scheme from it latched the
   first value. The device's scheme comes from the window scene's traits (`SystemColorSchemeReader`),
-  which no override touches. `scripts/check-auto-theme` pins both (`-SheafsThemeSwitch`).
+  which no override touches. `scripts/check-auto-theme` pins both (`-SheafsThemeSwitch`). Seeding the
+  settings there: once the app has saved, its container plist outranks `simctl spawn defaults write`,
+  so the script removes the container's key first.
 - The pager's `UIScrollView` has `contentInsetAdjustmentBehavior = .never` (set on every layout pass,
   the scroll view is created lazily): the page frames already include the safe areas. The same pass
   makes its pan `require(toFail:)` the selection handles' pans, so dragging a handle never swipes

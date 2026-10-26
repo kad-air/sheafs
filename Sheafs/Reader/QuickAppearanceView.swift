@@ -13,7 +13,7 @@ struct QuickAppearanceView: View {
     var body: some View {
         @Bindable var settings = settings
         VStack(spacing: 10) {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 ForEach(ReaderTheme.allCases) { theme in
                     swatch(theme)
                 }
@@ -92,20 +92,22 @@ struct QuickAppearanceView: View {
 
     private func swatch(_ theme: ReaderTheme) -> some View {
         let selected = settings.theme == theme
+        // Automatic shows its two halves: the Light-mode theme over the Dark-mode one.
+        let light = settings.palette(.system, system: .light), dark = settings.palette(.system, system: .dark)
         let fill: AnyShapeStyle = theme == .system
-            ? AnyShapeStyle(LinearGradient(stops: [.init(color: Color(uiColor: ReaderPalette.paper.background), location: 0.5),
-                                                   .init(color: Color(uiColor: ReaderPalette.night.background), location: 0.5)],
+            ? AnyShapeStyle(LinearGradient(stops: [.init(color: Color(uiColor: light.background), location: 0.5),
+                                                   .init(color: Color(uiColor: dark.background), location: 0.5)],
                                            startPoint: .topLeading, endPoint: .bottomTrailing))
-            : AnyShapeStyle(Color(uiColor: ReaderPalette.resolve(theme, colorScheme: colorScheme).background))
-        let ink = Color(uiColor: ReaderPalette.resolve(theme, colorScheme: colorScheme).text)
+            : AnyShapeStyle(Color(uiColor: settings.palette(theme, system: colorScheme).background))
+        let ink = Color(uiColor: settings.palette(theme, system: colorScheme).text)
         return Button {
             settings.theme = theme
         } label: {
             // Mid grey reads on both halves of the Automatic swatch.
             Text("Aa")
-                .font(.system(size: 15, weight: .medium, design: .serif))
+                .font(.system(size: 14, weight: .medium, design: .serif))
                 .foregroundStyle(theme == .system ? Color(white: 0.5) : ink)
-                .frame(width: 40, height: 40)
+                .frame(width: 36, height: 36)
                 .background(fill, in: Circle())
                 .overlay(Circle().strokeBorder(.secondary.opacity(0.35), lineWidth: 0.5))
                 .overlay(Circle().strokeBorder(selected ? Color.accentColor : .clear, lineWidth: 2.5).padding(-4))

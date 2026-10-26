@@ -3,16 +3,20 @@ import SwiftUI
 import UIKit
 
 enum ReaderTheme: String, CaseIterable, Codable, Identifiable {
-    case paper, sepia, night, system
+    case paper, sepia, night, black, system
     var id: Self { self }
     var title: String {
         switch self {
         case .paper: "Paper"
         case .sepia: "Sepia"
         case .night: "Night"
+        case .black: "Black"
         case .system: "Automatic"
         }
     }
+
+    /// The themes with colours of their own: everything Automatic can stand for in Light or Dark.
+    static let fixed: [ReaderTheme] = allCases.filter { $0 != .system }
 }
 
 enum ReaderFont: String, CaseIterable, Codable, Identifiable {
@@ -87,6 +91,9 @@ enum PageTurnStyle: String, CaseIterable, Codable, Identifiable {
 @Observable
 final class ReaderSettings {
     var theme: ReaderTheme { didSet { save() } }
+    /// What Automatic shows while the device is in Light mode, and in Dark mode. Never `.system`.
+    var lightTheme: ReaderTheme { didSet { save() } }
+    var darkTheme: ReaderTheme { didSet { save() } }
     var font: ReaderFont { didSet { save() } }
     var fontSize: Double { didSet { save() } }
     var lineHeight: Double { didSet { save() } }
@@ -120,12 +127,16 @@ final class ReaderSettings {
         var highlightColor: HighlightColor?
         var pageTurn: PageTurnStyle?
         var volumeButtonsTurn: Bool?
+        var lightTheme: ReaderTheme?
+        var darkTheme: ReaderTheme?
     }
 
     init() {
         let stored = UserDefaults.standard.data(forKey: Self.key)
             .flatMap { try? JSONDecoder().decode(Stored.self, from: $0) } ?? Stored()
         theme = stored.theme
+        lightTheme = stored.lightTheme.flatMap { $0 == .system ? nil : $0 } ?? .paper
+        darkTheme = stored.darkTheme.flatMap { $0 == .system ? nil : $0 } ?? .night
         font = stored.font
         fontSize = stored.fontSize
         lineHeight = stored.lineHeight
@@ -138,23 +149,32 @@ final class ReaderSettings {
         highlightColor = stored.highlightColor ?? .yellow
         pageTurn = stored.pageTurn ?? .flip
         volumeButtonsTurn = stored.volumeButtonsTurn ?? false
+        print("[theme] settings loaded: theme \(theme), Automatic = \(lightTheme) in Light, \(darkTheme) in Dark")
     }
 
     private func save() {
         let stored = Stored(theme: theme, font: font, fontSize: fontSize, lineHeight: lineHeight, margin: margin,
                             justified: justified, hyphenate: hyphenate, paragraphStyle: paragraphStyle,
                             keepScreenAwake: keepScreenAwake, tapToTurn: tapToTurn, highlightColor: highlightColor,
-                            pageTurn: pageTurn, volumeButtonsTurn: volumeButtonsTurn)
+                            pageTurn: pageTurn, volumeButtonsTurn: volumeButtonsTurn,
+                            lightTheme: lightTheme, darkTheme: darkTheme)
         if let data = try? JSONEncoder().encode(stored) {
             UserDefaults.standard.set(data, forKey: Self.key)
         }
     }
 
+    /// The colours of `theme` (the current one by default) while the DEVICE is in `system` mode.
+    /// 🔴 Pass the device's scheme, never the reader's forced one: Automatic with a dark Light-mode
+    /// theme forces `.dark`, and resolving from that would flip to the Dark-mode theme.
+    func palette(_ theme: ReaderTheme? = nil, system: ColorScheme) -> ReaderPalette {
+        ReaderPalette.resolve(theme ?? self.theme, system: system, light: lightTheme, dark: darkTheme)
+    }
+
     /// Everything the typesetter needs, as a value (so caches can key on it).
-    func typesetStyle(colorScheme: ColorScheme, language: String?) -> TypesetStyle {
+    func typesetStyle(system: ColorScheme, language: String?) -> TypesetStyle {
         TypesetStyle(font: font, fontSize: fontSize, lineHeight: lineHeight, justified: justified,
                      hyphenate: hyphenate, paragraphStyle: paragraphStyle,
-                     palette: ReaderPalette.resolve(theme, colorScheme: colorScheme), language: language)
+                     palette: palette(system: system), language: language)
     }
 }
 
