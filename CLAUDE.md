@@ -356,6 +356,10 @@ state and is followed at once; a size change while the bars are up hides them fi
   axis tilts), a hard-edged block sweeping up the page on a slow drag, and left a lifted edge short
   of the crest with no shadow. `PageFlipShadowTests` fails on that (steps along the edge and
   between frames of a slow drag, shade beside a lifted edge).
+- 🔴 A page texture is the page's bounds stretched onto the whole rounded pixel grid
+  (`PageFlipView.texture(for:scale:device:)`), not drawn at the display scale: in tabletop the page
+  ends at the fold, 455.5 pt = 1366.5 px, and the half-painted last row (alpha 0.5, premultiplied)
+  drew a grey line across the display during every turn. `PageFlipEdgeTests`.
 - Page textures are cached per `PageSlot` and dropped on layout/palette/style changes; anything
   else that changes what a page draws (highlights, selection) must call
   `PageFlipDriver.invalidateTextures()` or the leaf shows stale content.
