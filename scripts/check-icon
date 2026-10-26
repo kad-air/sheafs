@@ -1,0 +1,279 @@
+#!/usr/bin/env -S python3 -I
+"""Reads the app icon and the site's icons back against the Sheafs mark (scripts/sheafs_mark.py),
+the geometry the control's symbol is drawn from, so the icon and the symbol cannot drift apart
+and a hand-edited or stale PNG fails. Plain python3, no Chrome: it checks what is committed.
+
+Fails loudly when
+  - AppIcon.appiconset/Contents.json does not list the light, dark and tinted 1024 icons;
+  - an icon is not its size, the light or dark one has an alpha channel (App Store Connect
+    refuses those), or the tinted one has none, is not grey everywhere, or is not transparent
+    off the stack and opaque on it;
+  - at the centre of each of the top sheet's text lines the icon is not ink on paper (darker
+    than the paper beside the line by a margin), or the drop cap is not the accent (light,
+    dark: reddish; tinted: dark grey) — positions from sheafs_mark, placed as gen-icon places
+    them, so a drawing drift fails here;
+  - the three sheets are missing: a point on the visible strip of each back sheet is not paper
+    (lighter than the ground), or the ground is not darker than the top sheet;
+  - the stack is not centred on the canvas: just outside its bounds is not the ground;
+  - a site icon (docs/assets) is not the light icon at its size.
+
+  scripts/check-icon             the checks
+  scripts/check-icon --selftest  also proves the checks bite: a flat PNG and a shifted icon fail
+"""
+import json, os, struct, sys, tempfile, zlib
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "scripts"))
+import sheafs_mark as mark
+
+ICONSET = os.path.join(ROOT, "Sheafs/Resources/Assets.xcassets/AppIcon.appiconset")
+DOCS = os.path.join(ROOT, "docs/assets")
+CANVAS = 1024.0
+FILL = 0.72                                    # as gen-icon
+SCALE = CANVAS * FILL / (mark.bounds()[3] - mark.bounds()[1])
+
+
+def fail(message):
+    sys.exit(f"CHECK-ICON FAILED: {message}")
+
+
+class PNG:
+    """An 8-bit RGB or RGBA PNG, decoded once (enough for Chrome's output)."""
+
+    def __init__(self, path):
+        self.path = path
+        data = open(path, "rb").read()
+        if data[:8] != b"\x89PNG\r\n\x1a\n":
+            fail(f"{path} is not a PNG")
+        self.width, self.height = struct.unpack(">II", data[16:24])
+        depth, self.colour = data[24], data[25]
+        if depth != 8 or self.colour not in (2, 6):
+            fail(f"{path}: not an 8-bit RGB/RGBA PNG (depth {depth}, colour type {self.colour})")
+        self.channels = 4 if self.colour == 6 else 3
+        pos, chunks = 8, b""
+        while pos < len(data):
+            length, kind = struct.unpack(">I4s", data[pos:pos + 8])
+            if kind == b"IDAT":
+                chunks += data[pos + 8:pos + 8 + length]
+            pos += 12 + length
+        raw = zlib.decompress(chunks)
+        stride = self.width * self.channels
+        c = self.channels
+        previous = bytearray(stride)
+        self.rows = []
+        for row in range(self.height):
+            start = row * (stride + 1)
+            kind, line = raw[start], bytearray(raw[start + 1:start + 1 + stride])
+            if kind == 1:
+                for i in range(c, stride): line[i] = (line[i] + line[i - c]) & 255
+            elif kind == 2:
+                for i in range(stride): line[i] = (line[i] + previous[i]) & 255
+            elif kind == 3:
+                for i in range(stride):
+                    a = line[i - c] if i >= c else 0
+                    line[i] = (line[i] + (a + previous[i]) // 2) & 255
+            elif kind == 4:
+                for i in range(stride):
+                    a = line[i - c] if i >= c else 0
+                    b = previous[i]
+                    cc = previous[i - c] if i >= c else 0
+                    p = a + b - cc
+                    pa, pb, pc = abs(p - a), abs(p - b), abs(p - cc)
+                    line[i] = (line[i] + (a if pa <= pb and pa <= pc else b if pb <= pc else cc)) & 255
+            self.rows.append(bytes(line))
+            previous = line
+
+    def pixel(self, x, y):
+        """(r, g, b, a) at a point of the 1024 canvas, scaled to this image."""
+        k = self.width / CANVAS
+        px, py = min(self.width - 1, max(0, int(x * k))), min(self.height - 1, max(0, int(y * k)))
+        v = self.rows[py][px * self.channels:(px + 1) * self.channels]
+        return (v[0], v[1], v[2], v[3] if self.channels == 4 else 255)
+
+
+def lum(p):
+    return 0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2]
+
+
+def canvas(point, sheet):
+    """A point of a sheet's frame → the 1024 canvas, as gen-icon draws it."""
+    cx, cy = mark.centre()
+    x, y = mark.place(point, sheet)
+    return (CANVAS / 2 + (x - cx) * SCALE, CANVAS / 2 + (y - cy) * SCALE)
+
+
+def strip_points():
+    """One point on the visible left strip of each back sheet, at the drawing's middle height:
+    halfway between its left edge and the left edge of the sheet in front of it."""
+    cx, cy = mark.centre()
+    points = []
+    for i in range(mark.TOP):
+        here = left_edge_at(i, cy)
+        front = left_edge_at(i + 1, cy)
+        points.append((CANVAS / 2 + ((here + front) / 2 - cx) * SCALE, CANVAS / 2))
+    return points
+
+
+def left_edge_at(sheet, y):
+    """The x of a sheet's left edge at drawing height y (between its two left corners)."""
+    (x0, y0), (x1, y1) = mark.place((-mark.W / 2, -mark.H / 2), sheet), mark.place((-mark.W / 2, mark.H / 2), sheet)
+    return x0 + (x1 - x0) * (y - y0) / (y1 - y0)
+
+
+def check_icon(png, variant, label):
+    """The mark, read back off one rendering."""
+    cap, lines = mark.text_layout()
+    k = png.width / CANVAS
+    ink_margin = 40 if png.width >= 180 else 25     # thin lines at 64 px blend with the paper
+    # text lines: ink at the centre, paper just above and below (half a pitch away)
+    for n, (x0, y0, x1, y1) in enumerate(lines):
+        mid = ((x0 + x1) / 2, (y0 + y1) / 2)
+        ink = lum(png.pixel(*canvas(mid, mark.TOP)))
+        for side in (-1, 1):
+            paper = lum(png.pixel(*canvas((mid[0], mid[1] + side * mark.PITCH / 2), mark.TOP)))
+            if ink > paper - ink_margin:
+                fail(f"{label}: line {n + 1} is not ink on paper ({ink:.0f} vs {paper:.0f} beside it)")
+    # the drop cap
+    cx_, cy_ = (cap[0] + cap[2]) / 2, (cap[1] + cap[3]) / 2
+    p = png.pixel(*canvas((cx_, cy_), mark.TOP))
+    if variant == "tinted":
+        if lum(p) > 110:
+            fail(f"{label}: the drop cap is not a dark grey ({p})")
+    elif not (p[0] - p[2] > 50 and p[0] > p[1] > p[2]):
+        fail(f"{label}: the drop cap is not the accent's red-brown ({p[:3]})")
+    # three sheets: the back sheets' strips are paper, lighter than the ground
+    top_paper = lum(png.pixel(*canvas((0, mark.H / 2 - mark.MARGIN / 2), mark.TOP)))
+    ground = png.pixel(24, 24)
+    if variant != "tinted" and lum(ground) > top_paper - 25:
+        fail(f"{label}: the ground ({lum(ground):.0f}) is not darker than the top sheet ({top_paper:.0f})")
+    for i, point in enumerate(strip_points()):
+        strip = png.pixel(*point)
+        ground = png.pixel(12, point[1])          # the ground at the strip's own height (a gradient)
+        if variant == "tinted":
+            if strip[3] < 250:
+                fail(f"{label}: sheet {i + 1}'s strip is not opaque (alpha {strip[3]})")
+        elif lum(strip) < lum(ground) + 10:
+            fail(f"{label}: sheet {i + 1}'s strip ({lum(strip):.0f}) is not paper over the ground ({lum(ground):.0f}) — a sheet is missing")
+    # centred: just outside the stack's bounds on every side is the ground
+    minx, miny, maxx, maxy = mark.bounds()
+    cx, cy = mark.centre()
+    outside = 14 / k if k < 1 else 14          # px on the canvas, at least a pixel at 64
+    for (x, y), (gx, gy) in (((minx - outside / SCALE, cy), (12, CANVAS / 2)),
+                             ((maxx + outside / SCALE, cy), (CANVAS - 12, CANVAS / 2)),
+                             ((cx, miny - outside / SCALE), (CANVAS / 2, 12)),
+                             ((cx, maxy + outside / SCALE), (CANVAS / 2, CANVAS - 12))):
+        there = png.pixel(CANVAS / 2 + (x - cx) * SCALE, CANVAS / 2 + (y - cy) * SCALE)
+        edge = png.pixel(gx, gy)
+        if variant == "tinted":
+            if there[3] > 90:
+                fail(f"{label}: the ground beside the stack is not transparent at ({x:.0f},{y:.0f}): alpha {there[3]}")
+        elif abs(lum(there) - lum(edge)) > 14:
+            fail(f"{label}: the stack is not centred — ({lum(there):.0f}) beside it differs from the ground at the edge ({lum(edge):.0f})")
+
+
+def check_tinted(png, label):
+    if png.colour != 6:
+        fail(f"{label}: the tinted icon needs an alpha channel (transparent ground)")
+    for y in range(0, png.height, 3):
+        row = png.rows[y]
+        for x in range(0, png.width, 3):
+            r, g, b = row[x * 4], row[x * 4 + 1], row[x * 4 + 2]
+            if abs(r - g) > 2 or abs(g - b) > 2:
+                fail(f"{label}: not grey at ({x},{y}): {(r, g, b)}")
+    if png.pixel(4, 4)[3] != 0:
+        fail(f"{label}: the corner is not transparent")
+    if png.pixel(*canvas((0, 0), mark.TOP))[3] != 255:
+        fail(f"{label}: the top sheet is not opaque")
+
+
+def check_contents():
+    with open(os.path.join(ICONSET, "Contents.json")) as f:
+        images = json.load(f)["images"]
+    wanted = {"icon-1024.png": None, "icon-1024-dark.png": "dark", "icon-1024-tinted.png": "tinted"}
+    seen = {}
+    for image in images:
+        if (image.get("idiom"), image.get("platform"), image.get("size")) != ("universal", "ios", "1024x1024"):
+            fail(f"Contents.json: {image.get('filename')} is not universal/ios/1024x1024")
+        appearances = image.get("appearances", [])
+        value = appearances[0]["value"] if appearances else None
+        if appearances and (len(appearances) != 1 or appearances[0].get("appearance") != "luminosity"):
+            fail(f"Contents.json: {image.get('filename')} has appearances {appearances}")
+        seen[image.get("filename")] = value
+    if seen != wanted:
+        fail(f"Contents.json lists {seen}, wanted {wanted}")
+
+
+def check_all(iconset=ICONSET, docs=DOCS):
+    check_contents()
+    for name, variant in (("icon-1024.png", "light"), ("icon-1024-dark.png", "dark"), ("icon-1024-tinted.png", "tinted")):
+        path = os.path.join(iconset, name)
+        png = PNG(path)
+        if (png.width, png.height) != (1024, 1024):
+            fail(f"{name} is {png.width}×{png.height}, not 1024×1024")
+        if variant == "tinted":
+            check_tinted(png, name)
+        elif png.colour != 2:
+            fail(f"{name} has an alpha channel; App Store Connect refuses those")
+        check_icon(png, variant, name)
+    for name, size in (("icon-256.png", 256), ("apple-touch-icon.png", 180), ("favicon.png", 64)):
+        png = PNG(os.path.join(docs, name))
+        if (png.width, png.height) != (size, size):
+            fail(f"docs/assets/{name} is {png.width}×{png.height}, not {size}×{size}")
+        if png.colour != 2:
+            fail(f"docs/assets/{name} has an alpha channel; the site's icons are opaque")
+        check_icon(png, "light", f"docs/assets/{name}")
+
+
+def write_png(path, width, height, rows):
+    """Minimal RGB PNG writer for the self-test."""
+    raw = b"".join(b"\x00" + bytes(row) for row in rows)
+
+    def chunk(kind, body):
+        return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body) & 0xffffffff)
+    with open(path, "wb") as f:
+        f.write(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+                + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
+
+
+def selftest():
+    """The checks must bite: a flat PNG fails (no lines), and the real icon shifted by 40 px
+    fails (the lines are no longer where the mark puts them)."""
+    import shutil
+    work = tempfile.mkdtemp(prefix="sheafs-check-icon-")
+    try:
+        iconset = os.path.join(work, "AppIcon.appiconset")
+        shutil.copytree(ICONSET, iconset)
+        flat = [bytes([210, 190, 160]) * 1024 for _ in range(1024)]
+        write_png(os.path.join(iconset, "icon-1024.png"), 1024, 1024, flat)
+        expect_failure("a flat icon", iconset, DOCS, "not ink on paper")
+        shutil.rmtree(iconset)
+        shutil.copytree(ICONSET, iconset)
+        real = PNG(os.path.join(ICONSET, "icon-1024.png"))
+        shifted = [row[40 * 3:] + row[:40 * 3] for row in real.rows]     # 40 px to the left
+        write_png(os.path.join(iconset, "icon-1024.png"), 1024, 1024, shifted)
+        expect_failure("the icon shifted 40 px", iconset, DOCS, "")
+        print("CHECK-ICON SELFTEST OK: a flat icon and a shifted icon fail")
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def expect_failure(what, iconset, docs, needle):
+    try:
+        check_all(iconset, docs)
+    except SystemExit as e:
+        message = str(e.code)
+        if not message.startswith("CHECK-ICON FAILED") or needle not in message:
+            fail(f"selftest: {what} failed for the wrong reason: {message}")
+        return
+    fail(f"selftest: {what} passed the checks")
+
+
+def main():
+    if "--selftest" in sys.argv:
+        selftest()
+    check_all()
+    print(f"CHECK-ICON OK: AppIcon light/dark/tinted and the site's 3 icons match the mark (stack {FILL:.0%} of the canvas)")
+
+
+if __name__ == "__main__":
+    main()

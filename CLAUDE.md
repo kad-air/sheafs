@@ -49,6 +49,10 @@ scripts/release                   # fallback only (Xcode Cloud ships, below): ar
 scripts/hinge/hinge 110           # fold the booted Duo simulator (0 closed … 180 flat); `get` reads it
 scripts/gen-symbol [preview.svg]  # redraws the control's icon (SheafsWidget/…/sheafs.symbolset/sheafs.svg);
                                   #   a uv script (shapely); commit the SVG, the build validates it
+scripts/gen-icon [--preview DIR]  # redraws the APP icon (AppIcon.appiconset: light, dark, tinted 1024s) and
+                                  #   the site's icons (docs/assets: 256, 180, 64) from the SAME drawing
+                                  #   (scripts/sheafs_mark.py) as SVG rendered by headless Chrome; commit the PNGs
+scripts/check-icon [--selftest]   # reads those PNGs back against the drawing (part of scripts/check step 2)
 scripts/hinge/hinge orient ll     # turn it: portrait | landscape-left (ll) | landscape-right (lr) | faceup…
                                   #   device landscape = inner display portrait; + a part fold = tabletop
 xcrun simctl io <udid> screenshot --display=primary-1 out.png   # inner display (`primary` = cover)
@@ -236,7 +240,14 @@ regions (see Duo behaviour below), so check layout changes on the phone.
   ran but opened nothing from Control Center (`openAppWhenRun: NO`, the link was dropped). Its icon
   is the custom symbol `sheafs` (SheafsWidget/Assets.xcassets/sheafs.symbolset, an SF Symbols v3
   template with Regular-S/M/L drawn by `scripts/gen-symbol`): controls take only symbol images
-  (tinted and scaled by the system), a bitmap draws nothing. Its label is the book's title, so
+  (tinted and scaled by the system), a bitmap draws nothing. The symbol and the APP ICON are one
+  drawing, `scripts/sheafs_mark.py` (three tilted sheets, text lines, drop cap; plain Python):
+  `scripts/gen-icon` renders it in colour for `AppIcon.appiconset` (light opaque, dark opaque,
+  tinted = greys on a transparent ground, the three `Contents.json` appearances) and for the
+  site's icons, with headless Chrome at each exact size, and `scripts/check-icon` reads the
+  committed PNGs back against the drawing (ink at each line's centre, the accent at the drop
+  cap, a strip of each back sheet, the stack centred), so the icon can't be hand-edited or go
+  stale, and its `--selftest` proves a flat or shifted icon fails. Never edit the PNGs by hand. Its label is the book's title, so
   `publishRecentBook()` also calls `ControlCenter.reloadControls`. `WidgetTests` checks the intent
   is in BOTH bundles' `Metadata.appintents` and the icon loads as a symbol (`isSymbolImage`).
 

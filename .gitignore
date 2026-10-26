@@ -18,3 +18,5 @@ xcuserdata/
 /tmp/
 # Release builds (scripts/release)
 build/
+# Python helpers (scripts/sheafs_mark.py)
+__pycache__/

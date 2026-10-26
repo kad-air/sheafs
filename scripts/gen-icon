@@ -1,0 +1,169 @@
+#!/usr/bin/env -S python3 -I
+"""Draws the app icon from the Sheafs mark (scripts/sheafs_mark.py: three tilted sheets, the top
+one with text lines and a drop cap, the SAME geometry as the control's symbol) and writes
+
+  Sheafs/Resources/Assets.xcassets/AppIcon.appiconset/icon-1024.png         light (opaque)
+  Sheafs/Resources/Assets.xcassets/AppIcon.appiconset/icon-1024-dark.png    dark (opaque)
+  Sheafs/Resources/Assets.xcassets/AppIcon.appiconset/icon-1024-tinted.png  tinted: greys on a
+                                                                            transparent ground
+  docs/assets/icon-256.png, apple-touch-icon.png (180), favicon.png (64)    the site's, light
+
+Each is an SVG rendered by headless Chrome at the exact size (the vector scales, nothing is
+resampled). Fails loudly when Chrome is missing, writes nothing, or a file comes out the wrong
+size or channel count. `scripts/check-icon` reads the results back against the geometry.
+
+  scripts/gen-icon [--preview DIR]   also writes the SVGs and a contact sheet to DIR
+  CHROME=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+"""
+import os, shutil, struct, subprocess, sys, tempfile
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "scripts"))
+import sheafs_mark as mark
+
+CHROME = os.environ.get("CHROME", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
+ICONSET = os.path.join(ROOT, "Sheafs/Resources/Assets.xcassets/AppIcon.appiconset")
+DOCS = os.path.join(ROOT, "docs/assets")
+
+CANVAS = 1024.0
+FILL = 0.72                        # the stack's height as a fraction of the canvas
+SCALE = CANVAS * FILL / (mark.bounds()[3] - mark.bounds()[1])   # px per unit
+
+# Colours per appearance. The light one is the sepia reading palette: cream sheets on a warm
+# tan ground, the lines in the secondary text colour, the drop cap in the accent. Dark keeps the
+# same sheets on an ink ground, so the icon reads the same at night. Tinted is greys only, on a
+# transparent ground: the system tints the greys and draws its own ground behind them.
+VARIANTS = {
+    "light": dict(ground=("#E4D7BF", "#C9B08A"), transparent=False,
+                  sheets=("#EAE1CE", "#F4EEE1", "#FCFAF4"), ink="#978A79", cap="#B06B4A",
+                  contact="rgba(70, 45, 20, 0.22)", cast="rgba(70, 45, 20, 0.20)"),
+    "dark": dict(ground=("#2B2724", "#121110"), transparent=False,
+                 sheets=("#D6CCB8", "#E8E0D0", "#F7F3EA"), ink="#8C8071", cap="#BD7450",
+                 contact="rgba(0, 0, 0, 0.45)", cast="rgba(0, 0, 0, 0.40)"),
+    "tinted": dict(ground=None, transparent=True,
+                   sheets=("#A9A9A9", "#CBCBCB", "#F2F2F2"), ink="#6B6B6B", cap="#474747",
+                   contact="rgba(0, 0, 0, 0.35)", cast="rgba(0, 0, 0, 0.30)"),
+}
+OUTPUTS = [  # (path, variant, pixel size)
+    (os.path.join(ICONSET, "icon-1024.png"), "light", 1024),
+    (os.path.join(ICONSET, "icon-1024-dark.png"), "dark", 1024),
+    (os.path.join(ICONSET, "icon-1024-tinted.png"), "tinted", 1024),
+    (os.path.join(DOCS, "icon-256.png"), "light", 256),
+    (os.path.join(DOCS, "apple-touch-icon.png"), "light", 180),
+    (os.path.join(DOCS, "favicon.png"), "light", 64),
+]
+
+
+def fail(message):
+    sys.exit(f"GEN-ICON FAILED: {message}")
+
+
+def svg(variant):
+    v = VARIANTS[variant]
+    cx, cy = mark.centre()
+    cap, lines = mark.text_layout()
+    parts = []
+    if v["ground"]:
+        top, bottom = v["ground"]
+        parts.append(f'''<defs>
+    <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="{top}"/><stop offset="1" stop-color="{bottom}"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.28" r="0.75">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.14"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#ground)"/>
+  <rect width="1024" height="1024" fill="url(#glow)"/>''')
+    # The drawing, in mark units, centred on the canvas. The shadows are CSS drop-shadows on each
+    # sheet (in user units, so they scale with it): a tight contact shadow that separates a sheet
+    # from the one beneath, like the symbol's knockout gap, and a softer cast to the lower left,
+    # the way the sheets fan out.
+    parts.append(f'  <g transform="translate({CANVAS / 2 - cx * SCALE:.3f} {CANVAS / 2 - cy * SCALE:.3f}) scale({SCALE:.5f})">')
+    shadow = f'filter: drop-shadow(0 0.35px 0.6px {v["contact"]}) drop-shadow(-1.0px 1.8px 1.6px {v["cast"]})'
+    for i, (rot, dx, dy) in enumerate(mark.SHEETS):
+        parts.append(f'    <g transform="translate({dx} {dy}) rotate({rot})" style="{shadow}">')
+        parts.append(f'      <rect x="{-mark.W / 2}" y="{-mark.H / 2}" width="{mark.W}" height="{mark.H}" rx="{mark.R}" fill="{v["sheets"][i]}"/>')
+        if i == mark.TOP:
+            x0, y0, x1, y1 = cap
+            parts.append(f'      <rect x="{x0}" y="{y0}" width="{x1 - x0}" height="{y1 - y0}" rx="1.2" fill="{v["cap"]}"/>')
+            for x0, y0, x1, y1 in lines:
+                parts.append(f'      <rect x="{x0}" y="{y0}" width="{x1 - x0}" height="{y1 - y0:.1f}" rx="{mark.LINE * 0.3:.2f}" fill="{v["ink"]}"/>')
+        parts.append('    </g>')
+    parts.append('  </g>')
+    body = "\n".join(parts)
+    return f'<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">\n{body}\n</svg>\n'
+
+
+def page(svg_text, size, transparent):
+    background = "transparent" if transparent else "#000"
+    return (f'<!doctype html><html><head><meta charset="utf-8"><style>html,body{{margin:0;padding:0;background:{background};'
+            f'overflow:hidden}}svg{{display:block;width:{size}px;height:{size}px}}</style></head><body>{svg_text}</body></html>')
+
+
+def chrome(html_path, out, size, transparent):
+    profile = tempfile.mkdtemp(prefix="sheafs-gen-icon-")
+    try:
+        args = [CHROME, "--headless=new", "--hide-scrollbars", "--force-device-scale-factor=1",
+                f"--window-size={size},{size}", "--allow-file-access-from-files", "--virtual-time-budget=4000",
+                "--run-all-compositor-stages-before-draw", f"--user-data-dir={profile}", f"--screenshot={out}"]
+        if transparent:
+            args.append("--default-background-color=00000000")
+        result = subprocess.run(args + ["file://" + html_path], capture_output=True, text=True, timeout=120)
+    finally:
+        shutil.rmtree(profile, ignore_errors=True)
+    if not os.path.exists(out):
+        fail(f"Chrome wrote no {out}: {result.stderr[-400:]}")
+
+
+def png_head(path):
+    with open(path, "rb") as f:
+        head = f.read(26)
+    if head[:8] != b"\x89PNG\r\n\x1a\n":
+        fail(f"{path} is not a PNG")
+    width, height = struct.unpack(">II", head[16:24])
+    return width, height, head[25]   # colour type: 2 = RGB, 6 = RGBA
+
+
+def main():
+    preview = None
+    if len(sys.argv) == 3 and sys.argv[1] == "--preview":
+        preview = sys.argv[2]
+        os.makedirs(preview, exist_ok=True)
+    elif len(sys.argv) != 1:
+        fail(__doc__)
+    if not os.path.exists(CHROME):
+        fail(f"no Chrome at {CHROME} (set CHROME)")
+    work = tempfile.mkdtemp(prefix="sheafs-gen-icon-")
+    try:
+        svgs = {name: svg(name) for name in VARIANTS}
+        for path, variant, size in OUTPUTS:
+            html_path = os.path.join(work, f"{variant}-{size}.html")
+            with open(html_path, "w") as f:
+                f.write(page(svgs[variant], size, VARIANTS[variant]["transparent"]))
+            out = os.path.join(work, f"{variant}-{size}.png")
+            chrome(html_path, out, size, VARIANTS[variant]["transparent"])
+            width, height, colour = png_head(out)
+            if (width, height) != (size, size):
+                fail(f"{path}: Chrome rendered {width}×{height}, wanted {size}×{size}")
+            wanted = 6 if VARIANTS[variant]["transparent"] else 2
+            if colour != wanted:
+                fail(f"{path}: PNG colour type {colour}, wanted {wanted} ({'RGBA' if wanted == 6 else 'RGB, no alpha'})")
+            shutil.copyfile(out, path)
+            print(f"wrote {os.path.relpath(path, ROOT)} ({variant}, {size} px)")
+        if preview:
+            for name, text in svgs.items():
+                with open(os.path.join(preview, f"{name}.svg"), "w") as f:
+                    f.write(text)
+            tiles = "".join(f'<figure><img src="{os.path.relpath(p, preview)}" width="{min(s, 320)}"><figcaption>{v} {s}</figcaption></figure>'
+                            for p, v, s in OUTPUTS)
+            with open(os.path.join(preview, "index.html"), "w") as f:
+                f.write(f'<!doctype html><meta charset="utf-8"><style>body{{background:#888;font:13px -apple-system}}figure{{display:inline-block;margin:12px;text-align:center}}'
+                        f'img{{border-radius:22%;display:block}}</style>{tiles}')
+            print(f"preview in {preview}")
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+if __name__ == "__main__":
+    main()

@@ -8,25 +8,17 @@
 # SheafsWidget/Assets.xcassets/sheafs.symbolset/sheafs.svg: the control's icon (controls take only
 # symbol images). Optional second argument: a preview SVG of the M variant, white on grey.
 # The build (actool) validates the template; `WidgetTests` checks it compiled as a symbol.
-import sys
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from shapely.geometry import box, Polygon
 from shapely.geometry.polygon import orient
 from shapely.ops import unary_union
 from shapely import affinity
 
-# --- design, in template units at M scale, origin at the symbol centre, y down ---
-W, H, R = 56.0, 74.0, 6.0          # sheet size and corner radius
-GAP = 4.2                          # knockout gap between sheets
-LINE, PITCH = 4.8, 10.5            # text line thickness and pitch
-RING = 2.8                         # the drop cap: a square hole with a smaller square inside
-MARGIN = 7.0                       # inside the sheet
+# --- design: scripts/sheafs_mark.py (shared with gen-icon), in template units at M scale ---
+from sheafs_mark import W, H, R, GAP, LINE, PITCH, RING, MARGIN, SHEETS, text_layout
 SCALE = 1.4                        # the whole drawing: system glyphs (flashlight, camera) fill
                                    # ~60% of a control's bubble; at 1.0 this filled ~45%
-SHEETS = [                         # (rotation deg, dx, dy), back to front
-    (0.0, -17.0, 15.0),
-    (-5.0, -8.5, 7.5),
-    (-11.0, 0.0, 0.0),
-]
 
 def rounded_rect(w, h, r):
     return box(-w/2 + r, -h/2 + r, w/2 - r, h/2 - r).buffer(r, quad_segs=12)
@@ -36,18 +28,9 @@ def place(shape, rot, dx, dy):
 
 def top_sheet_holes():
     """Text lines and the drop-cap square, in the sheet's own frame."""
-    x0, x1 = -W/2 + MARGIN, W/2 - MARGIN
-    y0 = -H/2 + MARGIN + LINE/2
-    n = int((H - 2*MARGIN - LINE) // PITCH) + 1
-    square = 2*PITCH - (PITCH - LINE)          # spans lines 1–2
-    sq = box(x0, y0 - LINE/2, x0 + square, y0 - LINE/2 + square)
-    holes = [sq.difference(sq.buffer(-RING))]
-    for i in range(n):
-        y = y0 + i*PITCH
-        start = x0 + square + 4.0 if i < 2 else x0
-        end = x1 - 10.0 if i in (3, 5) else x1
-        holes.append(box(start, y - LINE/2, end, y + LINE/2))
-    return holes
+    cap, lines = text_layout()
+    sq = box(*cap)
+    return [sq.difference(sq.buffer(-RING))] + [box(*line) for line in lines]
 
 def build():
     placed, outlines = [], []
