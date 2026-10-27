@@ -45,6 +45,9 @@ struct ReaderView: View {
     @State private var orientation: UIInterfaceOrientation = .unknown
     @State private var footnote: Footnote?
     @State private var editingAnnotation: Annotation?
+    /// A UIKit sheet the pager put up (the share sheet, Look Up): SwiftUI can't see it, and the
+    /// volume buttons must be the volume again while it is up.
+    @State private var pagerSheet = false
     @State private var remotePrompt: RemotePrompt?
     @State private var pagerProxy = PagerProxy()
     @State private var volumeButtons = VolumeButtonPager()
@@ -240,7 +243,8 @@ struct ReaderView: View {
                                     if chromeVisible { withAnimation { chromeVisible = false } }
                                 },
                                 onTap: handle(tap:),
-                                onSelectionAction: handle(selection:))
+                                onSelectionAction: handle(selection:),
+                                onSystemSheet: { pagerSheet = $0 })
                     if let deck = layout.deckFrame {
                         ReaderDeck(session: session, palette: palette, proxy: pagerProxy,
                                    showContents: $showContents, showAppearance: $showQuickAppearance,
@@ -394,7 +398,7 @@ struct ReaderView: View {
     /// the foreground stops them, so Control Center's volume works and they re-arm on return.
     private var volumeButtonsArmed: Bool {
         (settings.volumeButtonsTurn || volumeProbeRequested) && scenePhase == .active && session?.isReady == true && regions != nil
-            && !showContents && !showAppearance && !showSearch && footnote == nil && editingAnnotation == nil
+            && !showContents && !showAppearance && !showSearch && footnote == nil && editingAnnotation == nil && !pagerSheet
     }
 
     /// `-SheafsVolumeProbe` (a debug launch argument) arms the buttons whatever the setting says.
@@ -405,7 +409,8 @@ struct ReaderView: View {
     private func armVolumeButtons(_ armed: Bool) {
         VolumeLog.shared.note("armed=\(armed): setting=\(settings.volumeButtonsTurn) scene=\(scenePhase) "
             + "ready=\(session?.isReady == true) regions=\(regions != nil) contents=\(showContents) "
-            + "appearance=\(showAppearance) search=\(showSearch) footnote=\(footnote != nil) note=\(editingAnnotation != nil)")
+            + "appearance=\(showAppearance) search=\(showSearch) footnote=\(footnote != nil) note=\(editingAnnotation != nil) "
+            + "systemSheet=\(pagerSheet)")
         guard armed else {
             volumeButtons.stop()
             return

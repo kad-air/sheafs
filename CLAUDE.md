@@ -149,7 +149,8 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     `isUnderline`; keyed by book id, not a relationship, so `LibraryStore.delete(book)` deletes them
     by hand; `AnnotationExport.markdown` for sharing a book's notes, `AnnotationExport.quote` for one
     selection: the text, a newline, `— Author, Title, Chapter`; both credit the book through
-    `AnnotationExport.Credit`, so they can't drift), `LibraryStore` (files in Application
+    `AnnotationExport.Credit`, so they can't drift; only the quote's attribution drops a chapter
+    named like the book, the Markdown still heads it: a collection named after a later story), `LibraryStore` (files in Application
     Support/Books/<uuid>.epub, covers in Covers/<uuid>.jpg, import = copy + parse + partial MD5 +
     thumbnail, dedupe by partial MD5; `annotations(for:)`/`add`/`delete`), `LibraryView` (cover grid;
     even column count when a fold is present, per the Duo HIG).
@@ -178,10 +179,15 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     `QuoteShare` (Share in the menu: `UIActivityViewController` with its popover source at the selection (on
     the Duo, iOS 27 shows a centred card on both displays anyway); items are the quote text and a `QuoteCard` image, 1080 pt at scale 1 in the
     palette's page colour and the reader's font, as tall as the text up to 9:16 where TextKit ends
-    the text with an ellipsis, on the card only; text-first targets (Messages, Mail, Notes, Copy)
-    get the text alone; the sheet's header is `LPLinkMetadata` (the card as icon, the book as
+    the text with an ellipsis, on the card only (TextKit draws one only when the last kept line runs
+    on in its paragraph; a cut at a paragraph's end gets "…" appended by hand); text-first targets
+    (Messages, Mail, Notes, Reminders, Copy) get the text alone; the item sources are
+    `nonisolated` (UIKit may ask for items off the main thread); the sheet's header is `LPLinkMetadata` (the card as icon, the book as
     title; without it a blank placeholder); Save Image needs `NSPhotoLibraryAddUsageDescription`
-    in `project.yml` or the system leaves it out; Share clears the selection like Copy;
+    in `project.yml` or the system leaves it out; Share clears the selection like Copy; the share
+    sheet and Look Up (`LookUpController`, which reports its dismissal) are UIKit sheets SwiftUI
+    can't see, so the pager reports them (`onSystemSheet`) and `volumeButtonsArmed` disarms the
+    volume buttons while one is up;
     `QuoteShareTests`), `ReaderLayout`
     (`PageLayout.compute`: safe areas + reserved regions → page frames; see Duo below),
     `ReaderView` (chrome: system toolbar + glass progress strip, contents/appearance/footnote sheets,
@@ -220,7 +226,7 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     that range the level is not moved at all). The volume view sits ON screen (origin, 1 pt,
     alpha 0.01): off-screen it no longer hid the system volume HUD on iOS 27; on screen it does
     (confirmed on the Duo, keep it there). `ReaderView.volumeButtonsArmed` runs it only while the
-    scene is active, the book is ready, the regions are known and no sheet is up, and arming
+    scene is active, the book is ready, the regions are known and no sheet is up (SwiftUI sheets, and the pager's UIKit share sheet and Look Up), and arming
     RETRIES until the pager is in a window (it appears after the regions; arming once gave up
     silently). Stop restores the user's volume. `VolumeButtonTests` replays the device's log. The
     simulator can't press the buttons (and setting the hidden slider there changes nothing: no

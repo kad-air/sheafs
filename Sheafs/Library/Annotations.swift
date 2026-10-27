@@ -85,8 +85,8 @@ struct HighlightMark: Hashable, Sendable {
 /// Notes and highlights as Markdown, and single quotes as plain text, for sharing. Both credit
 /// their source through `Credit`, so the book's title, author and chapter read the same in each.
 enum AnnotationExport {
-    /// Where a quote comes from, cleaned once for every export: names trimmed, blanks dropped, and
-    /// no chapter when it only repeats the book's title (a one-file book, or a TOC naming the book).
+    /// Where a quote comes from, cleaned once for every export: names trimmed, runs of whitespace
+    /// folded, blanks dropped.
     struct Credit: Equatable, Sendable {
         var title: String
         var author: String?
@@ -95,13 +95,15 @@ enum AnnotationExport {
         nonisolated init(title: String, author: String?, chapter: String?) {
             self.title = Self.clean(title) ?? ""
             self.author = Self.clean(author)
-            let chapter = Self.clean(chapter)
-            self.chapter = chapter?.caseInsensitiveCompare(self.title) == .orderedSame ? nil : chapter
+            self.chapter = Self.clean(chapter)
         }
 
-        /// `— Author, Title, Chapter`, leaving out whatever is unknown.
+        /// `— Author, Title, Chapter`, leaving out whatever is unknown, and the chapter when it only
+        /// repeats the book's title (a one-file book, a TOC naming the book). Only here: the
+        /// Markdown export still heads such a chapter (a collection named after one of its stories).
         nonisolated var attribution: String {
-            "— " + [author, title.isEmpty ? nil : title, chapter].compactMap { $0 }.joined(separator: ", ")
+            let chapter = chapter?.caseInsensitiveCompare(title) == .orderedSame ? nil : chapter
+            return "— " + [author, title.isEmpty ? nil : title, chapter].compactMap { $0 }.joined(separator: ", ")
         }
 
         /// Trimmed, with runs of whitespace (a title's line breaks) folded to one space; nil if blank.
@@ -133,7 +135,7 @@ enum AnnotationExport {
         if let author = book.author { lines.append("*\(author)*") }
         var currentChapter: String?? = .some(nil)
         for item in annotations {
-            let chapter = Credit(title: title, author: author, chapter: item.chapter).chapter
+            let chapter = Credit.clean(item.chapter)
             if currentChapter != .some(chapter) {
                 currentChapter = .some(chapter)
                 if let chapter {

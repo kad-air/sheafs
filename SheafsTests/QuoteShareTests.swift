@@ -78,6 +78,48 @@ struct QuoteShareTests {
         #expect(image.activityViewController(sheet, itemForActivityType: other) as? UIImage === card)
     }
 
+    @Test func itemSourcesAnswerOffTheMainThread() async {
+        // UIKit may ask for the items on a background queue; a main-actor method traps there.
+        let card = QuoteCard.render(text: "Curiouser!", attribution: "— Alice", palette: .paper, font: .newYork).image
+        let credit = AnnotationExport.Credit(title: "Alice", author: nil, chapter: nil)
+        let text = QuoteTextItem("Curiouser!\n— Alice", credit: credit, card: card), image = QuoteImageItem(card)
+        nonisolated(unsafe) let sheet = UIActivityViewController(activityItems: [], applicationActivities: nil)
+        let answers = await Task.detached {
+            #expect(pthread_main_np() == 0, "ran on the main thread")
+            return (text.activityViewController(sheet, itemForActivityType: .copyToPasteboard) as? String,
+                    image.activityViewController(sheet, itemForActivityType: .saveToCameraRoll) != nil,
+                    text.activityViewControllerPlaceholderItem(sheet) is String,
+                    text.activityViewControllerLinkMetadata(sheet)?.title)
+        }.value
+        #expect(answers.0 == "Curiouser!\n— Alice")
+        #expect(answers.1 && answers.2)
+        #expect(answers.3 == "Alice")
+    }
+
+    @Test func markdownHeadsAChapterNamedLikeTheBook() {
+        // A collection named after a story that isn't its first: the title story's highlights get
+        // their own heading, not filed under the story before (only the quote's credit drops it).
+        let markdown = AnnotationExport.markdown(title: "The Dead", author: "James Joyce", annotations: [
+            ("Araby", "North Richmond Street, being blind, was a quiet street", ""),
+            ("The Dead", "His soul swooned slowly as he heard the snow falling", ""),
+        ])
+        #expect(markdown == """
+        # The Dead
+        *James Joyce*
+
+        ## Araby
+
+        > North Richmond Street, being blind, was a quiet street
+
+        ## The Dead
+
+        > His soul swooned slowly as he heard the snow falling
+
+        """)
+        #expect(AnnotationExport.Credit(title: "The Dead", author: "James Joyce", chapter: "The Dead").attribution
+                == "— James Joyce, The Dead")
+    }
+
     // MARK: Card
 
     /// The card's pixels, RGBA.
@@ -139,6 +181,12 @@ struct QuoteShareTests {
         #expect(card.image.size.width == 1080)
         #expect(card.image.size.height <= QuoteCard.maxHeight && card.image.size.height > QuoteCard.maxHeight - 150,
                 "\(card.image.size.height) pt tall")
+        // The cut can fall where a paragraph ends (dialogue, short lines): TextKit then just stops
+        // without an ellipsis, so the card must add one itself.
+        let dialogue = (1...200).map { "“Line \($0).”" }.joined(separator: "\n")
+        let short = QuoteCard.render(text: dialogue, attribution: "— Lewis Carroll, Alice", palette: .paper, font: .newYork)
+        #expect(short.truncated, "a cut at a paragraph's end drew no ellipsis")
+        #expect(short.image.size.height <= QuoteCard.maxHeight && short.image.size.height > QuoteCard.maxHeight - 150)
         // The credit still fits under the cut text.
         let image = try Self.pixels(of: card.image)
         #expect(Self.ink(image, rows: image.height - Int(QuoteCard.margin) - 60..<image.height - Int(QuoteCard.margin) + 8,

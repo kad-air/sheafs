@@ -42,6 +42,8 @@ struct ReaderPager: UIViewControllerRepresentable {
     var onLocationChange: (ReadingLocation) -> Void
     var onTap: (ReaderTap) -> Void
     var onSelectionAction: (SelectionAction) -> Void
+    /// A UIKit sheet (share, Look Up) went up (true) or away (false).
+    var onSystemSheet: (Bool) -> Void = { _ in }
 
     func makeUIViewController(context: Context) -> PagerController {
         let controller = PagerController(session: session)
@@ -58,6 +60,7 @@ struct ReaderPager: UIViewControllerRepresentable {
         controller.onLocationChange = onLocationChange
         controller.onTap = onTap
         controller.onSelectionAction = onSelectionAction
+        controller.onSystemSheet = onSystemSheet
         controller.tapTurnsPages = tapTurnsPages
         controller.highlightColor = highlightColor
         controller.pageTurn = pageTurn
@@ -79,6 +82,7 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
     var onLocationChange: ((ReadingLocation) -> Void)?
     var onTap: ((ReaderTap) -> Void)?
     var onSelectionAction: ((SelectionAction) -> Void)?
+    var onSystemSheet: ((Bool) -> Void)?
     var tapTurnsPages = true
     var highlightColor = HighlightColor.yellow
     /// How pages turn: a flipping leaf (the default) or the page controller's slide. The flip
@@ -545,9 +549,12 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         log.notice("share quote: spine \(selection.spineIndex) range \(selection.range.location)+\(selection.range.length), sheet made in \(Int(Date().timeIntervalSince(started) * 1000)) ms, presenting from \(String(describing: self.presentedViewController == nil ? "self" : "self (busy)"))")
         sheet.popoverPresentationController?.sourceView = view
         sheet.popoverPresentationController?.sourceRect = anchor
-        sheet.completionWithItemsHandler = { [log] activity, completed, _, error in
+        // Called once the sheet is gone, whether an activity ran or it was cancelled.
+        sheet.completionWithItemsHandler = { [weak self, log] activity, completed, _, error in
             log.notice("share quote: \(activity?.rawValue ?? "dismissed") completed=\(completed) error=\(String(describing: error))")
+            self?.onSystemSheet?(false)
         }
+        onSystemSheet?(true)
         present(sheet, animated: true) { [log] in log.notice("share quote: sheet presented") }
     }
 
@@ -643,10 +650,25 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
             children.append(UIAction(title: "Look Up", image: UIImage(systemName: "character.book.closed")) { [weak self] _ in
                 guard let self else { return }
                 clearSelection()
-                present(UIReferenceLibraryViewController(term: text), animated: true)
+                let lookUp = LookUpController(term: text)
+                lookUp.onDismiss = { [weak self] in self?.onSystemSheet?(false) }
+                onSystemSheet?(true)
+                present(lookUp, animated: true)
             })
         }
         return UIMenu(children: children)
+    }
+}
+
+/// Look Up, telling the pager when it has gone (it has no completion handler of its own).
+final class LookUpController: UIReferenceLibraryViewController {
+    var onDismiss: (() -> Void)?
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        guard isBeingDismissed || presentingViewController == nil else { return }
+        onDismiss?()
+        onDismiss = nil
     }
 }
 

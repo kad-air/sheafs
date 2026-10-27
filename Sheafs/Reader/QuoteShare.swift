@@ -24,15 +24,16 @@ enum QuoteShare {
     }
 
     /// Activities that should get the words, not a picture of them.
-    static let textOnly: Set<UIActivity.ActivityType> = [
+    nonisolated static let textOnly: Set<UIActivity.ActivityType> = [
         .message, .mail, .copyToPasteboard,
         UIActivity.ActivityType("com.apple.mobilenotes.SharingExtension"),
         UIActivity.ActivityType("com.apple.reminders.sharingextension"),
     ]
 }
 
-/// The quote as text, for every target but the photo library.
-final class QuoteTextItem: NSObject, UIActivityItemSource {
+/// The quote as text, for every target but the photo library. Nonisolated: UIKit may ask for the
+/// items off the main thread, and a main-actor method would trap there; it only reads its lets.
+nonisolated final class QuoteTextItem: NSObject, UIActivityItemSource {
     let text: String
     let credit: AnnotationExport.Credit
     let card: UIImage
@@ -65,8 +66,8 @@ final class QuoteTextItem: NSObject, UIActivityItemSource {
     }
 }
 
-/// The quote card, for every target that isn't text-first.
-final class QuoteImageItem: NSObject, UIActivityItemSource {
+/// The quote card, for every target that isn't text-first. Nonisolated, like `QuoteTextItem`.
+nonisolated final class QuoteImageItem: NSObject, UIActivityItemSource {
     let image: UIImage
 
     init(_ image: UIImage) { self.image = image }
@@ -94,7 +95,7 @@ enum QuoteCard {
 
     struct Rendered {
         var image: UIImage
-        /// Whether TextKit cut the text short with an ellipsis to fit `maxHeight`.
+        /// Whether the text was cut short to fit `maxHeight` and the card ends in an ellipsis.
         var truncated: Bool
     }
 
@@ -136,10 +137,19 @@ enum QuoteCard {
             container.maximumNumberOfLines = max(1, lines)
             container.lineBreakMode = .byTruncatingTail
             layoutManager.ensureLayout(for: container)
-            // What TextKit really did with the last line, not what was asked of it.
-            let shown = layoutManager.glyphRange(for: container)
-            truncated = shown.length > 0
-                && layoutManager.truncatedGlyphRange(inLineFragmentForGlyphAt: NSMaxRange(shown) - 1).location != NSNotFound
+            // TextKit only draws its ellipsis when the last line it keeps runs on into the same
+            // paragraph; a cut that falls at a paragraph's end (dialogue, short lines) just stops.
+            // Then end the kept text with an ellipsis here: if that wraps past the last line, the
+            // line now runs on and TextKit truncates it instead.
+            if !textKitEllipsis(layoutManager, container), visibleCharacters(layoutManager, container) < storage.length {
+                let kept = (storage.string as NSString).substring(to: visibleCharacters(layoutManager, container))
+                    .trimmingCharacters(in: .whitespacesAndNewlines) as NSString
+                storage.replaceCharacters(in: NSRange(location: kept.length, length: storage.length - kept.length), with: "…")
+                layoutManager.ensureLayout(for: container)
+            }
+            // What was really laid out, not what was asked for: an ellipsis TextKit drew, or ours, shown.
+            truncated = textKitEllipsis(layoutManager, container)
+                || (storage.string.hasSuffix("…") && visibleCharacters(layoutManager, container) == storage.length)
         }
         let quoteHeight = ceil(layoutManager.usedRect(for: container).height)
         let height = min(maxHeight, margin * 2 + quoteHeight + ruleGap * 2 + ruleHeight + creditHeight)
@@ -161,5 +171,17 @@ enum QuoteCard {
                         options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
         }
         return Rendered(image: image, truncated: truncated)
+    }
+
+    /// Whether TextKit truncated the container's last line with an ellipsis.
+    private static func textKitEllipsis(_ layoutManager: NSLayoutManager, _ container: NSTextContainer) -> Bool {
+        let shown = layoutManager.glyphRange(for: container)
+        return shown.length > 0
+            && layoutManager.truncatedGlyphRange(inLineFragmentForGlyphAt: NSMaxRange(shown) - 1).location != NSNotFound
+    }
+
+    /// How many characters (from the start) the container shows.
+    private static func visibleCharacters(_ layoutManager: NSLayoutManager, _ container: NSTextContainer) -> Int {
+        NSMaxRange(layoutManager.characterRange(forGlyphRange: layoutManager.glyphRange(for: container), actualGlyphRange: nil))
     }
 }
