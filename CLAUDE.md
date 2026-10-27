@@ -81,6 +81,9 @@ book is ready, as tapping its swatch would.
 search sheet with `text` searched; with a pick it then takes the n-th result (1-based) as a tap would:
 the jump and the painted hits, no taps needed (`[search] …` lines on stdout); with Back it then taps
 "Back to page N" 3 s later, which must clear the hits.
+`-SheafsBookmark toggle|jump` (with `-SheafsOpen`, once the page is laid out) toggles the bookmark on
+the page at the position, or `jump(to:)`s to the book's first bookmark (leaving a "Back to page N"
+trail); `-SheafsContents contents|bookmarks|notes` opens the contents sheet on that segment.
 `-SheafsFlipAuto forward|back
 -SheafsFlipFreeze <0…1> [-SheafsFlipGrab <0…1 down the page>]` starts one page flip on its own
 once the book is up and holds it at that amount, so `simctl io … screenshot` can catch the leaf
@@ -150,9 +153,15 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     by hand; `AnnotationExport.markdown` for sharing a book's notes, `AnnotationExport.quote` for one
     selection: the text, a newline, `— Author, Title, Chapter`; both credit the book through
     `AnnotationExport.Credit`, so they can't drift; only the quote's attribution drops a chapter
-    named like the book, the Markdown still heads it: a collection named after a later story), `LibraryStore` (files in Application
+    named like the book, the Markdown still heads it: a collection named after a later story;
+    the Markdown ends with a "## Bookmarks" list), `Bookmarks` (SwiftData `Bookmark`: `bookID` + `spineIndex` + `textOffset` of the FIRST
+    character of the page holding the position (the right page of a spread) + its `xpointer` + a
+    `label` (the page's first words, `Bookmark.label`) + `createdAt`; keyed by book id like
+    `Annotation`, deleted by hand with the book; the anchor is an offset, NEVER a page number:
+    `PaginatedChapter.bookmarks(_:onPage:)` puts one on whichever page's range holds it, so it
+    survives text-size changes, `BookmarkTests`), `LibraryStore` (files in Application
     Support/Books/<uuid>.epub, covers in Covers/<uuid>.jpg, import = copy + parse + partial MD5 +
-    thumbnail, dedupe by partial MD5; `annotations(for:)`/`add`/`delete`), `LibraryView` (cover grid;
+    thumbnail, dedupe by partial MD5; `annotations(for:)`/`bookmarks(for:)`/`add`/`delete`), `LibraryView` (cover grid;
     even column count when a fold is present, per the Duo HIG).
   - `Reader/` — `BookSession` (loads the EPUB and converts every chapter in a detached task; caches
     typeset+paginated chapters per style/page size; position ↔ progress ↔ xpointer ↔ TOC/href),
@@ -188,11 +197,18 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     sheet and Look Up (`LookUpController`, which reports its dismissal) are UIKit sheets SwiftUI
     can't see, so the pager reports them (`onSystemSheet`) and `volumeButtonsArmed` disarms the
     volume buttons while one is up;
-    `QuoteShareTests`), `ReaderLayout`
+    `QuoteShareTests`), `BookmarkViews` (`BookmarksListView`: the Bookmarks segment, between Contents and Notes; label,
+    chapter, date; tap = `jump(to:)`, swipe to delete; the segment is kept between openings),
+    `ReaderLayout`
     (`PageLayout.compute`: safe areas + reserved regions → page frames; see Duo below),
     `ReaderView` (chrome: system toolbar + glass progress strip, contents/appearance/footnote sheets,
     sync pull on open / debounced push; `@Query` of the book's annotations → `HighlightMark`s →
-    `BookSession.marks`, which every spread reads as it appears; every `jump(to:)` — link, contents, note,
+    `BookSession.marks`, which every spread reads as it appears; the same for bookmarks →
+    `BookmarkMark`s → `BookSession.bookmarks`, drawn by `PageView` as a ribbon hanging from the top
+    edge over the text's right edge (left of the cover camera's hole; the running head narrows to
+    clear it), never added to the text; the toolbar's (and `ReaderDeck`'s) bookmark toggle reflects
+    the page holding the position (from `laidOutChapter`, never laying one out) and adds a bookmark
+    at that page's first character or removes every bookmark on it; every `jump(to:)` — link, contents, note,
     slider, accepted sync — pushes the place it left onto a `ReturnTrail`, shown as a glass "Back to
     page N" capsule over the folio of the page holding the position (in the progress strip while
     the bars are up); ✕ forgets the trail, paging back onto a stop drops it; `ReturnTrailTests`), `ReaderSettings` (incl. the
@@ -412,7 +428,7 @@ state and is followed at once; a size change while the bars are up hides them fi
   ends at the fold, 455.5 pt = 1366.5 px, and the half-painted last row (alpha 0.5, premultiplied)
   drew a grey line across the display during every turn. `PageFlipEdgeTests`.
 - Page textures are cached per `PageSlot` and dropped on layout/palette/style changes; anything
-  else that changes what a page draws (highlights, selection) must call
+  else that changes what a page draws (highlights, bookmark ribbons, selection) must call
   `PageFlipDriver.invalidateTextures()` or the leaf shows stale content.
 - Never call `BookSession.paginatedChapter` for a chapter other than the one on screen from view
   code (body, labels): it lays the chapter out UNANCHORED and caches it, so returning there shows

@@ -82,8 +82,9 @@ struct HighlightMark: Hashable, Sendable {
     var isFound = false
 }
 
-/// Notes and highlights as Markdown, and single quotes as plain text, for sharing. Both credit
-/// their source through `Credit`, so the book's title, author and chapter read the same in each.
+/// Notes and highlights (by chapter, then the bookmarks as their own "## Bookmarks" list) as
+/// Markdown, and single quotes as plain text, for sharing. Both credit their source through
+/// `Credit`, so the book's title, author and chapter read the same in each.
 enum AnnotationExport {
     /// Where a quote comes from, cleaned once for every export: names trimmed, runs of whitespace
     /// folded, blanks dropped.
@@ -129,7 +130,8 @@ enum AnnotationExport {
             .joined(separator: "\n")
     }
 
-    nonisolated static func markdown(title: String, author: String?, annotations: [(chapter: String?, text: String, note: String)]) -> String {
+    nonisolated static func markdown(title: String, author: String?, annotations: [(chapter: String?, text: String, note: String)],
+                                     bookmarks: [(chapter: String?, label: String)] = []) -> String {
         let book = Credit(title: title, author: author, chapter: nil)
         var lines = ["# \(book.title)"]
         if let author = book.author { lines.append("*\(author)*") }
@@ -151,6 +153,15 @@ enum AnnotationExport {
             if !note.isEmpty {
                 lines.append("")
                 lines.append(note)
+            }
+        }
+        if !bookmarks.isEmpty {
+            lines.append("")
+            lines.append("## Bookmarks")
+            lines.append("")
+            for bookmark in bookmarks {
+                let parts = [Credit.clean(bookmark.chapter), Credit.clean(bookmark.label)].compactMap { $0 }
+                lines.append("- " + (parts.isEmpty ? "Bookmark" : parts.joined(separator: " — ")))
             }
         }
         return lines.joined(separator: "\n") + "\n"

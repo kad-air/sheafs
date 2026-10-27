@@ -21,7 +21,7 @@ final class LibraryStore {
     private var hasPublished = false
 
     init(inMemory: Bool = false) {
-        let schema = Schema([Book.self, Catalog.self, Annotation.self])
+        let schema = Schema([Book.self, Catalog.self, Annotation.self, Bookmark.self])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
         do {
             container = try ModelContainer(for: schema, configurations: [config])
@@ -157,6 +157,7 @@ final class LibraryStore {
         try? FileManager.default.removeItem(at: fileURL(for: book))
         try? FileManager.default.removeItem(at: coverURL(for: book))
         for annotation in annotations(for: book) { context.delete(annotation) }
+        for bookmark in bookmarks(for: book) { context.delete(bookmark) }
         context.delete(book)
         try? context.save()
         publishRecentBook()
@@ -220,6 +221,26 @@ final class LibraryStore {
 
     func delete(_ annotation: Annotation) {
         context.delete(annotation)
+        save()
+    }
+
+    // MARK: Bookmarks
+
+    /// The book's bookmarks in reading order.
+    func bookmarks(for book: Book) -> [Bookmark] {
+        let id = book.id
+        let fetch = FetchDescriptor<Bookmark>(predicate: #Predicate { $0.bookID == id },
+                                              sortBy: [SortDescriptor(\.spineIndex), SortDescriptor(\.textOffset)])
+        return (try? context.fetch(fetch)) ?? []
+    }
+
+    func add(_ bookmark: Bookmark) {
+        context.insert(bookmark)
+        save()
+    }
+
+    func delete(_ bookmark: Bookmark) {
+        context.delete(bookmark)
         save()
     }
 

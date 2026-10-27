@@ -16,12 +16,15 @@ final class PagerProxy {
 struct ReaderView: View {
     let book: Book
     @Query private var annotations: [Annotation]
+    @Query private var bookmarks: [Bookmark]
 
     init(book: Book) {
         self.book = book
         let id = book.id
         _annotations = Query(filter: #Predicate<Annotation> { $0.bookID == id },
                              sort: [SortDescriptor(\Annotation.spineIndex), SortDescriptor(\Annotation.startOffset)])
+        _bookmarks = Query(filter: #Predicate<Bookmark> { $0.bookID == id },
+                           sort: [SortDescriptor(\Bookmark.spineIndex), SortDescriptor(\Bookmark.textOffset)])
     }
 
     @Environment(\.dismiss) private var dismiss
@@ -37,6 +40,12 @@ struct ReaderView: View {
     @State private var session: BookSession?
     @State private var chromeVisible = false
     @State private var showContents = false
+    /// The page holding the position has a bookmark. State, refreshed after the inputs change
+    /// (`refreshBookmarkHere`), so the body never reads the pagination cache: every prefetch would
+    /// otherwise re-run the whole reader body.
+    @State private var bookmarkHere = false
+    /// The contents sheet's segment, kept between openings.
+    @State private var contentsTab = ContentsView.ContentsTab.contents
     @State private var showAppearance = false
     /// The small panel over the bottom of the page; `showAppearance` is the detailed sheet behind it.
     @State private var showQuickAppearance = false
@@ -125,7 +134,8 @@ struct ReaderView: View {
             }
         }) {
             if let session {
-                ContentsView(session: session, book: book, annotations: annotations, onSelect: { location in
+                ContentsView(session: session, book: book, annotations: annotations, bookmarks: bookmarks,
+                             tab: $contentsTab, onSelect: { location in
                     showContents = false
                     jump(to: location)
                 }, onSearch: {
@@ -231,7 +241,7 @@ struct ReaderView: View {
                 ZStack(alignment: .topLeading) {
                     ReaderPager(session: session, layout: layout, style: style, palette: palette,
                                 location: session.location, tapTurnsPages: settings.tapToTurn,
-                                marks: annotations.map(\.mark) + foundMarks, highlightColor: settings.highlightColor, pageTurn: settings.pageTurn, proxy: pagerProxy,
+                                marks: annotations.map(\.mark) + foundMarks, bookmarks: bookmarks.map(\.mark), highlightColor: settings.highlightColor, pageTurn: settings.pageTurn, proxy: pagerProxy,
                                 onLocationChange: { location in
                                     if volumeButtons.isRunning {
                                         VolumeLog.shared.note("landed at spine=\(location.spineIndex) offset=\(location.textOffset)")
@@ -248,7 +258,8 @@ struct ReaderView: View {
                     if let deck = layout.deckFrame {
                         ReaderDeck(session: session, palette: palette, proxy: pagerProxy,
                                    showContents: $showContents, showAppearance: $showQuickAppearance,
-                                   onSearch: openSearch) { location in
+                                   onSearch: openSearch,
+                                   isBookmarked: bookmarkHere, onToggleBookmark: toggleBookmark) { location in
                             jump(to: location)
                         }
                         .frame(width: deck.width, height: deck.height)
@@ -263,6 +274,11 @@ struct ReaderView: View {
                     }
                 }
                 .animation(.snappy, value: trail)
+                .onChange(of: BookmarkInputs(location: session.location, textSize: layout.textSize, style: style,
+                                             marks: bookmarks.map(\.mark)), initial: true) {
+                    // After the pager's update has laid the page out for the new position or size.
+                    DispatchQueue.main.async { refreshBookmarkHere() }
+                }
                 .frame(width: full.width, height: full.height, alignment: .topLeading)
                 .offset(x: -shift.x, y: -shift.y)
                 .onChange(of: fresh, initial: true) { _, new in
@@ -326,6 +342,13 @@ struct ReaderView: View {
         ToolbarItem(placement: .primaryAction) {
             Button("Appearance", systemImage: "textformat.size") { openQuickAppearance() }
         }
+        ToolbarItem(placement: .primaryAction) {
+            Button(bookmarkHere ? "Remove Bookmark" : "Add Bookmark", systemImage: bookmarkHere ? "bookmark.fill" : "bookmark") {
+                toggleBookmark()
+            }
+            .disabled(session?.isReady != true)
+        }
+        .visibilityPriority(.high)
         ToolbarOverflowMenu {
             Button("Sync Position Now", systemImage: "arrow.triangle.2.circlepath") {
                 Task { await syncNow() }
@@ -483,6 +506,57 @@ struct ReaderView: View {
         return annotation
     }
 
+    // MARK: Bookmarks
+
+    /// The page that holds the reading position (the right-hand page of a spread), from the layout
+    /// on screen; nil until it is laid out (never lays one out: see `BookSession.laidOutChapter`).
+    /// Not for the body: it reads the pagination cache.
+    private func currentPage() -> (chapter: PaginatedChapter, page: Int)? {
+        guard let session, session.isReady, let chapter = session.laidOutChapter(session.location.spineIndex) else { return nil }
+        return (chapter, chapter.pageIndex(containing: session.location.textOffset))
+    }
+
+    /// What decides whether the page holding the position has a bookmark.
+    private struct BookmarkInputs: Equatable {
+        var location: ReadingLocation
+        var textSize: CGSize
+        var style: TypesetStyle
+        var marks: [BookmarkMark]
+    }
+
+    /// Whether the current page holds a bookmark: any whose offset falls in its character range,
+    /// so a bookmark made at another text size still counts. Called outside the body only.
+    private func refreshBookmarkHere() {
+        let here = !bookmarks(onCurrentPageOf: bookmarks).isEmpty
+        if here != bookmarkHere { bookmarkHere = here }
+    }
+
+    /// The bookmarks on the current page, from the layout on screen (outside the body only).
+    private func bookmarks(onCurrentPageOf list: [Bookmark]) -> [Bookmark] {
+        guard let (chapter, page) = currentPage() else { return [] }
+        let ids = Set(chapter.bookmarks(list.map(\.mark), onPage: page).map(\.id))
+        return list.filter { ids.contains($0.id) }
+    }
+
+    /// Marks the current page at its first character, or unmarks it (every bookmark on it).
+    private func toggleBookmark() {
+        guard let session, let (chapter, page) = currentPage() else { return }
+        let here = bookmarks(onCurrentPageOf: library.bookmarks(for: book))
+        if !here.isEmpty {
+            for bookmark in here { library.delete(bookmark) }
+            log.info("bookmark removed at \(chapter.spineIndex):\(page) (\(here.count))")
+            print("[bookmark] removed \(here.count) on spine=\(chapter.spineIndex) page=\(page)")
+            return
+        }
+        let start = ReadingLocation(spineIndex: chapter.spineIndex, textOffset: chapter.range(ofPage: page).location)
+        let bookmark = Bookmark(bookID: book.id, spineIndex: start.spineIndex, textOffset: start.textOffset,
+                                xpointer: session.xpointer(for: start)?.serialized,
+                                label: Bookmark.label(in: chapter.textStorage.string as NSString, at: start.textOffset))
+        library.add(bookmark)
+        log.info("bookmark added at \(start.spineIndex):\(start.textOffset)")
+        print("[bookmark] added spine=\(start.spineIndex) offset=\(start.textOffset) pointer=\(bookmark.xpointer ?? "-") label=\(bookmark.label)")
+    }
+
     /// Over a vertical fold (a spread, flat or in book pose) the panel keeps to the left page: controls
     /// stay off the fold, and the right page, which holds the reading position, stays in full view.
     private var quickPanelWidth: CGFloat? {
@@ -637,6 +711,7 @@ struct ReaderView: View {
         goToFromLaunchArgument(session: fresh)
         openAppearanceFromLaunchArgument()
         searchFromLaunchArgument()
+        bookmarkFromLaunchArgument(session: fresh)
         if let remote = await sync.pull(for: book) {
             offer(remote, session: fresh, force: false)
         }
@@ -692,6 +767,49 @@ struct ReaderView: View {
     }
 
     private static var appearanceArgumentConsumed = false
+
+    /// `-SheafsBookmark toggle|jump` toggles the bookmark on the page at the position, or jumps
+    /// (`jump(to:)`, so with a "Back to page N" trail) to the book's first bookmark, once the page is
+    /// laid out; `-SheafsContents contents|bookmarks|notes` opens the contents sheet on that
+    /// segment. Once per launch, for simulator checks (the simulator can't be tapped headless).
+    private func bookmarkFromLaunchArgument(session: BookSession) {
+        guard !Self.bookmarkArgumentConsumed else { return }
+        Self.bookmarkArgumentConsumed = true
+        let defaults = UserDefaults.standard
+        let action = defaults.string(forKey: "SheafsBookmark")
+        let segment = defaults.string(forKey: "SheafsContents")
+        guard action != nil || segment != nil else { return }
+        Task {
+            // The pager appears once the window's regions are known, and lays the page out then.
+            var waited = 0
+            while session.laidOutChapter(session.location.spineIndex) == nil, waited < 100 {
+                try? await Task.sleep(for: .milliseconds(100))
+                waited += 1
+            }
+            try? await Task.sleep(for: .seconds(1))
+            switch action {
+            case "toggle": toggleBookmark()
+            case "jump":
+                if let first = library.bookmarks(for: book).first {
+                    print("[bookmark] jump to spine=\(first.spineIndex) offset=\(first.textOffset)")
+                    jump(to: first.location)
+                } else {
+                    print("[bookmark] jump: the book has no bookmarks")
+                }
+            case nil: break
+            case let other?: print("[bookmark] unknown action \(other)")
+            }
+            switch segment {
+            case "contents": contentsTab = .contents
+            case "bookmarks": contentsTab = .bookmarks
+            case "notes": contentsTab = .notes
+            default: break
+            }
+            if segment != nil { showContents = true }
+        }
+    }
+
+    private static var bookmarkArgumentConsumed = false
 
     /// `-SheafsGoTo <contents title | 0…1>` moves to a table-of-contents entry (an exact title
     /// first, else the first title containing it) or to the paragraph at a fraction of the book
@@ -782,18 +900,29 @@ struct ContentsView: View {
     let session: BookSession
     let book: Book
     let annotations: [Annotation]
+    let bookmarks: [Bookmark]
+    @Binding var tab: ContentsTab
     var onSelect: (ReadingLocation) -> Void
     var onSearch: (() -> Void)?
     @Environment(\.dismiss) private var dismiss
-    @State private var tab = ContentsTab.contents
 
-    enum ContentsTab: Hashable { case contents, notes }
+    enum ContentsTab: Hashable { case contents, bookmarks, notes }
+
+    private var title: String {
+        switch tab {
+        case .contents: "Contents"
+        case .bookmarks: "Bookmarks"
+        case .notes: "Notes"
+        }
+    }
 
     var body: some View {
         NavigationStack {
             Group {
                 if tab == .notes {
                     NotesListView(session: session, annotations: annotations, onSelect: onSelect)
+                } else if tab == .bookmarks {
+                    BookmarksListView(session: session, bookmarks: bookmarks, onSelect: onSelect)
                 } else if session.flatTOC.isEmpty {
                     List(0 ..< session.chapterCount, id: \.self) { index in
                         Button {
@@ -814,11 +943,12 @@ struct ContentsView: View {
                 }
             }
             .listStyle(.plain)
-            .navigationTitle(tab == .notes ? "Notes" : "Contents")
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .safeAreaInset(edge: .top) {
                 Picker("Section", selection: $tab) {
                     Text("Contents").tag(ContentsTab.contents)
+                    Text("Bookmarks").tag(ContentsTab.bookmarks)
                     Text("Notes").tag(ContentsTab.notes)
                 }
                 .pickerStyle(.segmented)
@@ -835,9 +965,10 @@ struct ContentsView: View {
                         Button("Search", systemImage: "magnifyingglass", action: onSearch)
                     }
                 }
-                if tab == .notes, !annotations.isEmpty {
+                if tab != .contents, !annotations.isEmpty || !bookmarks.isEmpty {
                     ToolbarItem(placement: .topBarLeading) {
-                        ShareLink(item: NotesListView.markdown(book: book, session: session, annotations: annotations),
+                        ShareLink(item: NotesListView.markdown(book: book, session: session, annotations: annotations,
+                                                               bookmarks: bookmarks),
                                   subject: Text("Notes from \(book.title)")) {
                             Label("Share Notes", systemImage: "square.and.arrow.up")
                         }
@@ -910,6 +1041,9 @@ struct ReaderDeck: View {
     @Binding var showContents: Bool
     @Binding var showAppearance: Bool
     var onSearch: () -> Void
+    /// The page that holds the position has a bookmark.
+    var isBookmarked: Bool
+    var onToggleBookmark: () -> Void
     var onJump: (ReadingLocation) -> Void
     @Environment(ReaderSettings.self) private var settings
     @State private var value = 0.0
@@ -937,6 +1071,8 @@ struct ReaderDeck: View {
                     .font(.title)
                 Button("Contents", systemImage: "list.bullet") { showContents = true }
                 Button("Search", systemImage: "magnifyingglass", action: onSearch)
+                Button(isBookmarked ? "Remove Bookmark" : "Add Bookmark",
+                       systemImage: isBookmarked ? "bookmark.fill" : "bookmark", action: onToggleBookmark)
                 Button("Smaller Text", systemImage: "textformat.size.smaller") { settings.fontSize = max(12, settings.fontSize - 1) }
                 Button("Larger Text", systemImage: "textformat.size.larger") { settings.fontSize = min(32, settings.fontSize + 1) }
                 Button("Appearance", systemImage: "paintpalette") { showAppearance = true }
