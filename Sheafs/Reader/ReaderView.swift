@@ -743,6 +743,7 @@ struct ReaderView: View {
         session = fresh
         await fresh.load()
         guard fresh.isReady else { return }
+        if fresh.reanchor(annotations) > 0 { library.save() }
         book.lastOpenedAt = .now
         library.save()
         library.publishRecentBook()

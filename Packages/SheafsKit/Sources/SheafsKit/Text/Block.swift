@@ -13,6 +13,11 @@ public struct InlineStyle: OptionSet, Hashable, Sendable {
     public static let superscript = InlineStyle(rawValue: 1 << 5)
     public static let `subscript` = InlineStyle(rawValue: 1 << 6)
     public static let smallCaps = InlineStyle(rawValue: 1 << 7)
+    /// The markup made this text bold and the stylesheet set it in small caps instead (Standard
+    /// Ebooks' `b, strong { font-variant: small-caps; font-weight: normal }`). Only with
+    /// `.smallCaps`: in a font without small caps the typesetter draws it bold, as the markup
+    /// alone would, so the emphasis does not vanish.
+    public static let boldAsSmallCaps = InlineStyle(rawValue: 1 << 8)
 }
 
 /// A run of text with one style. Consecutive runs with equal style and link may be merged.

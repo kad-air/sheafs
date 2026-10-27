@@ -49,11 +49,12 @@ enum XHTMLSemantics {
         return level
     }
 
-    /// The style an element contributes by its tag alone.
+    /// The style an element contributes by its tag alone (the user agent stylesheet: the
+    /// publisher's CSS is applied on top, so `dt { font-weight: normal }` wins).
     static func style(forTag tag: String) -> InlineStyle {
         switch tag {
         case "em", "i", "cite", "dfn", "var": return .italic
-        case "strong", "b": return .bold
+        case "strong", "b", "dt": return .bold
         case "u", "ins": return .underline
         case "s", "del", "strike": return .strikethrough
         case "code", "kbd", "samp", "tt": return .code

@@ -1,4 +1,6 @@
+import CoreText
 import Foundation
+import Synchronization
 import UIKit
 import SheafsKit
 
@@ -31,6 +33,26 @@ extension NSAttributedString.Key {
 /// Turns a `Chapter` into an `NSAttributedString` whose UTF-16 layout matches the chapter's
 /// offsets exactly: every block's text followed by "\n".
 enum Typesetter {
+    /// Fonts (by PostScript name) known to have lower-case small caps.
+    nonisolated private static let smallCapsCache = Mutex<[String: Bool]>([:])
+
+    /// Whether the face has real lower-case small caps (`kLowerCaseType` /
+    /// `kLowerCaseSmallCapsSelector`, which CoreText also reports for OpenType `smcp`). Asking for
+    /// the feature in a face without it silently draws plain roman.
+    nonisolated static func hasSmallCaps(_ font: UIFont) -> Bool {
+        if let known = smallCapsCache.withLock({ $0[font.fontName] }) { return known }
+        var found = false
+        let features = CTFontCopyFeatures(font as CTFont) as? [[String: Any]] ?? []
+        for feature in features where (feature[kCTFontFeatureTypeIdentifierKey as String] as? Int) == kLowerCaseType {
+            let selectors = feature[kCTFontFeatureTypeSelectorsKey as String] as? [[String: Any]] ?? []
+            if selectors.contains(where: { ($0[kCTFontFeatureSelectorIdentifierKey as String] as? Int) == kLowerCaseSmallCapsSelector }) {
+                found = true
+            }
+        }
+        smallCapsCache.withLock { $0[font.fontName] = found }
+        return found
+    }
+
     nonisolated static func attributedString(for chapter: Chapter, style: TypesetStyle, images: ChapterImages,
                                              pageSize: CGSize) -> NSAttributedString {
         let result = NSMutableAttributedString()
@@ -91,7 +113,7 @@ enum Typesetter {
         let base = CGFloat(style.fontSize)
         var size = base
         var bold = run.style.contains(.bold)
-        var italic = run.style.contains(.italic)
+        let italic = run.style.contains(.italic)
         var color = style.palette.text
         var attrs: [NSAttributedString.Key: Any] = [:]
 
@@ -102,8 +124,8 @@ enum Typesetter {
         case .caption:
             size = base * 0.85
             color = style.palette.secondary
-        case .blockquote:
-            italic = true
+        // No house italics for blockquotes: letters and epigraphs are blockquotes, and the book's
+        // own markup and stylesheet say what in them is italic.
         case .preformatted:
             size = base * 0.85
         default:
@@ -119,11 +141,17 @@ enum Typesetter {
                 attrs[.baselineOffset] = run.style.contains(.superscript) ? size * 0.36 : -size * 0.12
             }
             if run.style.contains(.smallCaps) {
-                let features: [[UIFontDescriptor.FeatureKey: Int]] = [[
-                    .type: kLowerCaseType, .selector: kLowerCaseSmallCapsSelector,
-                ]]
-                let descriptor = font.fontDescriptor.addingAttributes([.featureSettings: features])
-                font = UIFont(descriptor: descriptor, size: font.pointSize)
+                if hasSmallCaps(font) {
+                    let features: [[UIFontDescriptor.FeatureKey: Int]] = [[
+                        .type: kLowerCaseType, .selector: kLowerCaseSmallCapsSelector,
+                    ]]
+                    let descriptor = font.fontDescriptor.addingAttributes([.featureSettings: features])
+                    font = UIFont(descriptor: descriptor, size: font.pointSize)
+                } else if run.style.contains(.boldAsSmallCaps), !bold {
+                    // Georgia, Palatino, Charter, Times: the feature does nothing, and the
+                    // stylesheet took the bold away for it. Draw what the markup asked for.
+                    font = style.font.font(size: font.pointSize, bold: true, italic: italic)
+                }
             }
             attrs[.font] = font
         }

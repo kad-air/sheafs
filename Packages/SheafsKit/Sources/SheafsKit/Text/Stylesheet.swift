@@ -6,15 +6,18 @@ import Synchronization
 // A deliberately small subset: selectors made of tag, `.class`, `#id` and `*` compounds joined
 // by descendant (space) and child (`>`) combinators, in comma lists. A selector with anything
 // else in it (pseudo-classes and pseudo-elements, attribute selectors, `+`/`~`, namespaces,
-// escapes) is dropped whole, so `p::first-letter` never styles the whole paragraph. At-rules
-// are skipped (`@media`, `@font-face`, `@supports` blocks included); `@import` is recorded and
-// followed by `StylesheetLibrary`. Only the properties in `CSSProperties` are read: the
+// escapes) is dropped whole, so `p::first-letter` never styles the whole paragraph. The rules
+// inside `@supports` always apply, inside `@media` only for no query, `all` or `screen` (never
+// `print`, never a feature query we cannot evaluate); other at-rule blocks (`@font-face`, `@page`)
+// are skipped. `@import` is recorded and followed by `StylesheetLibrary`. Only the properties in `CSSProperties` are read: the
 // stylesheet contributes semantics (italic, bold, small caps, alignment, hiding); the reader's
 // font, size, colours and justification stay in charge.
 
 /// The properties the text model understands, as declared by one rule (nil: not declared).
 struct CSSProperties: Hashable, Sendable {
-    enum VerticalAlign: Hashable, Sendable { case superscript, `subscript`, baseline }
+    /// Only `super` and `sub` are read: `vertical-align: baseline` (normalize.css puts it on every
+    /// `sup`/`sub` and raises them with `position`) never takes the tag's raising away.
+    enum VerticalAlign: Hashable, Sendable { case superscript, `subscript` }
 
     var italic: Bool?
     var bold: Bool?
@@ -61,8 +64,6 @@ struct CSSProperties: Hashable, Sendable {
         case .subscript:
             result.insert(.subscript)
             result.remove(.superscript)
-        case .baseline:
-            result.remove([.superscript, .subscript])
         case nil:
             break
         }
@@ -92,8 +93,10 @@ struct CSSDeclarations: Hashable, Sendable {
         let property = declaration[..<colon].trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         var value = declaration[declaration.index(after: colon)...].lowercased()
         var isImportant = false
-        if let bang = value.range(of: "!important") {
-            value.removeSubrange(bang)
+        // "!important", also written "! important".
+        if let bang = value.lastIndex(of: "!"),
+           value[value.index(after: bang)...].trimmingCharacters(in: .whitespacesAndNewlines) == "important" {
+            value = String(value[..<bang])
             isImportant = true
         }
         value = value.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -134,7 +137,6 @@ struct CSSDeclarations: Hashable, Sendable {
             switch first {
             case "super": target.verticalAlign = .superscript
             case "sub": target.verticalAlign = .subscript
-            case "baseline": target.verticalAlign = .baseline
             default: break
             }
         case "text-align":
@@ -315,7 +317,13 @@ public struct Stylesheet: Sendable {
     public var ruleCount: Int { rules.count }
 
     public init(css: String) {
-        let scalars = CSSScanner.stripComments(Array(css.unicodeScalars))
+        parse(CSSScanner.stripComments(Array(css.unicodeScalars)), topLevel: true)
+        buildIndex()
+    }
+
+    /// Appends the rules of `scalars` (a whole sheet, or the inside of an `@media`/`@supports`
+    /// block) in source order.
+    private mutating func parse(_ scalars: [Unicode.Scalar], topLevel: Bool) {
         var i = 0
         while i < scalars.count {
             let scalar = scalars[i]
@@ -326,10 +334,14 @@ public struct Stylesheet: Sendable {
             if scalar == "@" {
                 let (end, terminator) = CSSScanner.scan(scalars, from: i, until: [";", "{"])
                 if terminator == ";" || terminator == nil {
-                    if let target = CSSScanner.importTarget(scalars[i..<end]) { imports.append(target) }
+                    if topLevel, let target = CSSScanner.importTarget(scalars[i..<end]) { imports.append(target) }
                     i = end + 1
                 } else {
-                    i = CSSScanner.endOfBlock(scalars, openingAt: end) + 1
+                    let close = CSSScanner.endOfBlock(scalars, openingAt: end)
+                    if CSSScanner.conditionalApplies(scalars[i..<end]) {
+                        parse(Array(scalars[(end + 1) ..< min(close, scalars.count)]), topLevel: false)
+                    }
+                    i = close + 1
                 }
                 continue
             }
@@ -346,7 +358,6 @@ public struct Stylesheet: Sendable {
             }
             i = close + 1
         }
-        buildIndex()
     }
 
     /// Decodes like the documents (UTF-8 with or without a BOM, UTF-16 with a BOM, else Latin 1).
@@ -416,9 +427,17 @@ struct StyleCascade {
 /// A book's stylesheets, parsed once each and shared by every chapter that links them (most
 /// books have one or two for the whole spine). Thread-safe: chapters convert in parallel.
 public final class StylesheetLibrary: Sendable {
+    /// One file's load-and-parse, done once: the first chapter to ask holds the slot's lock while
+    /// it reads, and the others wait for its result instead of parsing the file again.
+    private final class Slot: Sendable {
+        let sheet = Mutex<Stylesheet??>(nil)
+    }
+
     private let load: @Sendable (String) -> Data?
+    /// Zip path → its slot (the sheet as written, `@import`s not yet followed).
+    private let slots = Mutex<[String: Slot]>([:])
     /// Zip path → the sheet with its imports folded in (nil: missing or unreadable).
-    private let cache = Mutex<[String: Stylesheet?]>([:])
+    private let resolved = Mutex<[String: Stylesheet?]>([:])
 
     /// `load` reads a zip path.
     public init(load: @escaping @Sendable (String) -> Data?) {
@@ -440,18 +459,36 @@ public final class StylesheetLibrary: Sendable {
         resolve(path, visiting: [])
     }
 
+    /// Reads and parses a file at most once per library, however many threads ask at once. No
+    /// other slot is touched while this one is held, so an `@import` cycle cannot deadlock.
+    private func parsed(_ path: String) -> Stylesheet? {
+        let slot = slots.withLock { slots in
+            if let slot = slots[path] { return slot }
+            let slot = Slot()
+            slots[path] = slot
+            return slot
+        }
+        return slot.sheet.withLock { sheet in
+            if let done = sheet { return done }
+            let parsed = load(path).map { Stylesheet(data: $0) }
+            sheet = .some(parsed)
+            return parsed
+        }
+    }
+
+    /// Folds the imports in (cheap: the parsing is shared); cached once done.
     private func resolve(_ path: String, visiting: Set<String>) -> Stylesheet? {
-        if let cached = cache.withLock({ $0[path] }) { return cached }
+        if let cached = resolved.withLock({ $0[path] }) { return cached }
         guard !visiting.contains(path), visiting.count < 8 else { return nil }
-        var sheet = load(path).map { Stylesheet(data: $0) }
-        if let parsed = sheet, !parsed.imports.isEmpty {
-            let imported = parsed.imports.compactMap { href -> Stylesheet? in
+        var sheet = parsed(path)
+        if let own = sheet, !own.imports.isEmpty {
+            let imported = own.imports.compactMap { href -> Stylesheet? in
                 guard !EPUBPath.isExternal(href) else { return nil }
                 return resolve(EPUBPath.resolve(href, relativeTo: path), visiting: visiting.union([path]))
             }
-            sheet = Stylesheet(merging: imported + [parsed])
+            sheet = Stylesheet(merging: imported + [own])
         }
-        cache.withLock { $0[path] = .some(sheet) }
+        if visiting.isEmpty { resolved.withLock { $0[path] = .some(sheet) } }
         return sheet
     }
 }
@@ -497,6 +534,10 @@ enum CSSScanner {
                 result.append(" ")
             } else if scalar == "<", scalars[i...].starts(with: ["<", "!", "-", "-"]) {
                 i += 4
+            } else if scalar == "<", scalars[i...].starts(with: Array("<![CDATA[".unicodeScalars)) {
+                i += 9
+            } else if scalar == "]", scalars[i...].starts(with: ["]", "]", ">"]) {
+                i += 3
             } else if scalar == "-", scalars[i...].starts(with: ["-", "-", ">"]) {
                 i += 3
             } else {
@@ -565,6 +606,31 @@ enum CSSScanner {
             start = end + 1
         }
         return parts
+    }
+
+    /// Whether the rules inside an at-rule block apply: always for `@supports` (the reader is
+    /// taken to support what is asked; SE un-hides its title page that way), for `@media` when
+    /// `mediaApplies`, never for anything else (`@font-face`, `@page`, `@keyframes`).
+    static func conditionalApplies(_ prelude: ArraySlice<Unicode.Scalar>) -> Bool {
+        let text = String(String.UnicodeScalarView(prelude)).lowercased()
+        if text.hasPrefix("@supports") { return true }
+        if text.hasPrefix("@media") { return mediaApplies(String(text.dropFirst("@media".count))) }
+        return false
+    }
+
+    /// A media query list (an `@media` prelude or a `media` attribute) applies when it is empty
+    /// or one of its queries is a bare `all` or `screen` (`only` allowed). Print, other media
+    /// types and feature queries (`all and (prefers-color-scheme: dark)`), which this reader
+    /// cannot evaluate, do not.
+    static func mediaApplies(_ query: String?) -> Bool {
+        guard let query = query?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(), !query.isEmpty else {
+            return true
+        }
+        return query.split(separator: ",").contains { part in
+            var words = part.split(whereSeparator: { $0.isWhitespace })
+            if words.first == "only" { words.removeFirst() }
+            return words.count == 1 && (words[0] == "all" || words[0] == "screen")
+        }
     }
 
     /// The target of `@import url("a.css") screen;` / `@import 'a.css';`.

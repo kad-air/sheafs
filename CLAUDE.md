@@ -134,21 +134,42 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     exactly one U+FFFC; the app's `Typesetter` must (and does) produce an attributed string of the
     same length so a `textOffset` is an `NSAttributedString` index. `SheafsTests` pins it.
     The publisher's CSS (`Text/Stylesheet`): the head's `<link rel="stylesheet">`s (through a
-    `StylesheetLibrary`, which parses each zip path once per book, follows `@import`, and is shared
-    by the parallel chapter conversions in `BookSession`) and `<style>` blocks, in document order.
-    Selectors are tag/`.class`/`#id`/`*` compounds with descendant and child chains; a selector with
-    anything else (pseudo-classes and -elements, attribute selectors, `+`/`~`) is dropped WHOLE, so
-    `p::first-letter` never styles the paragraph; at-rule blocks (`@media`, `@font-face`) are skipped.
-    Cascade: specificity, then source order, then the `style` attribute, then `!important`. It is
-    applied where the frame is built (`ChapterBuilder.cssProperties`) and only sets semantics:
-    italic/bold/small caps/underline/strike/super-/subscript, ON and OFF (`font-style: normal`
-    un-italicises an `<em>`), center/right alignment, and `display: none`, which skips the content
-    like `hidden` while the element and its children still take their path steps (CREngine counts
-    them). 🔴 `text-align: justify`/`left` (and `align="justify"`) read as `.natural`: justification
-    is the reader's setting, and `Typesetter` justifies a `.justified` block whatever it says (Alice's
-    `body { text-align: justify }` would have overruled the toggle). Colours, fonts, sizes, margins
-    and text-indent are not read. `StylesheetTests`; `ChapterReferenceTests` runs every fixture
-    chapter with and without its stylesheets against the Python reference.
+    `StylesheetLibrary`, which reads and parses each zip path ONCE per book, single-flight under a
+    per-file lock even while `BookSession` converts chapters in parallel, and follows `@import`)
+    and `<style>` blocks (`<![CDATA[`/`<!--` wrappers stripped), in document order; a `media`
+    attribute must be absent, `all` or `screen`. Selectors are tag/`.class`/`#id`/`*` compounds
+    with descendant and child chains; a selector with anything else (pseudo-classes and -elements,
+    attribute selectors, `+`/`~`) is dropped WHOLE, so `p::first-letter` never styles the paragraph.
+    🔴 Rules inside `@supports` ALWAYS apply and inside `@media` when the query is absent, `all` or
+    `screen` (not `print`, not feature queries): Standard Ebooks' core.css hides the title page's
+    h1/p and the imprint/colophon h2 with `display:none` for ADE and shows them again inside
+    `@supports(font-size: 0)`; honouring only the hide lost every SE title page. Other at-rule
+    blocks (`@font-face`, `@page`) are skipped. Cascade: the tag's own style (`em` italic, `b`/`dt`
+    bold: the user-agent sheet) first, then specificity and source order, then the `style`
+    attribute, then `!important` (also `! important`); declarations on `html` reach `body`. Applied
+    where the frame is built (`ChapterBuilder.cssProperties`), semantics only:
+    italic/bold/small caps/underline/strike, ON and OFF (`font-style: normal` un-italicises an
+    `<em>`); `vertical-align: super`/`sub` add raising, and `baseline` NEVER takes a `sup`/`sub`
+    tag's away (normalize.css sets it on every `sup` and raises with `position`); center/right
+    alignment; `display: none`, which skips the content like `hidden` while the element and its
+    children still take their path steps (CREngine counts them) and their ids still record anchors
+    at the offset where they stand (a note in a hidden `aside` doesn't fall back to offset 0).
+    Small caps that replace the markup's bold (SE's `b, strong { font-variant: small-caps;
+    font-weight: normal }`) carry `InlineStyle.boldAsSmallCaps`: `Typesetter.hasSmallCaps` reads
+    the face's features, and Georgia, Palatino, Charter and Times New Roman have none, so there the
+    run is drawn BOLD instead of vanishing into plain roman (`FontTests` records each family). 🔴
+    `text-align: justify`/`left` (and `align="justify"`) read as `.natural`: justification is the
+    reader's setting, and `Typesetter` justifies a `.justified` block whatever it says. Not read:
+    colours, fonts, sizes, margins, text-indent, `text-transform` (it would change the text
+    length); not supported: `text-decoration` propagation (a descendant's `none` does remove an
+    ancestor's underline here, unlike a browser) and `@import` inside a `<style>` block.
+    Hidden content shifts offsets, so positions and highlights saved before stylesheets were
+    honoured are RE-ANCHORED on open (`Text/ChapterPositions`): the reading position follows
+    `book.xpointer` when it names a block of the same chapter at another offset, and a highlight
+    whose offsets no longer hold its quoted `text` moves to where its start/end pointers say, if
+    the text is there (`BookSession.reanchor`, logged; else left alone). `StylesheetTests`,
+    `ChapterPositionsTests`; `ChapterReferenceTests` runs every fixture chapter with and without
+    its stylesheets against the Python reference.
   - `Text/XPointer` — `/body/DocFragment[N]/body/…/p[K]/text()[k].off` parse/serialize (N 1-based
     over the FULL spine). We always serialize with indices (CrossPoint style); parsing tolerates
     missing `[1]`.
@@ -268,7 +289,9 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     detailed sliders' grids (`QuickAppearanceTests`). Fonts are picked from `FontList` (each name in
     its own face; a popover from the panel, a pushed page from the sheet), not a `Menu`/menu
     `Picker`: system menus draw every item in the system font. `FontTests` checks every family is
-    really installed (a missing one falls back to the system font without a word).
+    really installed (a missing one falls back to the system font without a word) and records
+    which have small caps. Blockquotes are NOT italicised by the typesetter (letters and epigraphs
+    are blockquotes; the book's markup and stylesheet say what in them is italic).
   - `Reader/VolumeButtons` — `VolumeButtonPager` (setting `volumeButtonsTurn`, off by default):
     up = next page, down = previous (`Press.turnsForward`, the owner's choice). iOS has no public
     volume-button event outside a camera session (`AVCaptureEventInteraction` reaches only apps

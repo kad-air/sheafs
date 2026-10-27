@@ -94,12 +94,44 @@ final class BookSession {
             chapterStarts = starts
             totalLength = total
             location = clamp(location)
+            reanchorPosition()
             state = .ready
             log.info("opened \(self.book.title, privacy: .public): \(self.chapters.count) chapters, \(total) chars")
         } catch {
             log.error("open failed: \(error)")
             state = .failed(error.localizedDescription)
         }
+    }
+
+    /// The saved offset is only right for the chapter as it converted when it was saved; the
+    /// saved pointer names the element itself. When the chapter converts differently now (a
+    /// stylesheet hides front matter, so the text after it moved up), follow the pointer.
+    private func reanchorPosition() {
+        let spine = location.spineIndex
+        guard spine < chapters.count,
+              let moved = chapters[spine].reanchoredOffset(location.textOffset, pointer: book.xpointer, spineIndex: spine) else { return }
+        log.info("reanchored position \(spine):\(self.location.textOffset) → \(moved) by \(self.book.xpointer ?? "", privacy: .public)")
+        location = clamp(ReadingLocation(spineIndex: spine, textOffset: moved))
+        book.textOffset = location.textOffset
+    }
+
+    /// Puts highlights whose stored offsets no longer hold their text where their pointers say,
+    /// when the text is there (see `Chapter.reanchoredRange`); others are left as they are.
+    /// Returns how many moved.
+    @discardableResult
+    func reanchor(_ annotations: [Annotation]) -> Int {
+        var moved = 0
+        for annotation in annotations where annotation.spineIndex >= 0 && annotation.spineIndex < chapters.count {
+            let stored = annotation.startOffset ..< max(annotation.startOffset, annotation.endOffset)
+            guard let range = chapters[annotation.spineIndex].reanchoredRange(
+                stored, text: annotation.text, startPointer: annotation.startPointer, endPointer: annotation.endPointer
+            ) else { continue }
+            log.info("reanchored highlight \(annotation.id, privacy: .public) \(annotation.spineIndex):\(stored.lowerBound)..<\(stored.upperBound) → \(range.lowerBound)..<\(range.upperBound)")
+            annotation.startOffset = range.lowerBound
+            annotation.endOffset = range.upperBound
+            moved += 1
+        }
+        return moved
     }
 
     func clamp(_ loc: ReadingLocation) -> ReadingLocation {
@@ -163,24 +195,15 @@ final class BookSession {
 
     /// The CREngine pointer for a location, for the sync server.
     func xpointer(for location: ReadingLocation) -> XPointer? {
-        guard location.spineIndex < chapters.count else { return nil }
-        let chapter = chapters[location.spineIndex]
-        guard let block = chapter.block(containing: location.textOffset) else {
-            return XPointer(spineIndex: location.spineIndex, elementPath: "/body")
-        }
-        let offset = max(0, min(location.textOffset - block.textOffset, block.textLength))
-        return XPointer(spineIndex: location.spineIndex, elementPath: block.elementPath, textNodeIndex: 1, characterOffset: offset)
+        guard location.spineIndex >= 0, location.spineIndex < chapters.count else { return nil }
+        return chapters[location.spineIndex].pointer(at: location.textOffset, spineIndex: location.spineIndex)
     }
 
     /// A location for a pointer written by this or another reader; nil when the chapter can't be found.
     func location(for pointer: XPointer) -> ReadingLocation? {
         guard pointer.spineIndex >= 0, pointer.spineIndex < chapters.count else { return nil }
-        let chapter = chapters[pointer.spineIndex]
-        guard let block = chapter.block(atElementPath: pointer.elementPath) ?? chapter.block(nearestElementPath: pointer.elementPath) else {
-            return ReadingLocation(spineIndex: pointer.spineIndex, textOffset: 0)
-        }
-        let within = min(pointer.characterOffset ?? 0, block.textLength)
-        return clamp(ReadingLocation(spineIndex: pointer.spineIndex, textOffset: block.textOffset + within))
+        let offset = chapters[pointer.spineIndex].offset(of: pointer) ?? 0
+        return clamp(ReadingLocation(spineIndex: pointer.spineIndex, textOffset: offset))
     }
 
     // MARK: Typesetting and pagination
