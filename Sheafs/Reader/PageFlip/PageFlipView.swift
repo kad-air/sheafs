@@ -15,8 +15,9 @@ struct FlipUniforms {
     var under1X: Float = 0, under1Y: Float = 0, under1Width: Float = 0, under1Height: Float = 0, under1On: Float = 0
     var paperR: Float = 1, paperG: Float = 1, paperB: Float = 1, isDark: Float = 0
     var pageTop: Float = 0, pageHeight: Float = 1
+    var baseY: Float = 0, baseOn: Float = 0
 
-    static let floatCount = 31
+    static let floatCount = 33
 }
 
 /// Everything one turn draws with: the leaf's frame and hinge, the textures, and the page(s)
@@ -38,6 +39,9 @@ struct FlipScene {
     /// A single page has no printed back: paper with the front showing through, mirrored.
     var ghostBack: Bool
     var under: [(frame: CGRect, texture: MTLTexture?)]
+    /// Tabletop: the surface below the page (`TabletopBaseView`), from `top` to the bottom of the
+    /// view, full width. The leaf ends where it starts and throws its shadow onto it.
+    var base: (top: CGFloat, texture: MTLTexture?)? = nil
     var palette: ReaderPalette
 }
 
@@ -141,6 +145,10 @@ final class PageFlipView: MTKView {
         uniforms.isDark = scene.palette.isDark ? 1 : 0
         uniforms.pageTop = Float(scene.pageTop - scene.leafFrame.minY)
         uniforms.pageHeight = Float(scene.pageHeight)
+        if let base = scene.base, base.texture != nil {
+            uniforms.baseY = Float(base.top)
+            uniforms.baseOn = 1
+        }
 
         encoder.setRenderPipelineState(pipeline)
         encoder.setFragmentBytes(&uniforms, length: MemoryLayout<FlipUniforms>.size, index: 0)
@@ -148,6 +156,7 @@ final class PageFlipView: MTKView {
         encoder.setFragmentTexture(scene.back ?? blank, index: 1)
         encoder.setFragmentTexture(scene.under.first?.texture ?? blank, index: 2)
         encoder.setFragmentTexture(scene.under.count > 1 ? scene.under[1].texture ?? blank : blank, index: 3)
+        encoder.setFragmentTexture(scene.base?.texture ?? blank, index: 4)
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         encoder.endEncoding()
         buffer.present(drawable)
@@ -156,9 +165,9 @@ final class PageFlipView: MTKView {
 
     // MARK: Page textures
 
-    /// Renders a page view into a texture at the display's scale, through the same `draw(_:)`
-    /// the live page uses, so the leaf carries exactly what was on screen.
-    func makeTexture(for page: PageView) -> MTLTexture? {
+    /// Renders a page view (or the tabletop base) into a texture at the display's scale, through
+    /// the same `draw(_:)` the live view uses, so the leaf carries exactly what was on screen.
+    func makeTexture(for page: UIView) -> MTLTexture? {
         guard let device else { return nil }
         return Self.texture(for: page, scale: traitCollection.displayScale, device: device)
     }
@@ -168,7 +177,7 @@ final class PageFlipView: MTKView {
     /// = 1366.5 px on the Duo) would leave the rounded-up last row half painted, alpha 0.5, and the
     /// shader reads its premultiplied colour as half-dark paper: a line across the whole display
     /// under the leaf and the page beneath for as long as the turn lasts. `PageFlipEdgeTests`.
-    static func texture(for page: PageView, scale: CGFloat, device: MTLDevice) -> MTLTexture? {
+    static func texture(for page: UIView, scale: CGFloat, device: MTLDevice) -> MTLTexture? {
         let size = page.bounds.size
         let width = Int((size.width * scale).rounded()), height = Int((size.height * scale).rounded())
         guard width > 0, height > 0 else { return nil }
@@ -181,7 +190,7 @@ final class PageFlipView: MTKView {
         context.translateBy(x: 0, y: CGFloat(height))
         context.scaleBy(x: CGFloat(width) / size.width, y: -CGFloat(height) / size.height)
         UIGraphicsPushContext(context)
-        page.render(in: context)
+        page.draw(page.bounds)
         UIGraphicsPopContext()
         let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm, width: width, height: height, mipmapped: false)
         descriptor.usage = .shaderRead

@@ -7,6 +7,10 @@ struct ReaderPalette: Hashable, Sendable {
     var text: UIColor
     var secondary: UIColor
     var link: UIColor
+    /// What the page stands on in the tabletop pose (`TabletopBaseView`, the deck): a shade
+    /// darker than the paper, so the page reads as a sheet with an edge rather than a colour
+    /// that runs out at the fold.
+    var surface: UIColor
     var isDark: Bool
 
     static let paper = ReaderPalette(
@@ -14,6 +18,7 @@ struct ReaderPalette: Hashable, Sendable {
         text: UIColor(red: 0.13, green: 0.12, blue: 0.11, alpha: 1),
         secondary: UIColor(red: 0.52, green: 0.50, blue: 0.47, alpha: 1),
         link: UIColor(red: 0.45, green: 0.30, blue: 0.18, alpha: 1),
+        surface: UIColor(red: 0.905, green: 0.893, blue: 0.870, alpha: 1),
         isDark: false)
 
     static let sepia = ReaderPalette(
@@ -21,6 +26,7 @@ struct ReaderPalette: Hashable, Sendable {
         text: UIColor(red: 0.24, green: 0.19, blue: 0.13, alpha: 1),
         secondary: UIColor(red: 0.56, green: 0.49, blue: 0.40, alpha: 1),
         link: UIColor(red: 0.50, green: 0.32, blue: 0.16, alpha: 1),
+        surface: UIColor(red: 0.872, green: 0.832, blue: 0.752, alpha: 1),
         isDark: false)
 
     static let night = ReaderPalette(
@@ -28,6 +34,7 @@ struct ReaderPalette: Hashable, Sendable {
         text: UIColor(red: 0.82, green: 0.81, blue: 0.79, alpha: 1),
         secondary: UIColor(red: 0.50, green: 0.50, blue: 0.49, alpha: 1),
         link: UIColor(red: 0.78, green: 0.64, blue: 0.45, alpha: 1),
+        surface: UIColor(red: 0.035, green: 0.035, blue: 0.04, alpha: 1),
         isDark: true)
 
     /// Pure black for OLED: the unlit pixels are the page. The text is dimmed a little further than
@@ -37,6 +44,7 @@ struct ReaderPalette: Hashable, Sendable {
         text: UIColor(red: 0.74, green: 0.73, blue: 0.71, alpha: 1),
         secondary: UIColor(red: 0.45, green: 0.45, blue: 0.44, alpha: 1),
         link: UIColor(red: 0.72, green: 0.59, blue: 0.42, alpha: 1),
+        surface: UIColor(red: 0, green: 0, blue: 0, alpha: 1),
         isDark: true)
 
     /// The colours of `theme` while the device is in `system` mode; Automatic stands for `light` or

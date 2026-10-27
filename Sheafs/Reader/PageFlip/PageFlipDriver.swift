@@ -10,6 +10,7 @@ final class PageFlipDriver: NSObject {
     private unowned let host: PagerController
     private var flipView: PageFlipView?
     private var textures: [PageSlot: MTLTexture] = [:]
+    private var baseTexture: (signature: TabletopBaseView.Signature, texture: MTLTexture?)?
     private var turn: Turn?
     private var displayLink: CADisplayLink?
     /// Debug: launch with `-SheafsFlipFreeze 0.4` to hold every tap turn at that amount (for
@@ -51,7 +52,18 @@ final class PageFlipDriver: NSObject {
     var isActive: Bool { turn != nil }
 
     /// Page textures are keyed by slot; a new layout, palette or style makes new pages.
-    func invalidateTextures() { textures.removeAll() }
+    func invalidateTextures() {
+        textures.removeAll()
+        baseTexture = nil
+    }
+
+    /// How far down the window the leaf reaches. 🔴 In tabletop it stops at the page's bottom
+    /// edge, where the surface begins: the whole window's height ran it 40 pt on into the fold,
+    /// a blank strip cut off flat by the deck, and that hard edge was most of what looked wrong.
+    static func leafHeight(layout: PageLayout, viewHeight: CGFloat) -> CGFloat {
+        guard layout.deckFrame != nil, let bottom = layout.pageFrames.map(\.maxY).max() else { return viewHeight }
+        return bottom
+    }
 
     // MARK: Turning
 
@@ -149,7 +161,7 @@ final class PageFlipDriver: NSObject {
         guard let hostView = host.viewIfLoaded, let view = PageFlipView.make(frame: hostView.bounds) else { return nil }
         view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.isHidden = true
-        hostView.insertSubview(view, aboveSubview: host.pagerView)
+        hostView.insertSubview(view, aboveSubview: host.baseView)
         flipView = view
         return view
     }
@@ -177,8 +189,8 @@ final class PageFlipDriver: NSObject {
         // The leaf is the whole sheet: it runs the window's full height, the printed page sits
         // where its frame is (clear of the home indicator), the rest is paper.
         let top: CGFloat = 0
-        let fullHeight = flipView.bounds.height
-        let scene: FlipScene
+        let fullHeight = Self.leafHeight(layout: layout, viewHeight: flipView.bounds.height)
+        var scene: FlipScene
         let reversed: Bool
         if layout.isSpread {
             // The leaf is hinged at the spine, the centre of the gutter, and reaches the page's outer
@@ -218,6 +230,13 @@ final class PageFlipDriver: NSObject {
                                   under: [(frames[0], texture(current, 0))], palette: palette)
                 reversed = true
             }
+        }
+        let base = host.baseView
+        if !base.isHidden, base.bounds.height > 0 {
+            if baseTexture?.signature != base.signature {
+                baseTexture = (base.signature, flipView.makeTexture(for: base))
+            }
+            scene.base = (base.frame.minY, baseTexture?.texture)
         }
         let ms = (CFAbsoluteTimeGetCurrent() - started) * 1000
         log.debug("prepared \(forward ? "forward" : "backward") turn in \(ms, format: .fixed(precision: 1)) ms")

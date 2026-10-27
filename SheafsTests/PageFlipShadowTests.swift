@@ -99,6 +99,7 @@ struct PageFlipShadowTests {
             encoder.setFragmentTexture(red, index: 1)
             encoder.setFragmentTexture(blue, index: 2)
             encoder.setFragmentTexture(blue, index: 3)
+            encoder.setFragmentTexture(blue, index: 4)
             encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
             encoder.endEncoding()
             guard let blit = buffer.makeBlitCommandEncoder() else { return Frame(shadow: [], lifted: [], besideEdge: []) }

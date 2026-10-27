@@ -1198,6 +1198,7 @@ struct ReaderDeck: View {
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(uiColor: palette.background))
+        // The surface the page stands on (`TabletopBaseView` runs from the page's edge to here).
+        .background(Color(uiColor: palette.surface))
     }
 }

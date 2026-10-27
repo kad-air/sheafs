@@ -105,6 +105,9 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
     private lazy var flip = PageFlipDriver(host: self)
     private var flipPan: UIPanGestureRecognizer?
     var pagerView: UIView { pager.view }
+    /// The surface under the page in the tabletop pose; hidden otherwise. Above the pages, below
+    /// the flip view (which draws it while a page turns).
+    let baseView = TabletopBaseView()
     /// The style generation the visible spread was built with; a change re-lays out at the same place.
     private var appliedStyle: TypesetStyle?
 
@@ -143,6 +146,8 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
             pager.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
         pager.didMove(toParent: self)
+        baseView.isHidden = true
+        view.insertSubview(baseView, aboveSubview: pager.view)
         pager.dataSource = self
         pager.delegate = self
         disableInsetAdjustment()
@@ -196,6 +201,21 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         disableInsetAdjustment()
+        updateBase(location: displayedLocation)
+    }
+
+    /// The tabletop surface: from the page's bottom edge to the bottom of the window, its block
+    /// of sheets as thick as the rest of the book.
+    private func updateBase(location: ReadingLocation?) {
+        guard isViewLoaded, layout.deckFrame != nil, let bottom = layout.pageFrames.map(\.maxY).max() else {
+            baseView.isHidden = true
+            return
+        }
+        baseView.isHidden = false
+        let frame = CGRect(x: 0, y: bottom, width: view.bounds.width, height: max(0, view.bounds.height - bottom))
+        if baseView.frame != frame { baseView.frame = frame }
+        baseView.palette = palette
+        if let location { baseView.sheets = TabletopBaseView.sheets(progress: session.progress(for: location)) }
     }
 
     /// The page layout already accounts for safe areas; UIKit must not shift the pages again when
@@ -228,6 +248,7 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         view.backgroundColor = palette.background
         startHandle.tintColor = palette.link
         endHandle.tintColor = palette.link
+        updateBase(location: location)
         guard session.isReady, !layout.pageFrames.isEmpty, session.style != nil else { return }
         appliedStyle = session.style
         if layoutChanged || paletteChanged || styleChanged {
@@ -836,6 +857,7 @@ final class SpreadViewController: UIViewController {
             pageView.palette = palette
             pageView.textInsets = layout.textInsets
             pageView.camera = layout.camera?.offsetBy(dx: -frame.minX, dy: -frame.minY)
+            pageView.curvesOverFold = layout.deckFrame != nil
             if index < slots.count, let slot = slots[index], let chapter = session.paginatedChapter(slot.spineIndex) {
                 pageView.chapter = chapter
                 pageView.page = slot.page
