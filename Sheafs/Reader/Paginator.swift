@@ -100,6 +100,13 @@ final class PaginatedChapter {
         return index + part.offset
     }
 
+    /// The frame (page coordinates, origin at the text's top-left) of the text attachment at
+    /// character `index` (chapter coordinates) when it is on `page`.
+    func attachmentFrame(at index: Int, page: Int) -> CGRect? {
+        guard let (part, local) = part(forPage: page) else { return nil }
+        return part.attachmentRect(at: index - part.offset, page: local)
+    }
+
     /// The character nearest to `point` on `page` (chapter coordinates), with how far through the
     /// glyph the point lies, for dragging selection handles past the edges of the text.
     func nearestCharacter(to point: CGPoint, page: Int) -> (index: Int, fraction: CGFloat) {

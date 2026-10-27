@@ -1,4 +1,5 @@
 import UIKit
+import SheafsKit
 
 /// Draws one page of a paginated chapter with a running head (top, centered) and a folio
 /// (page number, bottom, centered), like a printed book.
@@ -186,7 +187,16 @@ final class PageView: UIView {
         get {
             guard let chapter else { return nil }
             let range = chapter.range(ofPage: page)
-            return (chapter.textStorage.string as NSString).substring(with: range)
+            // A table row reads as its cells (VoiceOver would say nothing for its object character).
+            let text = NSMutableString(string: (chapter.textStorage.string as NSString).substring(with: range))
+            var rows: [(NSRange, String)] = []
+            chapter.textStorage.enumerateAttribute(.attachment, in: range) { value, found, _ in
+                if let row = value as? TableRowAttachment {
+                    rows.append((NSRange(location: found.location - range.location, length: found.length), row.plainText))
+                }
+            }
+            for (local, replacement) in rows.reversed() { text.replaceCharacters(in: local, with: replacement) }
+            return text.replacingOccurrences(of: TableContent.lineSeparator, with: "\n")
         }
         set {}
     }
@@ -207,6 +217,15 @@ final class PageView: UIView {
             image.rect = image.rect.offsetBy(dx: textOrigin.x, dy: textOrigin.y)
             return image
         }
+    }
+
+    /// The link in a table cell under a point in this view's coordinates, if any: a table row is
+    /// one attachment, so its links are not in the chapter's attributes.
+    func tableLink(at point: CGPoint) -> String? {
+        guard let chapter, let index = characterIndex(at: point), index < chapter.textStorage.length,
+              let row = chapter.textStorage.attribute(.attachment, at: index, effectiveRange: nil) as? TableRowAttachment,
+              let frame = chapter.attachmentFrame(at: index, page: page) else { return nil }
+        return row.link(at: CGPoint(x: point.x - textOrigin.x - frame.minX, y: point.y - textOrigin.y - frame.minY))
     }
 
     /// The character index under a point in this view's coordinates, if over text.

@@ -13,10 +13,23 @@ struct BookSearchTests {
     }
 
     /// The text a hit covers, read straight out of the chapter's plain text by UTF-16 offset,
-    /// exactly as the typeset `NSAttributedString` is indexed.
+    /// exactly as the typeset `NSAttributedString` is indexed. A hit in a table is the row's one
+    /// object character: there it is the row's text, which holds the word.
     private static func text(of hit: SearchHit, in index: BookSearchIndex) -> String {
+        if isInTable(hit, in: index) { return index.chapters[hit.spineIndex].displayText(in: hit.range) }
         let plain = index.chapters[hit.spineIndex].plainText as NSString
         return plain.substring(with: NSRange(location: hit.range.lowerBound, length: hit.range.count))
+    }
+
+    private static func isInTable(_ hit: SearchHit, in index: BookSearchIndex) -> Bool {
+        guard let block = index.chapters[hit.spineIndex].block(containing: hit.range.lowerBound) else { return false }
+        if case .table = block.kind { return true }
+        return false
+    }
+
+    private static func matches(_ hit: SearchHit, _ word: String, in index: BookSearchIndex) -> Bool {
+        let text = Self.text(of: hit, in: index).lowercased()
+        return isInTable(hit, in: index) ? text.contains(word) && hit.range.count == 1 : text == word
     }
 
     @Test("every hit for “rabbit” in Alice resolves to the word, chapter counts as Python counts them")
@@ -30,8 +43,11 @@ struct BookSearchTests {
         #expect(result.totalCount == 54)
         #expect(result.hits.count == 54)
         for hit in result.hits {
-            #expect(Self.text(of: hit, in: index).lowercased() == "rabbit", "\(hit)")
+            #expect(Self.matches(hit, "rabbit", in: index), "\(hit)")
         }
+        // The two in the contents table ("Down the Rabbit-Hole", "The Rabbit Sends in a Little Bill").
+        #expect(result.hits.filter { Self.isInTable($0, in: index) }.map { Self.text(of: $0, in: index) }
+            == ["CHAPTER I. · Down the Rabbit-Hole", "CHAPTER IV. · The Rabbit Sends in a Little Bill"])
         // Book order.
         #expect(result.hits == result.hits.sorted { ($0.spineIndex, $0.textOffset) < ($1.spineIndex, $1.textOffset) })
         // And the same offsets a plain case-insensitive NSString search finds, chapter by chapter.
@@ -45,7 +61,8 @@ struct BookSearchTests {
                 found.append(range.location ..< NSMaxRange(range))
                 from = NSMaxRange(range)
             }
-            #expect(result.hits.filter { $0.spineIndex == spine }.map(\.range) == found, "spine \(spine)")
+            // (Table rows are objects in the plain text; their hits are checked above.)
+            #expect(result.hits.filter { $0.spineIndex == spine && !Self.isInTable($0, in: index) }.map(\.range) == found, "spine \(spine)")
         }
     }
 
@@ -56,7 +73,7 @@ struct BookSearchTests {
         let python = [1: 13, 2: 20, 3: 49, 4: 20, 5: 66, 6: 8, 7: 18, 8: 25, 9: 39, 10: 27, 11: 30, 12: 38,
                       13: 6, 14: 23, 15: 19, 16: 31]
         #expect(result.countsBySpine == python)
-        for hit in result.hits { #expect(Self.text(of: hit, in: index).lowercased() == "darcy") }
+        for hit in result.hits { #expect(Self.matches(hit, "darcy", in: index), "\(hit)") }
 
         let straight = try #require(index.search("Mr. Darcy's"))
         let curly = try #require(index.search("mr. darcy’s"))

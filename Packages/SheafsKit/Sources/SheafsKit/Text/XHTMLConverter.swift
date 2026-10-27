@@ -22,6 +22,10 @@ import Foundation
 ///   closes an open `p`.
 /// - Block text has whitespace collapsed (U+00A0 is kept), `<br>` becomes U+2028, and every
 ///   block is followed by one "\n" in the chapter's plain text; offsets are UTF-16 units.
+/// - A `<table>` is one `.table` block: rows of cells with their own runs (blocks inside a cell
+///   become lines, a nested table flattens into its cell) and the caption. Its text is one
+///   U+FFFC per row plus one for the caption, joined by U+2028; an image in a cell splits the
+///   table around it (both parts keep the table's path).
 public struct XHTMLConverter: Sendable {
     public init() {}
 

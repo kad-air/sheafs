@@ -25,13 +25,27 @@ struct FindInBookTests {
         let result = try #require(index.search("Rabbit"))
         #expect(result.totalCount == 54)
         for spine in Set(result.hits.map(\.spineIndex)) {
-            let string = Typesetter.attributedString(for: session.chapters[spine], style: ReaderEngineTests.style,
-                                                     images: ChapterImages(), pageSize: CGSize(width: 320, height: 500)).string as NSString
+            let typeset = Typesetter.attributedString(for: session.chapters[spine], style: ReaderEngineTests.style,
+                                                      images: ChapterImages(), pageSize: CGSize(width: 320, height: 500))
+            let string = typeset.string as NSString
             for hit in result.hits where hit.spineIndex == spine {
+                // A hit in a table is its row: the row's one attachment, whose text holds the word.
+                if let row = typeset.attribute(.attachment, at: hit.textOffset, effectiveRange: nil) as? TableRowAttachment {
+                    #expect(hit.length == 1)
+                    #expect(row.plainText.lowercased().contains("rabbit"), "spine \(spine) row \(row.plainText)")
+                    continue
+                }
                 let word = string.substring(with: NSRange(location: hit.textOffset, length: hit.length))
                 #expect(word.lowercased() == "rabbit", "spine \(spine) offset \(hit.textOffset): \(word)")
             }
         }
+        // The two in Alice's contents table are hits on its rows.
+        let rows = result.hits.filter { hit in
+            guard let block = session.chapters[hit.spineIndex].block(containing: hit.textOffset) else { return false }
+            if case .table = block.kind { return true }
+            return false
+        }
+        #expect(rows.count == 2)
     }
 
     @Test func aJumpLandsOnThePageThatShowsTheHit() async throws {
