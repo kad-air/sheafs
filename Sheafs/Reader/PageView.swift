@@ -44,7 +44,7 @@ final class PageView: UIView {
 
     /// Highlights go under the glyphs (a translucent band, or a 2 pt underline); the text stays crisp.
     private func drawMarks(_ ctx: CGContext) {
-        for mark in marks {
+        for mark in marks where !mark.isFound {
             let rects = rects(for: mark.range)
             guard !rects.isEmpty else { continue }
             if mark.isUnderline {
@@ -55,7 +55,24 @@ final class PageView: UIView {
                 for rect in rects { ctx.fill(rect.insetBy(dx: -1, dy: 0.5)) }
             }
         }
+        drawFound(ctx)
     }
+
+    /// Search hits: a rounded find-orange band, like a browser's find in page, distinct from both
+    /// the highlight colours and the selection; still under the glyphs.
+    private func drawFound(_ ctx: CGContext) {
+        let found = marks.filter(\.isFound)
+        guard !found.isEmpty else { return }
+        ctx.setFillColor(Self.foundColor.withAlphaComponent(palette.isDark ? 0.42 : 0.5).cgColor)
+        for mark in found {
+            for rect in rects(for: mark.range) {
+                ctx.addPath(UIBezierPath(roundedRect: rect.insetBy(dx: -1.5, dy: 0), cornerRadius: 3).cgPath)
+            }
+        }
+        ctx.fillPath()
+    }
+
+    static let foundColor = UIColor(red: 1.0, green: 0.62, blue: 0.1, alpha: 1)
 
     private func drawSelection(_ ctx: CGContext) {
         guard let selection else { return }
@@ -78,7 +95,7 @@ final class PageView: UIView {
     /// The highlight under a point, if any.
     func mark(at point: CGPoint) -> HighlightMark? {
         guard let index = characterIndex(at: point) else { return nil }
-        return marks.first { NSLocationInRange(index, $0.range) }
+        return marks.first { !$0.isFound && NSLocationInRange(index, $0.range) }
     }
 
     private func drawMargins() {

@@ -77,6 +77,9 @@ the first containing it) or to the paragraph at that fraction of the book that f
 sheet once the book is ready.
 `-SheafsThemeSwitch paper|sepia|night|system` (with `-SheafsOpen`) switches the theme 5 s after the
 book is ready, as tapping its swatch would.
+`-SheafsSearch <text> [-SheafsSearchPick <n>]` (with `-SheafsOpen`) opens the search sheet with
+`text` searched; with a pick it then takes the n-th result (1-based) as a tap would: the jump and
+the painted hits, no taps needed (`[search] …` lines on stdout).
 `-SheafsFlipAuto forward|back
 -SheafsFlipFreeze <0…1> [-SheafsFlipGrab <0…1 down the page>]` starts one page flip on its own
 once the book is up and holds it at that amount, so `simctl io … screenshot` can catch the leaf
@@ -113,6 +116,14 @@ regions (see Duo behaviour below), so check layout changes on the phone.
   - `Text/XPointer` — `/body/DocFragment[N]/body/…/p[K]/text()[k].off` parse/serialize (N 1-based
     over the FULL spine). We always serialize with indices (CrossPoint style); parsing tolerates
     missing `[1]`.
+  - `Text/BookSearch` — find-in-book. `BookSearchIndex(chapters:)` folds each chapter's text ONCE
+    (case, diacritics, width, NFKC, curly → straight quotes, whitespace runs → one space, soft
+    hyphens and other default-ignorables dropped; one character at a time, the query the same way)
+    into UTF-16 units mapped back to the original character's range, then every search is a scan.
+    A `SearchHit` is `spineIndex` + a UTF-16 `range` in the chapter plain text (the position and
+    highlight contract), always whole grapheme clusters; matches never cross blocks; `snippet(for:)`
+    gives whole words either side. `BookSearchTests` pins hits against per-chapter counts Python
+    made from the raw XHTML and against non-BMP/combining/ß cases.
   - `OPDS/` — Atom OPDS 1.2 parser (+ OpenSearch), `OPDSClient` (pre-emptive Basic auth, streaming
     download). `KOSync/` — the vanilla KOReader sync protocol; `PartialMD5` is the document key
     (offsets 0, 1 KiB, 4 KiB … 1 GiB; 🔴 the i = −1 read is at offset 0, not 256, matching KOReader's
@@ -148,6 +159,15 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     spread only provides geometry and the `PageView`s draw it; a tap, a page turn or a layout
     change clears it), `AnnotationViews` (`AnnotationEditorView`: colour, underline, note, show in
     book, delete; `NotesListView`: the Notes segment of the contents sheet, share as Markdown),
+    `BookSearchView` (`BookSearchModel`, owned by `ReaderView` for the reader's life: builds the
+    index detached on first open, searches debounced 250 ms off the main actor, each cancelling the
+    last, lists the first 500 hits grouped by chapter with counts; reached from the toolbar's
+    magnifying glass, the contents sheet and the tabletop deck. A result jumps through `jump(to:)`
+    (so it leaves a "Back to page N" stop) to `BookSession.pageStart(showing:inSpine:)`: the page
+    holding the hit, a chapter not laid out yet being laid out anchored at the hit's PARAGRAPH,
+    not the hit, so the page isn't cut mid-line; the query's hits in that chapter become
+    `HighlightMark`s with `isFound` (orange band under the glyphs, not tappable) until the next
+    page turn or tap; `FindInBookTests`),
     `ReaderLayout`
     (`PageLayout.compute`: safe areas + reserved regions → page frames; see Duo below),
     `ReaderView` (chrome: system toolbar + glass progress strip, contents/appearance/footnote sheets,

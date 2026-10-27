@@ -204,6 +204,20 @@ final class BookSession {
         return result
     }
 
+    /// Where to jump so that `offset` of chapter `spineIndex` is on the page shown (the right page
+    /// of a spread): the start of the page that holds it. A chapter not laid out yet is laid out
+    /// anchored at the start of the paragraph holding the offset (what jumping to that paragraph
+    /// would do), so its pages break at a paragraph and not mid-line at the offset. For actions
+    /// (a search result tapped), never from view code: see `laidOutChapter`.
+    func pageStart(showing offset: Int, inSpine spineIndex: Int) -> ReadingLocation {
+        let fallback = clamp(ReadingLocation(spineIndex: spineIndex, textOffset: offset))
+        guard spineIndex >= 0, spineIndex < chapters.count else { return fallback }
+        let paragraph = chapters[spineIndex].block(containing: offset)?.textOffset ?? offset
+        guard let chapter = paginated[spineIndex] ?? paginatedChapter(spineIndex, anchor: paragraph) else { return fallback }
+        let page = chapter.range(ofPage: chapter.pageIndex(containing: offset))
+        return clamp(ReadingLocation(spineIndex: spineIndex, textOffset: page.location))
+    }
+
     /// The chapter's layout if it is already cached; never lays one out. For callers that run while
     /// a view is drawn: an unanchored layout there would re-cut the pages around the position.
     func laidOutChapter(_ spineIndex: Int) -> PaginatedChapter? { paginated[spineIndex] }
