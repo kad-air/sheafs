@@ -17,6 +17,8 @@ final class PageView: UIView {
     var marks: [HighlightMark] = [] { didSet { if marks != oldValue { setNeedsDisplay() } } }
     /// The live text selection, in chapter coordinates, drawn over the glyphs like iOS does.
     var selection: NSRange? { didSet { if selection != oldValue { setNeedsDisplay() } } }
+    /// The page holds a bookmark: a ribbon hangs from its top edge.
+    var isBookmarked = false { didSet { if isBookmarked != oldValue { setNeedsDisplay() } } }
     var marginFont = UIFont.preferredFont(forTextStyle: .footnote)
 
     override init(frame: CGRect) {
@@ -40,6 +42,40 @@ final class PageView: UIView {
         chapter?.draw(page: page, at: textOrigin)
         drawSelection(ctx)
         drawMargins()
+        drawRibbon(ctx)
+    }
+
+    /// The bookmark ribbon: a band in the theme's accent hanging from the top edge with a notch
+    /// cut into its end, over the text's right edge (left of the cover camera when that is there).
+    /// Drawn, not added to the text, like the highlights.
+    private func drawRibbon(_ ctx: CGContext) {
+        guard isBookmarked else { return }
+        let frame = Self.ribbonFrame(bounds: bounds, textInsets: textInsets, camera: camera)
+        let notch = min(6, frame.height / 4)
+        ctx.beginPath()
+        ctx.move(to: CGPoint(x: frame.minX, y: frame.minY))
+        ctx.addLine(to: CGPoint(x: frame.maxX, y: frame.minY))
+        ctx.addLine(to: CGPoint(x: frame.maxX, y: frame.maxY))
+        ctx.addLine(to: CGPoint(x: frame.midX, y: frame.maxY - notch))
+        ctx.addLine(to: CGPoint(x: frame.minX, y: frame.maxY))
+        ctx.closePath()
+        ctx.setFillColor(palette.link.cgColor)
+        ctx.fillPath()
+    }
+
+    static let ribbonSize = CGSize(width: 14, height: 30)
+
+    /// Where the ribbon hangs: from the page's top edge, its right side on the text's right edge,
+    /// within the head band (it never reaches the text). Where the cover camera's hole is near
+    /// (the cover display in portrait), it moves to the left of the hole.
+    nonisolated static func ribbonFrame(bounds: CGRect, textInsets: UIEdgeInsets, camera: CGRect?) -> CGRect {
+        let height = min(ribbonSize.height, max(12, textInsets.top - 6))
+        var frame = CGRect(x: bounds.width - textInsets.right - ribbonSize.width, y: 0,
+                           width: ribbonSize.width, height: height)
+        if let hole = camera, frame.insetBy(dx: -6, dy: -6).intersects(hole) {
+            frame.origin.x = hole.minX - 10 - ribbonSize.width
+        }
+        return frame
     }
 
     /// Highlights go under the glyphs (a translucent band, or a 2 pt underline); the text stays crisp.
@@ -105,7 +141,8 @@ final class PageView: UIView {
         let attrs: [NSAttributedString.Key: Any] = [.font: marginFont, .foregroundColor: palette.secondary, .paragraphStyle: para]
         let lineHeight = marginFont.lineHeight + 2
         if !head.isEmpty {
-            let frame = Self.headFrame(bounds: bounds, textInsets: textInsets, lineHeight: lineHeight, camera: camera)
+            let ribbon = isBookmarked ? Self.ribbonFrame(bounds: bounds, textInsets: textInsets, camera: camera) : nil
+            let frame = Self.headFrame(bounds: bounds, textInsets: textInsets, lineHeight: lineHeight, camera: camera, ribbon: ribbon)
             (head as NSString).draw(in: frame, withAttributes: attrs)
         }
         if !folio.isEmpty {
@@ -116,15 +153,15 @@ final class PageView: UIView {
 
     /// Where the running head goes: centred over the text in the band above it, narrowed
     /// symmetrically so it stays clear of a camera hole in that band (the cover display's hole
-    /// sits at the top right, in the vertical bar's strip).
+    /// sits at the top right, in the vertical bar's strip) and of a bookmark ribbon.
     nonisolated static func headFrame(bounds: CGRect, textInsets: UIEdgeInsets, lineHeight: CGFloat,
-                                      camera: CGRect?) -> CGRect {
+                                      camera: CGRect?, ribbon: CGRect? = nil) -> CGRect {
         let y = max(4, textInsets.top - lineHeight - 6)
         var left = textInsets.left
         var right = bounds.width - textInsets.right
         let center = (left + right) / 2
-        if let hole = camera, hole.minY < y + lineHeight, hole.maxY > y {
-            if hole.midX >= center { right = min(right, hole.minX - 8) } else { left = max(left, hole.maxX + 8) }
+        for obstacle in [camera, ribbon].compactMap({ $0 }) where obstacle.minY < y + lineHeight && obstacle.maxY > y {
+            if obstacle.midX >= center { right = min(right, obstacle.minX - 8) } else { left = max(left, obstacle.maxX + 8) }
         }
         let half = max(0, min(center - left, right - center))
         return CGRect(x: center - half, y: y, width: half * 2, height: lineHeight)

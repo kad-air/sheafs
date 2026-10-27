@@ -174,10 +174,10 @@ struct NotesListView: View {
         .contentShape(Rectangle())
     }
 
-    /// The whole list as Markdown, for the share sheet.
-    static func markdown(book: Book, session: BookSession, annotations: [Annotation]) -> String {
+    /// The highlights and notes, then the bookmarks, as Markdown, for the share sheet.
+    static func markdown(book: Book, session: BookSession, annotations: [Annotation], bookmarks: [Bookmark] = []) -> String {
         AnnotationExport.markdown(title: book.title, author: book.author, annotations: annotations.map {
             (session.chapterTitle(for: $0.spineIndex), $0.text, $0.note)
-        })
+        }, bookmarks: bookmarks.map { (session.chapterTitle(for: $0.spineIndex), $0.label) })
     }
 }

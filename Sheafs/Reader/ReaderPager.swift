@@ -36,6 +36,7 @@ struct ReaderPager: UIViewControllerRepresentable {
     let location: ReadingLocation
     let tapTurnsPages: Bool
     let marks: [HighlightMark]
+    let bookmarks: [BookmarkMark]
     let highlightColor: HighlightColor
     let pageTurn: PageTurnStyle
     let proxy: PagerProxy
@@ -66,6 +67,7 @@ struct ReaderPager: UIViewControllerRepresentable {
         controller.pageTurn = pageTurn
         session.configure(style: style, textSize: layout.textSize)
         controller.apply(marks: marks)
+        controller.apply(bookmarks: bookmarks)
         controller.apply(layout: layout, palette: palette, location: location, animated: false)
     }
 }
@@ -242,6 +244,15 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
     func apply(marks: [HighlightMark]) {
         guard marks != session.marks else { return }
         session.marks = marks
+        currentSpread?.refreshMarks()
+        flip.invalidateTextures()
+    }
+
+    /// The book's bookmarks; like the highlights, the visible spread redraws its ribbons and the
+    /// flip's cached leaves are dropped (they would show the old ribbon).
+    func apply(bookmarks: [BookmarkMark]) {
+        guard bookmarks != session.bookmarks else { return }
+        session.bookmarks = bookmarks
         currentSpread?.refreshMarks()
         flip.invalidateTextures()
     }
@@ -778,11 +789,13 @@ final class SpreadViewController: UIViewController {
         }
     }
 
-    /// Gives every page the highlights of its chapter (the view keeps the ones on its page).
+    /// Gives every page the highlights of its chapter (the view keeps the ones on its page) and a
+    /// ribbon when a bookmark's offset falls on it.
     func refreshMarks() {
         for (index, pageView) in pageViews.enumerated() {
             guard index < slots.count, let slot = slots[index] else { continue }
             pageView.marks = session.marks.filter { $0.spineIndex == slot.spineIndex }
+            pageView.isBookmarked = pageView.chapter.map { !$0.bookmarks(session.bookmarks, onPage: slot.page).isEmpty } ?? false
         }
     }
 

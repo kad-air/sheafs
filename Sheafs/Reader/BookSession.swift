@@ -34,6 +34,8 @@ final class BookSession {
     var location: ReadingLocation
     /// The book's highlights, for the pages to paint (kept here so every spread sees the same list).
     var marks: [HighlightMark] = []
+    /// The book's bookmarks, for the pages to draw their ribbons (same arrangement as `marks`).
+    var bookmarks: [BookmarkMark] = []
 
     private(set) var style: TypesetStyle?
     private(set) var textSize: CGSize = .zero
