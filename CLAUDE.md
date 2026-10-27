@@ -77,9 +77,10 @@ the first containing it) or to the paragraph at that fraction of the book that f
 sheet once the book is ready.
 `-SheafsThemeSwitch paper|sepia|night|system` (with `-SheafsOpen`) switches the theme 5 s after the
 book is ready, as tapping its swatch would.
-`-SheafsSearch <text> [-SheafsSearchPick <n>]` (with `-SheafsOpen`) opens the search sheet with
-`text` searched; with a pick it then takes the n-th result (1-based) as a tap would: the jump and
-the painted hits, no taps needed (`[search] …` lines on stdout).
+`-SheafsSearch <text> [-SheafsSearchPick <n> [-SheafsSearchBack YES]]` (with `-SheafsOpen`) opens the
+search sheet with `text` searched; with a pick it then takes the n-th result (1-based) as a tap would:
+the jump and the painted hits, no taps needed (`[search] …` lines on stdout); with Back it then taps
+"Back to page N" 3 s later, which must clear the hits.
 `-SheafsFlipAuto forward|back
 -SheafsFlipFreeze <0…1> [-SheafsFlipGrab <0…1 down the page>]` starts one page flip on its own
 once the book is up and holds it at that amount, so `simctl io … screenshot` can catch the leaf
@@ -167,7 +168,8 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     holding the hit, a chapter not laid out yet being laid out anchored at the hit's PARAGRAPH,
     not the hit, so the page isn't cut mid-line; the query's hits in that chapter become
     `HighlightMark`s with `isFound` (orange band under the glyphs, not tappable) until the next
-    page turn or tap; `FindInBookTests`),
+    page turn, tap, jump or back (`show()` never reports a location change, so `jump(to:)` and
+    `goBack()` clear them by hand); `FindInBookTests`),
     `ReaderLayout`
     (`PageLayout.compute`: safe areas + reserved regions → page frames; see Duo below),
     `ReaderView` (chrome: system toolbar + glass progress strip, contents/appearance/footnote sheets,

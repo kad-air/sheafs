@@ -148,10 +148,26 @@ struct BookSearchTests {
         #expect(cut.after == " with pink eyes ran close by")
         #expect(cut.text == "…eleven twelve White Rabbit with pink eyes ran close by…")
 
-        // A cut that lands inside a surrogate pair moves to a character boundary.
-        let emoji = BookSearchIndex.snippet(for: 0 ..< 3, in: TextTesting.convert("<p>abc😀😀😀😀</p>"), context: 5)
+        // A word longer than the context is left out whole, never cut into, on either side.
+        let longWords = BookSearchIndex(chapters: [TextTesting.convert(
+            "<p>one two Antidisestablishmentarianismandthensomemoreletters Rabbit went</p>"
+                + "<p>Rabbit Antidisestablishmentarianismandthensomemoreletters and on and on and on and on</p>")])
+        let longHits = try #require(longWords.search("rabbit")).hits
+        #expect(longHits.count == 2)
+        let before = longWords.snippet(for: longHits[0], context: 20)
+        #expect(before == SearchSnippet(before: "", match: "Rabbit", after: " went", isCutBefore: true, isCutAfter: false))
+        #expect(before.text == "…Rabbit went")
+        let after = longWords.snippet(for: longHits[1], context: 20)
+        #expect(after == SearchSnippet(before: "", match: "Rabbit", after: "", isCutBefore: false, isCutAfter: true))
+        #expect(after.text == "Rabbit…")
+
+        // A reach that ends inside a surrogate pair backs up to the space before it.
+        let emoji = BookSearchIndex.snippet(for: 0 ..< 3, in: TextTesting.convert("<p>abc 😀 😀 😀 😀</p>"), context: 5)
         #expect(emoji.match == "abc")
-        #expect(emoji.after == "😀😀😀") // 3 + 7 = 10 is inside the fourth emoji; back to 9
+        #expect(emoji.after == " 😀 😀") // 3 + 7 = 10 is inside the third emoji; back to the space at 9
         #expect(emoji.isCutAfter)
+        // With no space at all in reach, nothing is cut out of the run.
+        let run = BookSearchIndex.snippet(for: 0 ..< 3, in: TextTesting.convert("<p>abc😀😀😀😀</p>"), context: 5)
+        #expect(run == SearchSnippet(before: "", match: "abc", after: "", isCutBefore: false, isCutAfter: true))
     }
 }

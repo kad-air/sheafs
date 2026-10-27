@@ -112,18 +112,21 @@ public struct BookSearchIndex: Sendable {
         let lower = max(0, min(length, range.lowerBound - block.textOffset))
         let upper = max(lower, min(length, range.upperBound - block.textOffset))
 
-        // Before: back up `context` units, then forward to the start of a word.
+        // Before: back up `context` units, then forward to the start of a word. A space right
+        // before the match counts (the snippet then starts at the match); with no space in reach
+        // the word is longer than the context, so nothing before the match is shown.
         var start = max(0, lower - context)
         if start > 0, text.character(at: start - 1) != 0x20 {
             let space = text.range(of: " ", options: [], range: NSRange(location: start, length: lower - start))
-            if space.location != NSNotFound, space.location + 1 < lower { start = space.location + 1 }
+            start = space.location != NSNotFound ? space.location + 1 : lower
         }
         start = composedBoundary(text, at: start, forward: true)
-        // After: a little more after than before (the eye reads on), back to the end of a word.
+        // After: a little more after than before (the eye reads on), back to the end of a word,
+        // by the same rules (a space right after the match counts; none in reach shows nothing).
         var end = min(length, upper + context * 3 / 2)
         if end < length, text.character(at: end) != 0x20 {
             let space = text.range(of: " ", options: .backwards, range: NSRange(location: upper, length: end - upper))
-            if space.location != NSNotFound, space.location > upper { end = space.location }
+            end = space.location != NSNotFound ? space.location : upper
         }
         end = composedBoundary(text, at: end, forward: false)
         start = min(start, lower)

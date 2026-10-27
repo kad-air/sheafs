@@ -511,9 +511,11 @@ struct ReaderView: View {
     }
 
     /// Every jump (link, contents, note, slider, synced position) remembers where it left from,
-    /// so the "Back to page N" button can return there.
+    /// so the "Back to page N" button can return there. Showing a page by hand never reports a
+    /// location change, so the found hits are dropped here (a search jump paints its own after).
     private func jump(to location: ReadingLocation) {
         guard let session else { return }
+        if !foundMarks.isEmpty { foundMarks = [] }
         let from = session.location
         let target = session.clamp(location)
         trail.leave(from, page: folio(of: from, session: session), for: target, samePage: samePage)
@@ -548,6 +550,7 @@ struct ReaderView: View {
 
     private func goBack() {
         guard let session, let place = trail.back() else { return }
+        if !foundMarks.isEmpty { foundMarks = [] }
         log.info("back to \(place.spineIndex):\(place.textOffset) trail=\(trail.stops.count)")
         session.location = session.clamp(place)
         persist(session.location)
@@ -721,7 +724,8 @@ struct ReaderView: View {
 
     /// `-SheafsSearch <text>` opens the search sheet with `text` searched, once per launch; with
     /// `-SheafsSearchPick <n>` it then picks the n-th result (1-based) as a tap would, so a
-    /// simulator check reaches the results and the painted hits without taps.
+    /// simulator check reaches the results and the painted hits without taps; `-SheafsSearchBack`
+    /// then goes back 3 s later, as the "Back to page N" capsule would (the hits must go).
     private func searchFromLaunchArgument() {
         guard !Self.searchArgumentConsumed else { return }
         Self.searchArgumentConsumed = true
@@ -747,6 +751,12 @@ struct ReaderView: View {
             try? await Task.sleep(for: .seconds(1.5))
             showSearch = false
             jump(to: rows[pick - 1].hit)
+            // `-SheafsSearchBack`: then "Back to page N", as a tap on the capsule would.
+            guard UserDefaults.standard.bool(forKey: "SheafsSearchBack") else { return }
+            try? await Task.sleep(for: .seconds(3))
+            print("[search] back (launch argument), found marks before: \(foundMarks.count)")
+            goBack()
+            print("[search] back done, found marks after: \(foundMarks.count)")
         }
     }
 
