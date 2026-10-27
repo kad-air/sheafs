@@ -25,6 +25,8 @@ struct ChapterBuilder {
     /// One open element.
     private struct Frame {
         var tag: String
+        /// What stylesheet selectors match against.
+        var element: CSSElement
         var path: String
         var role: ElementRole
         /// Children opened so far, by tag (drives the `tag[n]` steps).
@@ -182,12 +184,28 @@ struct ChapterBuilder {
     /// paragraph inside it becomes the list item block.
     private var pendingListItem: BlockKind?
 
+    // Stylesheets.
+    /// Loads the stylesheet a `<link rel="stylesheet" href>` names (nil: none, or no loader).
+    private let linkedStylesheet: ((String) -> Stylesheet?)?
+    /// The document's stylesheets in order: linked ones and `<style>` blocks from the head.
+    private var cascade = StyleCascade()
+    private var hasStyleRules = false
+    /// The `<html>` element, the ancestor of `<body>` that selectors like `html body p` expect.
+    private var rootElement = CSSElement(tag: "html", attributes: [:])
+    private var rootAttributes: [String: String] = [:]
+    /// The text of the head `<style>` block being read.
+    private var styleBuffer: String?
+
     // Before the body.
     private var inHead = false
     /// The `style`/`script`/`template`/`noscript` element being skipped in the head.
     private var skippedHeadElement: String?
     private var titleBuffer: String?
     private var title: String?
+
+    init(linkedStylesheet: ((String) -> Stylesheet?)? = nil) {
+        self.linkedStylesheet = linkedStylesheet
+    }
 
     // MARK: Input
 
@@ -236,21 +254,42 @@ struct ChapterBuilder {
             return
         }
         if let skipped = skippedHeadElement {
-            if case let .end(name) = token, name == skipped { skippedHeadElement = nil }
+            switch token {
+            case let .text(text):
+                styleBuffer?.append(text)
+            case let .end(name) where name == skipped:
+                skippedHeadElement = nil
+                if let css = styleBuffer {
+                    styleBuffer = nil
+                    addStylesheet(Stylesheet(css: css))
+                }
+            default:
+                break
+            }
             return
         }
 
         switch token {
         case let .start(name, attributes, selfClosing):
             switch name {
-            case "html", "meta", "link", "base", "basefont", "bgsound":
+            case "html":
+                rootElement = CSSElement(tag: "html", attributes: attributes)
+                rootAttributes = attributes
+            case "link":
+                linkStylesheet(attributes)
+            case "meta", "base", "basefont", "bgsound":
                 break
             case "head":
                 inHead = true
             case "title":
                 if title == nil, !selfClosing { titleBuffer = "" }
             case "style", "script", "template", "noscript":
-                if !selfClosing { skippedHeadElement = name }
+                if !selfClosing {
+                    skippedHeadElement = name
+                    if name == "style", Self.isCSS(type: attributes["type"]), CSSScanner.mediaApplies(attributes["media"]) {
+                        styleBuffer = ""
+                    }
+                }
             case "body":
                 beginBody(attributes)
             default:
@@ -292,6 +331,52 @@ struct ChapterBuilder {
         return collapsed
     }
 
+    // MARK: Stylesheets
+
+    private mutating func linkStylesheet(_ attributes: [String: String]) {
+        let rel = (attributes["rel"] ?? "").lowercased().split(whereSeparator: \.isWhitespace)
+        guard rel.contains("stylesheet"), !rel.contains("alternate"), Self.isCSS(type: attributes["type"]),
+              CSSScanner.mediaApplies(attributes["media"]),
+              let href = attributes["href"], !href.isEmpty,
+              let sheet = linkedStylesheet?(href) else { return }
+        addStylesheet(sheet)
+    }
+
+    private mutating func addStylesheet(_ sheet: Stylesheet) {
+        cascade.sheets.append(sheet)
+        if sheet.ruleCount > 0 { hasStyleRules = true }
+    }
+
+    private static func isCSS(type: String?) -> Bool {
+        guard let type = type?.trimmingCharacters(in: .whitespaces).lowercased(), !type.isEmpty else { return true }
+        return type == "text/css"
+    }
+
+    /// The CSS that applies to an element about to be opened under the current stack (`<html>`
+    /// above `<body>`): the stylesheets' rules, then its own `style` attribute.
+    private func cssProperties(for element: CSSElement, attributes: [String: String], isRoot: Bool = false) -> CSSProperties {
+        let inline = CSSDeclarations(attributes["style"])
+        guard hasStyleRules else {
+            var properties = inline.normal
+            properties.overlay(inline.important)
+            return properties
+        }
+        let ancestors = isRoot ? [] : [rootElement] + stack.map(\.element)
+        return cascade.properties(for: element, ancestors: ancestors[...], inline: inline)
+    }
+
+    /// The tag's style (inherited + its own) with the CSS applied, keeping `.boldAsSmallCaps`
+    /// true to its definition: set where small caps replaced the markup's bold, gone otherwise.
+    private static func style(markup: InlineStyle, css: CSSProperties) -> InlineStyle {
+        var style = css.applied(to: markup)
+        if style.contains(.smallCaps), !style.contains(.bold) {
+            if markup.contains(.bold) { style.insert(.boldAsSmallCaps) }
+        } else {
+            style.remove(.boldAsSmallCaps)
+        }
+        return style
+    }
+
     // MARK: Body
 
     private mutating func beginBody(_ attributes: [String: String]) {
@@ -299,17 +384,21 @@ struct ChapterBuilder {
         while !stack.isEmpty { popFrame() }
         flush()
         phase = .inBody
-        let css = InlineCSS(attributes["style"])
+        // `<html>` is not a frame, but what the CSS declares on it is inherited by the body.
+        let rootCSS = cssProperties(for: rootElement, attributes: rootAttributes, isRoot: true)
+        let rootStyle = Self.style(markup: [], css: rootCSS)
+        let element = CSSElement(tag: "body", attributes: attributes)
+        let css = cssProperties(for: element, attributes: attributes)
         let body = Frame(
-            tag: "body", path: "/body", role: .container,
-            style: css.style, link: nil,
-            alignment: XHTMLSemantics.alignment(of: attributes, css: css),
+            tag: "body", element: element, path: "/body", role: .container,
+            style: Self.style(markup: rootStyle, css: css), link: nil,
+            alignment: css.alignment ?? XHTMLSemantics.alignment(of: attributes) ?? rootCSS.alignment,
             indent: 0, inBlockquote: false, listDepth: 0,
-            hidden: css.hidden || attributes["hidden"] != nil,
+            hidden: rootCSS.hidden == true || css.hidden == true || attributes["hidden"] != nil,
             inSVG: false, preformatted: false
         )
         stack = [body]
-        if !body.hidden { recordAnchors(attributes, tag: "body") }
+        recordAnchors(attributes, tag: "body")
     }
 
     private mutating func closeBody() {
@@ -341,14 +430,18 @@ struct ChapterBuilder {
         stack[top].counts[name] = n
         let parent = stack[top]
 
-        let css = InlineCSS(attributes["style"])
+        // Stylesheet rules and the style attribute act at exactly this point: they change the
+        // frame's style, alignment and visibility, never the element's path.
+        let element = CSSElement(tag: name, attributes: attributes)
+        let css = cssProperties(for: element, attributes: attributes)
+        let ownAlignment = css.alignment ?? XHTMLSemantics.alignment(of: attributes)
         var frame = Frame(
-            tag: name, path: parent.path + "/" + name + "[" + String(n) + "]", role: role,
-            style: parent.style.union(XHTMLSemantics.style(forTag: name)).union(css.style),
+            tag: name, element: element, path: parent.path + "/" + name + "[" + String(n) + "]", role: role,
+            style: Self.style(markup: parent.style.union(XHTMLSemantics.style(forTag: name)), css: css),
             link: parent.link,
-            alignment: XHTMLSemantics.alignment(of: attributes, css: css) ?? parent.alignment,
+            alignment: ownAlignment ?? parent.alignment,
             indent: parent.indent, inBlockquote: parent.inBlockquote, listDepth: parent.listDepth,
-            hidden: parent.hidden || css.hidden || attributes["hidden"] != nil
+            hidden: parent.hidden || css.hidden == true || attributes["hidden"] != nil
                 || XHTMLSemantics.hiddenElements.contains(name),
             inSVG: parent.inSVG || name == "svg",
             preformatted: parent.preformatted || name == "pre"
@@ -361,7 +454,7 @@ struct ChapterBuilder {
                 frame.style.insert(.superscript)
             }
         case "center":
-            if XHTMLSemantics.alignment(of: attributes, css: css) == nil { frame.alignment = .center }
+            if ownAlignment == nil { frame.alignment = .center }
         case "blockquote":
             frame.indent += 1
             frame.inBlockquote = true
@@ -374,8 +467,6 @@ struct ChapterBuilder {
             }
         case "dd":
             frame.indent += 1
-        case "dt":
-            frame.style.insert(.bold)
         default:
             break
         }
@@ -434,6 +525,10 @@ struct ChapterBuilder {
             default:
                 break
             }
+        } else {
+            // Hidden content still has its anchors, at the offset where it would have been: a
+            // note link into a CSS-hidden `aside` lands there instead of at the chapter start.
+            recordAnchors(attributes, tag: name)
         }
 
         guard !isVoidElement else { return }

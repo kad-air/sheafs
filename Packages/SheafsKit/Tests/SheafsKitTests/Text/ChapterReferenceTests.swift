@@ -53,11 +53,13 @@ struct ChapterReferenceTests {
         #endif
     }
 
-    @Test("every <p> becomes a block with the reference path and text", arguments: ChapterReference.cases)
-    func paragraphsMatchReference(_ testCase: ChapterReference.Case) throws {
+    /// Run with and without the fixtures' stylesheets: none of their rules hides anything, so the
+    /// stylesheets must change neither a path nor a character.
+    @Test("every <p> becomes a block with the reference path and text",
+          arguments: ChapterReference.cases, [false, true])
+    func paragraphsMatchReference(_ testCase: ChapterReference.Case, stylesheets: Bool) throws {
         let document = testCase.document
-        let data = try TextFixture.entry(document.path, in: testCase.epub)
-        let chapter = XHTMLConverter().convert(data)
+        let chapter = try TextTesting.convert(document.path, in: testCase.epub, stylesheets: stylesheets)
 
         // Paragraph count. A <p> yields one block per run of text between images, all sharing its
         // path, so count distinct paths. The converter drops <p> with no text (the page-number
@@ -92,10 +94,9 @@ struct ChapterReferenceTests {
         #expect(relaxedComparisons <= max(3, document.samples.count / 4), "\(relaxedComparisons) relaxed comparisons")
     }
 
-    @Test("titles and element ids match the reference", arguments: ChapterReference.cases)
-    func titlesAndIdsMatchReference(_ testCase: ChapterReference.Case) throws {
-        let data = try TextFixture.entry(testCase.document.path, in: testCase.epub)
-        let chapter = XHTMLConverter().convert(data)
+    @Test("titles and element ids match the reference", arguments: ChapterReference.cases, [false, true])
+    func titlesAndIdsMatchReference(_ testCase: ChapterReference.Case, stylesheets: Bool) throws {
+        let chapter = try TextTesting.convert(testCase.document.path, in: testCase.epub, stylesheets: stylesheets)
 
         #expect(TextTesting.normalizedWhitespace(chapter.title ?? "") == (testCase.document.title ?? ""))
         #expect(Set(chapter.anchorOffsets.keys) == Set(testCase.document.ids), "\(testCase.testDescription)")

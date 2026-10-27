@@ -55,6 +55,15 @@ enum TextFixture {
 }
 
 enum TextTesting {
+    /// Converts one fixture chapter, with the stylesheets it links (read through `unzip` too)
+    /// when `stylesheets` is set, as the app does, or without them.
+    static func convert(_ path: String, in epub: String, stylesheets: Bool) throws -> Chapter {
+        let data = try TextFixture.entry(path, in: epub)
+        guard stylesheets else { return XHTMLConverter().convert(data) }
+        let library = StylesheetLibrary { cssPath in try? TextFixture.entry(cssPath, in: epub) }
+        return XHTMLConverter().convert(data, documentPath: path, stylesheets: library)
+    }
+
     /// Converts a fragment wrapped in a minimal XHTML document.
     static func convert(_ bodyContent: String, head: String = "") -> Chapter {
         XHTMLConverter().convert(
