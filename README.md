@@ -6,8 +6,11 @@ SwiftUI, TextKit and Foundation only. No web views, no third-party dependencies.
 Website: https://kad-air.github.io/sheafs/ (the `docs/` folder, published by GitHub Pages).
 
 - **Reads EPUB 2 and 3** with the system's own typography: New York, Georgia, Palatino, Charter and
-  friends, paper / sepia / night themes, adjustable size, leading and margins, justified or ragged,
-  hyphenation. Chapters are paginated like a book, not scrolled.
+  friends, paper / sepia / night / black themes, adjustable size, leading and margins, justified or
+  ragged, hyphenation. Chapters are paginated like a book, not scrolled. The book's own stylesheets
+  are honoured, tables are laid out as tables, and a double-tap opens a picture full screen.
+- **Highlights, notes and bookmarks**, shareable as Markdown. Search inside a book, and share a
+  quote from the selection menu.
 - **Made for iPhone Duo.** On the cover display it is a one-page reader with the system's vertical
   toolbar. Open the device in landscape and it becomes a two-page spread with the gutter on the
   fold. Fold it halfway like a book and the pages keep clear of the crease; stand it up like a
