@@ -212,6 +212,7 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         if layoutChanged || paletteChanged || styleChanged || displayedLocation == nil || displayedLocation != location {
             show(location: location, animated: animated && !layoutChanged)
             autoFlipForScreenshots()
+            autoSelectForScreenshots()
         }
     }
 
@@ -529,6 +530,63 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         editMenu.presentEditMenu(with: UIEditMenuConfiguration(identifier: nil, sourcePoint: CGPoint(x: union.midX, y: union.minY)))
     }
 
+    /// The share sheet for a quote, as text and as a card in the reader's theme and typeface,
+    /// anchored to the selection (a popover where the display is wide enough). The selection
+    /// clears as it does for Copy.
+    private func shareQuote(_ selection: TextSelection, text: String) {
+        let rects = selectionRects()
+        let anchor = rects.dropFirst().reduce(rects.first, { $0?.union($1) })
+            ?? CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 1, height: 1)
+        clearSelection()
+        let credit = AnnotationExport.Credit(title: session.book.title, author: session.book.author,
+                                             chapter: session.chapterTitle(for: selection.spineIndex))
+        let started = Date()
+        let sheet = QuoteShare.sheet(text: text, credit: credit, palette: palette, font: session.style?.font ?? .newYork)
+        log.notice("share quote: spine \(selection.spineIndex) range \(selection.range.location)+\(selection.range.length), sheet made in \(Int(Date().timeIntervalSince(started) * 1000)) ms, presenting from \(String(describing: self.presentedViewController == nil ? "self" : "self (busy)"))")
+        sheet.popoverPresentationController?.sourceView = view
+        sheet.popoverPresentationController?.sourceRect = anchor
+        sheet.completionWithItemsHandler = { [log] activity, completed, _, error in
+            log.notice("share quote: \(activity?.rawValue ?? "dismissed") completed=\(completed) error=\(String(describing: error))")
+        }
+        present(sheet, animated: true) { [log] in log.notice("share quote: sheet presented") }
+    }
+
+    private var autoSelected = false
+
+    /// Debug: `-SheafsSelect <0…1>` selects the sentence at that fraction of the reading position's
+    /// page once the book is up and opens the selection menu, as a long press would; with
+    /// `-SheafsSelectThen share` it then shares it, as tapping Share would.
+    private func autoSelectForScreenshots() {
+        let defaults = UserDefaults.standard
+        guard !autoSelected, defaults.object(forKey: "SheafsSelect") != nil else { return }
+        autoSelected = true
+        let fraction = min(1, max(0, defaults.double(forKey: "SheafsSelect")))
+        let then = defaults.string(forKey: "SheafsSelectThen")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            guard let self, let slot = currentSpread?.lastSlot, let chapter = session.paginatedChapter(slot.spineIndex) else { return }
+            let page = chapter.range(ofPage: slot.page)
+            let string = chapter.textStorage.string as NSString
+            guard page.length > 0 else { return }
+            let index = min(NSMaxRange(page) - 1, page.location + Int(Double(page.length) * fraction))
+            var sentence = chapter.wordRange(at: index)
+            string.enumerateSubstrings(in: string.paragraphRange(for: NSRange(location: index, length: 0)),
+                                       options: .bySentences) { _, range, _, stop in
+                if NSLocationInRange(index, range) { sentence = range; stop.pointee = true }
+            }
+            let visible = NSIntersectionRange(sentence, page)
+            log.notice("auto select: spine \(slot.spineIndex) page \(slot.page) range \(visible.location)+\(visible.length)")
+            guard visible.length > 0 else { return }
+            setSelection(TextSelection(spineIndex: slot.spineIndex, range: visible))
+            presentMenu()
+            guard then == "share" else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                guard let self, let (trimmed, text) = trimmedSelection() else { return }
+                editMenu.dismissMenu()
+                shareQuote(trimmed, text: text)
+            }
+        }
+    }
+
     /// The selected text, trimmed of the whitespace a word drag may have swept in, with the
     /// selection shrunk to match.
     private func trimmedSelection() -> (TextSelection, String)? {
@@ -575,6 +633,12 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
                 self?.clearSelection()
             },
         ]
+        // Not for a selection of nothing but an illustration: there are no words to quote.
+        if !AnnotationExport.quoteText(text).isEmpty {
+            children.append(UIAction(title: "Share", image: UIImage(systemName: "square.and.arrow.up")) { [weak self] _ in
+                self?.shareQuote(trimmed, text: text)
+            })
+        }
         if UIReferenceLibraryViewController.dictionaryHasDefinition(forTerm: text) {
             children.append(UIAction(title: "Look Up", image: UIImage(systemName: "character.book.closed")) { [weak self] _ in
                 guard let self else { return }

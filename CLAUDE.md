@@ -1,7 +1,7 @@
 # Sheafs
 
 Native EPUB reader for iPhone, iPad and the foldable iPhone Duo, iOS 27.0 and later. SwiftUI + TextKit + Foundation (plus
-Metal for the page flip) only; no web views, no third-party packages. Open source (MIT), so **no personal names, emails,
+Metal for the page flip, LinkPresentation for the share sheet's header) only; no web views, no third-party packages. Open source (MIT), so **no personal names, emails,
 hostnames or secrets anywhere in the tree** — `scripts/check` greps for them and fails.
 
 ## Commands
@@ -85,6 +85,9 @@ the jump and the painted hits, no taps needed (`[search] …` lines on stdout); 
 -SheafsFlipFreeze <0…1> [-SheafsFlipGrab <0…1 down the page>]` starts one page flip on its own
 once the book is up and holds it at that amount, so `simctl io … screenshot` can catch the leaf
 mid-air (the next tap lands it).
+`-SheafsSelect <0…1>` (with `-SheafsOpen`) selects the sentence at that fraction of the reading
+position's page 1 s after the book is up and opens the selection menu, as a long press would (simctl
+cannot long-press); `-SheafsSelectThen share` then taps Share, so the share sheet can be screenshotted.
 `xcrun simctl openurl <udid> "sheafs://open?book=<uuid>"` is the widget's tap (the simulator asks
 "Open in Sheafs?" first; a real widget tap doesn't). `simctl get_app_container <udid>
 io.sheafs.reader group.io.sheafs.reader` is the folder the widget reads.
@@ -144,7 +147,9 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     `spineIndex` + `startOffset`/`endOffset` in the SAME UTF-16 chapter offsets as the position,
     plus the CREngine pointers of both ends, the quoted `text`, a `note`, a `HighlightColor` and
     `isUnderline`; keyed by book id, not a relationship, so `LibraryStore.delete(book)` deletes them
-    by hand; `AnnotationExport.markdown` for sharing), `LibraryStore` (files in Application
+    by hand; `AnnotationExport.markdown` for sharing a book's notes, `AnnotationExport.quote` for one
+    selection: the text, a newline, `— Author, Title, Chapter`; both credit the book through
+    `AnnotationExport.Credit`, so they can't drift), `LibraryStore` (files in Application
     Support/Books/<uuid>.epub, covers in Covers/<uuid>.jpg, import = copy + parse + partial MD5 +
     thumbnail, dedupe by partial MD5; `annotations(for:)`/`add`/`delete`), `LibraryView` (cover grid;
     even column count when a fold is present, per the Duo HIG).
@@ -156,7 +161,7 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     tap zones turn pages, centre tap toggles chrome, link and highlight hit-testing; text
     SELECTION: a long press selects the word under the finger and grows by words while it moves,
     two `SelectionHandleView`s then adjust it by characters, a `UIEditMenuInteraction` offers
-    Highlight / Note / Color / Copy / Look Up; the selection lives in `PagerController`, the
+    Highlight / Note / Color / Copy / Share / Look Up; the selection lives in `PagerController`, the
     spread only provides geometry and the `PageView`s draw it; a tap, a page turn or a layout
     change clears it), `AnnotationViews` (`AnnotationEditorView`: colour, underline, note, show in
     book, delete; `NotesListView`: the Notes segment of the contents sheet, share as Markdown),
@@ -170,7 +175,14 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     `HighlightMark`s with `isFound` (orange band under the glyphs, not tappable) until the next
     page turn, tap, jump or back (`show()` never reports a location change, so `jump(to:)` and
     `goBack()` clear them by hand); `FindInBookTests`),
-    `ReaderLayout`
+    `QuoteShare` (Share in the menu: `UIActivityViewController` with its popover source at the selection (on
+    the Duo, iOS 27 shows a centred card on both displays anyway); items are the quote text and a `QuoteCard` image, 1080 pt at scale 1 in the
+    palette's page colour and the reader's font, as tall as the text up to 9:16 where TextKit ends
+    the text with an ellipsis, on the card only; text-first targets (Messages, Mail, Notes, Copy)
+    get the text alone; the sheet's header is `LPLinkMetadata` (the card as icon, the book as
+    title; without it a blank placeholder); Save Image needs `NSPhotoLibraryAddUsageDescription`
+    in `project.yml` or the system leaves it out; Share clears the selection like Copy;
+    `QuoteShareTests`), `ReaderLayout`
     (`PageLayout.compute`: safe areas + reserved regions → page frames; see Duo below),
     `ReaderView` (chrome: system toolbar + glass progress strip, contents/appearance/footnote sheets,
     sync pull on open / debounced push; `@Query` of the book's annotations → `HighlightMark`s →

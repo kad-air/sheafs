@@ -82,16 +82,61 @@ struct HighlightMark: Hashable, Sendable {
     var isFound = false
 }
 
-/// Notes and highlights as Markdown, for sharing.
+/// Notes and highlights as Markdown, and single quotes as plain text, for sharing. Both credit
+/// their source through `Credit`, so the book's title, author and chapter read the same in each.
 enum AnnotationExport {
+    /// Where a quote comes from, cleaned once for every export: names trimmed, blanks dropped, and
+    /// no chapter when it only repeats the book's title (a one-file book, or a TOC naming the book).
+    struct Credit: Equatable, Sendable {
+        var title: String
+        var author: String?
+        var chapter: String?
+
+        nonisolated init(title: String, author: String?, chapter: String?) {
+            self.title = Self.clean(title) ?? ""
+            self.author = Self.clean(author)
+            let chapter = Self.clean(chapter)
+            self.chapter = chapter?.caseInsensitiveCompare(self.title) == .orderedSame ? nil : chapter
+        }
+
+        /// `— Author, Title, Chapter`, leaving out whatever is unknown.
+        nonisolated var attribution: String {
+            "— " + [author, title.isEmpty ? nil : title, chapter].compactMap { $0 }.joined(separator: ", ")
+        }
+
+        /// Trimmed, with runs of whitespace (a title's line breaks) folded to one space; nil if blank.
+        nonisolated static func clean(_ value: String?) -> String? {
+            let words = (value ?? "").split(whereSeparator: { $0.isWhitespace })
+            return words.isEmpty ? nil : words.joined(separator: " ")
+        }
+    }
+
+    /// A quote as it is shared: the text, then the credit on its own line. The text is never
+    /// shortened; only image placeholders (U+FFFC) and blank lines are dropped and every line
+    /// trimmed, so a selection that swept up a paragraph break or an illustration reads cleanly.
+    nonisolated static func quote(_ text: String, credit: Credit) -> String {
+        quoteText(text) + "\n" + credit.attribution
+    }
+
+    /// The text of a quote, cleaned as `quote` cleans it (the share card draws the same text).
+    nonisolated static func quoteText(_ text: String) -> String {
+        text.replacingOccurrences(of: "\u{FFFC}", with: "")
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+    }
+
     nonisolated static func markdown(title: String, author: String?, annotations: [(chapter: String?, text: String, note: String)]) -> String {
-        var lines = ["# \(title)"]
-        if let author, !author.isEmpty { lines.append("*\(author)*") }
+        let book = Credit(title: title, author: author, chapter: nil)
+        var lines = ["# \(book.title)"]
+        if let author = book.author { lines.append("*\(author)*") }
         var currentChapter: String?? = .some(nil)
         for item in annotations {
-            if currentChapter != .some(item.chapter) {
-                currentChapter = .some(item.chapter)
-                if let chapter = item.chapter, !chapter.isEmpty {
+            let chapter = Credit(title: title, author: author, chapter: item.chapter).chapter
+            if currentChapter != .some(chapter) {
+                currentChapter = .some(chapter)
+                if let chapter {
                     lines.append("")
                     lines.append("## \(chapter)")
                 }
