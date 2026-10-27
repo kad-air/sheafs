@@ -73,6 +73,9 @@ targets:
           # Self-hosted catalogs on a LAN are often plain http; the user chooses what to add.
           NSAllowsArbitraryLoads: true
         UIViewControllerBasedStatusBarAppearance: true
+        # The share sheet's Save Image (a quote card, QuoteShare) needs it: without it the system
+        # leaves Save Image out of the sheet.
+        NSPhotoLibraryAddUsageDescription: Sheafs saves the quote cards you share to your photo library.
         # sheafs://open?book=<uuid>, the widget's tap (SheafsLink)
         CFBundleURLTypes:
           - CFBundleURLName: io.sheafs.reader
