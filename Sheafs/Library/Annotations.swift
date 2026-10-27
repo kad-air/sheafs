@@ -78,6 +78,8 @@ struct HighlightMark: Hashable, Sendable {
     var range: NSRange
     var color: HighlightColor
     var isUnderline: Bool
+    /// A search hit (`BookSearchModel`), painted until the next page turn or tap; not tappable.
+    var isFound = false
 }
 
 /// Notes and highlights as Markdown, for sharing.

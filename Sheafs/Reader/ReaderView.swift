@@ -52,6 +52,13 @@ struct ReaderView: View {
     @State private var sliderValue: Double = 0
     @State private var isScrubbing = false
     @State private var trail = ReturnTrail()
+    @State private var showSearch = false
+    /// Find-in-book, made the first time the search opens; kept so reopening shows the last results.
+    @State private var search: BookSearchModel?
+    /// The contents sheet's Search button: the search opens once that sheet is gone.
+    @State private var searchAfterContents = false
+    /// The searched query's hits in the chapter jumped to, painted until the next turn or tap.
+    @State private var foundMarks: [HighlightMark] = []
 
     private let log = Logger(subsystem: "io.sheafs.reader", category: "reader")
 
@@ -108,11 +115,27 @@ struct ReaderView: View {
         .preferredColorScheme(colorScheme)
         .background { SystemColorSchemeReader { systemScheme = $0 } }
         .tint(Color(uiColor: palette.link))
-        .sheet(isPresented: $showContents) {
+        .sheet(isPresented: $showContents, onDismiss: {
+            if searchAfterContents {
+                searchAfterContents = false
+                openSearch()
+            }
+        }) {
             if let session {
-                ContentsView(session: session, book: book, annotations: annotations) { location in
+                ContentsView(session: session, book: book, annotations: annotations, onSelect: { location in
                     showContents = false
                     jump(to: location)
+                }, onSearch: {
+                    searchAfterContents = true
+                    showContents = false
+                })
+            }
+        }
+        .sheet(isPresented: $showSearch) {
+            if let search {
+                BookSearchView(model: search) { hit in
+                    showSearch = false
+                    jump(to: hit)
                 }
             }
         }
@@ -205,12 +228,13 @@ struct ReaderView: View {
                 ZStack(alignment: .topLeading) {
                     ReaderPager(session: session, layout: layout, style: style, palette: palette,
                                 location: session.location, tapTurnsPages: settings.tapToTurn,
-                                marks: annotations.map(\.mark), highlightColor: settings.highlightColor, pageTurn: settings.pageTurn, proxy: pagerProxy,
+                                marks: annotations.map(\.mark) + foundMarks, highlightColor: settings.highlightColor, pageTurn: settings.pageTurn, proxy: pagerProxy,
                                 onLocationChange: { location in
                                     if volumeButtons.isRunning {
                                         VolumeLog.shared.note("landed at spine=\(location.spineIndex) offset=\(location.textOffset)")
                                     }
                                     session.location = location
+                                    if !foundMarks.isEmpty { foundMarks = [] }
                                     trail.arrived(at: location, samePage: samePage)
                                     persist(location)
                                     if chromeVisible { withAnimation { chromeVisible = false } }
@@ -219,7 +243,8 @@ struct ReaderView: View {
                                 onSelectionAction: handle(selection:))
                     if let deck = layout.deckFrame {
                         ReaderDeck(session: session, palette: palette, proxy: pagerProxy,
-                                   showContents: $showContents, showAppearance: $showQuickAppearance) { location in
+                                   showContents: $showContents, showAppearance: $showQuickAppearance,
+                                   onSearch: openSearch) { location in
                             jump(to: location)
                         }
                         .frame(width: deck.width, height: deck.height)
@@ -291,6 +316,9 @@ struct ReaderView: View {
             Button("Contents", systemImage: "list.bullet") { showContents = true }
         }
         .visibilityPriority(.high)
+        ToolbarItem(placement: .primaryAction) {
+            Button("Search", systemImage: "magnifyingglass") { openSearch() }
+        }
         ToolbarItem(placement: .primaryAction) {
             Button("Appearance", systemImage: "textformat.size") { openQuickAppearance() }
         }
@@ -366,7 +394,7 @@ struct ReaderView: View {
     /// the foreground stops them, so Control Center's volume works and they re-arm on return.
     private var volumeButtonsArmed: Bool {
         (settings.volumeButtonsTurn || volumeProbeRequested) && scenePhase == .active && session?.isReady == true && regions != nil
-            && !showContents && !showAppearance && footnote == nil && editingAnnotation == nil
+            && !showContents && !showAppearance && !showSearch && footnote == nil && editingAnnotation == nil
     }
 
     /// `-SheafsVolumeProbe` (a debug launch argument) arms the buttons whatever the setting says.
@@ -377,7 +405,7 @@ struct ReaderView: View {
     private func armVolumeButtons(_ armed: Bool) {
         VolumeLog.shared.note("armed=\(armed): setting=\(settings.volumeButtonsTurn) scene=\(scenePhase) "
             + "ready=\(session?.isReady == true) regions=\(regions != nil) contents=\(showContents) "
-            + "appearance=\(showAppearance) footnote=\(footnote != nil) note=\(editingAnnotation != nil)")
+            + "appearance=\(showAppearance) search=\(showSearch) footnote=\(footnote != nil) note=\(editingAnnotation != nil)")
         guard armed else {
             volumeButtons.stop()
             return
@@ -409,6 +437,7 @@ struct ReaderView: View {
     }
 
     private func handle(tap: ReaderTap) {
+        if !foundMarks.isEmpty { foundMarks = [] }
         switch tap {
         case .center:
             if showQuickAppearance {
@@ -482,9 +511,11 @@ struct ReaderView: View {
     }
 
     /// Every jump (link, contents, note, slider, synced position) remembers where it left from,
-    /// so the "Back to page N" button can return there.
+    /// so the "Back to page N" button can return there. Showing a page by hand never reports a
+    /// location change, so the found hits are dropped here (a search jump paints its own after).
     private func jump(to location: ReadingLocation) {
         guard let session else { return }
+        if !foundMarks.isEmpty { foundMarks = [] }
         let from = session.location
         let target = session.clamp(location)
         trail.leave(from, page: folio(of: from, session: session), for: target, samePage: samePage)
@@ -493,8 +524,33 @@ struct ReaderView: View {
         persist(target)
     }
 
+    /// A search result: lands on the page that shows the hit (its start, not the hit itself, so the
+    /// page is cut at a line as usual) through `jump(to:)`, which leaves a "Back to page N" stop,
+    /// and paints the query's hits in that chapter until the next turn or tap.
+    private func jump(to hit: SearchHit) {
+        guard let session else { return }
+        let target = session.pageStart(showing: hit.textOffset, inSpine: hit.spineIndex)
+        print("[search] jump to hit \(hit.spineIndex):\(hit.textOffset) → page start \(target.spineIndex):\(target.textOffset)")
+        jump(to: target)
+        foundMarks = (search?.hits(inSpine: hit.spineIndex) ?? [hit]).map { found in
+            HighlightMark(id: UUID(), spineIndex: found.spineIndex, range: NSRange(location: found.textOffset, length: found.length),
+                          color: .yellow, isUnderline: false, isFound: true)
+        }
+    }
+
+    private func openSearch() {
+        guard let session, session.isReady else { return }
+        if search == nil { search = BookSearchModel(session: session) }
+        withAnimation(.snappy) {
+            chromeVisible = false
+            showQuickAppearance = false
+        }
+        showSearch = true
+    }
+
     private func goBack() {
         guard let session, let place = trail.back() else { return }
+        if !foundMarks.isEmpty { foundMarks = [] }
         log.info("back to \(place.spineIndex):\(place.textOffset) trail=\(trail.stops.count)")
         session.location = session.clamp(place)
         persist(session.location)
@@ -575,6 +631,7 @@ struct ReaderView: View {
         library.publishRecentBook()
         goToFromLaunchArgument(session: fresh)
         openAppearanceFromLaunchArgument()
+        searchFromLaunchArgument()
         if let remote = await sync.pull(for: book) {
             offer(remote, session: fresh, force: false)
         }
@@ -665,6 +722,46 @@ struct ReaderView: View {
 
     private static var goToArgumentConsumed = false
 
+    /// `-SheafsSearch <text>` opens the search sheet with `text` searched, once per launch; with
+    /// `-SheafsSearchPick <n>` it then picks the n-th result (1-based) as a tap would, so a
+    /// simulator check reaches the results and the painted hits without taps; `-SheafsSearchBack`
+    /// then goes back 3 s later, as the "Back to page N" capsule would (the hits must go).
+    private func searchFromLaunchArgument() {
+        guard !Self.searchArgumentConsumed else { return }
+        Self.searchArgumentConsumed = true
+        guard let text = UserDefaults.standard.string(forKey: "SheafsSearch"), !text.isEmpty else { return }
+        openSearch()
+        guard let search else { return }
+        search.query = text
+        search.search(immediately: true)
+        let pick = UserDefaults.standard.integer(forKey: "SheafsSearchPick")
+        guard pick > 0 else { return }
+        Task {
+            var waited = 0
+            while search.searchedQuery != text || search.isSearching, waited < 200 {
+                try? await Task.sleep(for: .milliseconds(100))
+                waited += 1
+            }
+            let rows = search.sections.flatMap(\.rows)
+            guard pick <= rows.count else {
+                print("[search] -SheafsSearchPick \(pick): only \(rows.count) results for \"\(text)\"")
+                return
+            }
+            // Let the sheet finish appearing before it is dismissed.
+            try? await Task.sleep(for: .seconds(1.5))
+            showSearch = false
+            jump(to: rows[pick - 1].hit)
+            // `-SheafsSearchBack`: then "Back to page N", as a tap on the capsule would.
+            guard UserDefaults.standard.bool(forKey: "SheafsSearchBack") else { return }
+            try? await Task.sleep(for: .seconds(3))
+            print("[search] back (launch argument), found marks before: \(foundMarks.count)")
+            goBack()
+            print("[search] back done, found marks after: \(foundMarks.count)")
+        }
+    }
+
+    private static var searchArgumentConsumed = false
+
     private func accept(_ prompt: RemotePrompt) {
         jump(to: prompt.location)
         book.lastSyncedPointer = prompt.pointer
@@ -681,6 +778,7 @@ struct ContentsView: View {
     let book: Book
     let annotations: [Annotation]
     var onSelect: (ReadingLocation) -> Void
+    var onSearch: (() -> Void)?
     @Environment(\.dismiss) private var dismiss
     @State private var tab = ContentsTab.contents
 
@@ -726,6 +824,11 @@ struct ContentsView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
+                }
+                if tab == .contents, let onSearch {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Search", systemImage: "magnifyingglass", action: onSearch)
+                    }
                 }
                 if tab == .notes, !annotations.isEmpty {
                     ToolbarItem(placement: .topBarLeading) {
@@ -801,6 +904,7 @@ struct ReaderDeck: View {
     let proxy: PagerProxy
     @Binding var showContents: Bool
     @Binding var showAppearance: Bool
+    var onSearch: () -> Void
     var onJump: (ReadingLocation) -> Void
     @Environment(ReaderSettings.self) private var settings
     @State private var value = 0.0
@@ -827,6 +931,7 @@ struct ReaderDeck: View {
                 Button("Previous Page", systemImage: "chevron.backward") { proxy.turn(forward: false) }
                     .font(.title)
                 Button("Contents", systemImage: "list.bullet") { showContents = true }
+                Button("Search", systemImage: "magnifyingglass", action: onSearch)
                 Button("Smaller Text", systemImage: "textformat.size.smaller") { settings.fontSize = max(12, settings.fontSize - 1) }
                 Button("Larger Text", systemImage: "textformat.size.larger") { settings.fontSize = min(32, settings.fontSize + 1) }
                 Button("Appearance", systemImage: "paintpalette") { showAppearance = true }
