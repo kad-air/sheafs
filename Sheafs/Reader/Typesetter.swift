@@ -219,16 +219,17 @@ enum Typesetter {
         let attachment = NSTextAttachment()
         let maxWidth = max(40, pageSize.width)
         let maxHeight = max(40, pageSize.height * (fillsPage ? 0.96 : 0.9))
-        if let image = images.images[source], image.size.width > 0, image.size.height > 0 {
-            attachment.image = image
-            let fit = min(maxWidth / image.size.width, maxHeight / image.size.height)
-            let scale = fillsPage ? fit : min(1, fit)
-            attachment.bounds = CGRect(x: 0, y: 0, width: floor(image.size.width * scale), height: floor(image.size.height * scale))
-        } else {
-            // Missing image: a quiet placeholder so the flow is not disturbed.
+        guard let image = images.images[source], image.size.width > 0, image.size.height > 0 else {
+            // Missing or undecodable image: a quiet placeholder so the flow is not disturbed. Not
+            // tagged as a picture: there is nothing to open, so a tap there is a tap on text.
             attachment.image = placeholderImage(style: style)
             attachment.bounds = CGRect(x: 0, y: 0, width: 24, height: 24)
+            return NSAttributedString(attachment: attachment)
         }
+        attachment.image = image
+        let fit = min(maxWidth / image.size.width, maxHeight / image.size.height)
+        let scale = fillsPage ? fit : min(1, fit)
+        attachment.bounds = CGRect(x: 0, y: 0, width: floor(image.size.width * scale), height: floor(image.size.height * scale))
         let string = NSMutableAttributedString(attachment: attachment)
         string.addAttribute(.sheafsImageSource, value: source, range: NSRange(location: 0, length: string.length))
         return string

@@ -191,6 +191,24 @@ final class PageView: UIView {
         set {}
     }
 
+    /// The image under a point in this view's coordinates, with its rect in this view's coordinates.
+    func image(at point: CGPoint) -> PageImage? {
+        guard let chapter,
+              var hit = chapter.image(at: CGPoint(x: point.x - textOrigin.x, y: point.y - textOrigin.y), page: page) else { return nil }
+        hit.rect = hit.rect.offsetBy(dx: textOrigin.x, dy: textOrigin.y)
+        return hit
+    }
+
+    /// The images on this page, with their rects in this view's coordinates.
+    func images() -> [PageImage] {
+        guard let chapter else { return [] }
+        return chapter.images(onPage: page).map { image in
+            var image = image
+            image.rect = image.rect.offsetBy(dx: textOrigin.x, dy: textOrigin.y)
+            return image
+        }
+    }
+
     /// The character index under a point in this view's coordinates, if over text.
     func characterIndex(at point: CGPoint) -> Int? {
         guard let chapter else { return nil }

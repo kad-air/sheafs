@@ -23,6 +23,12 @@ scripts/check-site [--render]     # the marketing site in docs/ (GitHub Pages, s
 scripts/check-auto-theme          # end to end on a simulator (SIM="iPhone Duo"): theme Automatic follows
                                   #   live Light/Dark flips, incl. the user's own Light/Dark picks (Sepia /
                                   #   pure Black) (reads the page colour off screenshots)
+scripts/check-image-viewer        # end to end on a simulator (SIM="iPhone Duo"): a single tap on Alice's
+                                  #   cover picture is a plain centre tap, a double tap opens it full screen
+                                  #   at the JPEG's own pixels: the whole width on the cover display, only
+                                  #   the tapped page's half in book pose (right page and left page), and it
+                                  #   closes; folding shut closes it too (reads the picture's extent off
+                                  #   screenshots, OUT=/tmp/sheafs-image-viewer)
 scripts/check-volume-device       # on the PHONE (unlocked; DEVICE=<udid>, BOOK=<title>, APP=<built .app> or
                                   #   ASC_KEY_* to build): probes the volume one step at a time like presses
                                   #   and asserts each read, turned the right way (landed location) and was
@@ -84,6 +90,13 @@ the jump and the painted hits, no taps needed (`[search] …` lines on stdout); 
 `-SheafsBookmark toggle|jump` (with `-SheafsOpen`, once the page is laid out) toggles the bookmark on
 the page at the position, or `jump(to:)`s to the book's first bookmark (leaving a "Back to page N"
 trail); `-SheafsContents contents|bookmarks|notes` opens the contents sheet on that segment.
+`-SheafsOpenImage <n>` (with `-SheafsOpen`) moves to the book's nth picture (1-based, reading order)
+and, once its page is up, single-taps its middle (`PagerController.tap(at:)`, the single-tap
+recognizer's action) and then double-taps it (`doubleTap(at:)`, the double-tap recognizer's action,
+behind the same `acceptsDoubleTap` its `shouldReceive` uses; not the recognizers' timing);
+`-SheafsOpenImageSide left` puts the picture's page on the left of a spread; `-SheafsCloseImageAfter
+<s>` closes the viewer that long after, as ✕ does. The app prints `[tap] at … → center`,
+`[image] double tap at …`, `[image] viewer shown … pixels=WxH … viewport=…` and `[image] viewer closed`.
 `-SheafsFlipAuto forward|back
 -SheafsFlipFreeze <0…1> [-SheafsFlipGrab <0…1 down the page>]` starts one page flip on its own
 once the book is up and holds it at that amount, so `simctl io … screenshot` can catch the leaf
@@ -168,7 +181,23 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     `Typesetter` (Block → NSAttributedString with the user's fonts), `Paginator` (`PaginatedChapter`:
     one TextKit 1 `NSLayoutManager`, one `NSTextContainer` per page, drawn by `PageView`),
     `ReaderPager` (`UIPageViewController` .scroll whose units are spreads of 1–2 pages;
-    tap zones turn pages, centre tap toggles chrome, link and highlight hit-testing; text
+    tap zones turn pages, centre tap toggles chrome, link and highlight hit-testing; DOUBLE-TAP a
+    picture to open it (Kindle's convention; a single tap on a picture does what it does anywhere):
+    `PaginatedChapter.images(onPage:)` gives each attachment's character, `src` and drawn rect (its
+    cell on the baseline; a missing picture's placeholder is not tagged, so it is plain text). 🔴 The
+    double-tap recognizer's `shouldReceive` takes only touches ON a picture of the spread on screen
+    (no selection, no turn in flight) and the single tap `require(toFail:)`s it, so the 0.3 s wait
+    for a second tap happens only when the first lands on a picture; never let it take other touches.
+    A double tap becomes `ReaderTap.image` with the page's window frame, and `ReaderView` overlays `ImageViewer`
+    (`ImageViewer.swift`: the picture at its own resolution from `BookSession.fullImage`, not the
+    page's downsampled attachment, in a zooming `UIScrollView` 1–4×, double-tap zoom, swipe down or ✕,
+    the alt text as caption, Share; the page colour behind it, so the forced scheme holds). 🔴 Over a
+    VERTICAL fold (flat or book pose, like the spread) the viewer keeps to the HALF of the window on
+    the tapped page's side (`ImageViewerLayout.viewport`), never across the hinge; over an active
+    horizontal fold (tabletop) the upper half; else the whole window. A display change that moves
+    that viewport (fold, unfold, rotation, tabletop; not book pose ↔ flat) closes the viewer, since
+    the tapped page's side is stale. Its buttons and caption keep clear of `CoverCamera` like the
+    running head; `ImageViewerTests`, `scripts/check-image-viewer`; text
     SELECTION: a long press selects the word under the finger and grows by words while it moves,
     two `SelectionHandleView`s then adjust it by characters, a `UIEditMenuInteraction` offers
     Highlight / Note / Color / Copy / Share / Look Up; the selection lives in `PagerController`, the
