@@ -114,6 +114,15 @@ struct BookmarkTests {
         #expect(Bookmark.label(in: "Supercalifragilistic" as NSString, at: 0, maxLength: 5) == "Super…")
         #expect(Bookmark.label(in: "" as NSString, at: 3) == "")
         #expect(Bookmark.label(in: text, at: 10_000) == "Next")
+        // Text without word spaces (Japanese): the label starts exactly at the page, never walking
+        // back into the previous page's characters.
+        let japanese = "吾輩は猫である名前はまだ無いどこで生れたかとんと見当がつかぬ何でも薄暗いじめじめした所でニャーニャー泣いていた事だけは記憶している" as NSString
+        let pageStart = 40
+        #expect(Bookmark.label(in: japanese, at: pageStart) == japanese.substring(from: pageStart))
+        #expect(Bookmark.label(in: japanese, at: pageStart, maxLength: 10) == japanese.substring(with: NSRange(location: pageStart, length: 10)) + "…")
+        // A run of letters longer than a word could be is not stepped back over either.
+        let long = "a " + String(repeating: "x", count: 30) as NSString
+        #expect(Bookmark.label(in: long, at: 22) == String(repeating: "x", count: 10))
     }
 
     /// On the cover display the ribbon would sit over the camera hole: it moves left of it. On a

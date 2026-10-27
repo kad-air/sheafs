@@ -31,9 +31,14 @@ final class Bookmark {
     var location: ReadingLocation { ReadingLocation(spineIndex: spineIndex, textOffset: textOffset) }
     var mark: BookmarkMark { BookmarkMark(id: id, spineIndex: spineIndex, textOffset: textOffset) }
 
+    /// The longest word piece a label steps back over to start at the word a page break split.
+    nonisolated static let maxWordBack = 15
+
     /// The first words from `offset` in a chapter's text, on one line: a page that starts inside a
     /// hyphenated word starts the label at that word, images and line breaks are spaces, and the
-    /// label stops at a word boundary before `maxLength` characters, with an ellipsis.
+    /// label stops at a word boundary before `maxLength` characters, with an ellipsis. The step
+    /// back is bounded: at most `maxWordBack` units, and none at all in text without word spaces
+    /// (Chinese, Japanese), where it would walk into the previous page.
     nonisolated static func label(in text: NSString, at offset: Int, maxLength: Int = 60) -> String {
         guard text.length > 0 else { return "" }
         var start = max(0, min(offset, text.length - 1))
@@ -42,8 +47,16 @@ final class Bookmark {
             guard let scalar = Unicode.Scalar(text.character(at: index)) else { return false }
             return letters.contains(scalar)
         }
-        var back = 0
-        while start > 0, back < 40, isLetter(start - 1), isLetter(start) { start -= 1; back += 1 }
+        if start > 0, isLetter(start - 1), isLetter(start) {
+            let windowStart = max(0, start - 40)
+            let before = text.substring(with: NSRange(location: windowStart, length: start - windowStart))
+            if before.contains(where: { $0.isWhitespace }) {
+                var back = start
+                while back > 0, start - back < maxWordBack, isLetter(back - 1) { back -= 1 }
+                // Still inside letters after the limit: not a split word, keep the page's own start.
+                if back == 0 || !isLetter(back - 1) { start = back }
+            }
+        }
         let window = text.substring(with: NSRange(location: start, length: min(text.length - start, maxLength * 4)))
         let words = window.replacingOccurrences(of: "\u{FFFC}", with: " ")
             .split(whereSeparator: { $0.isWhitespace || $0.isNewline })

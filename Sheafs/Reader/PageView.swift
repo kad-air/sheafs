@@ -63,7 +63,7 @@ final class PageView: UIView {
         ctx.fillPath()
     }
 
-    static let ribbonSize = CGSize(width: 14, height: 30)
+    nonisolated static let ribbonSize = CGSize(width: 14, height: 30)
 
     /// Where the ribbon hangs: from the page's top edge, its right side on the text's right edge,
     /// within the head band (it never reaches the text). Where the cover camera's hole is near

@@ -40,6 +40,10 @@ struct ReaderView: View {
     @State private var session: BookSession?
     @State private var chromeVisible = false
     @State private var showContents = false
+    /// The page holding the position has a bookmark. State, refreshed after the inputs change
+    /// (`refreshBookmarkHere`), so the body never reads the pagination cache: every prefetch would
+    /// otherwise re-run the whole reader body.
+    @State private var bookmarkHere = false
     /// The contents sheet's segment, kept between openings.
     @State private var contentsTab = ContentsView.ContentsTab.contents
     @State private var showAppearance = false
@@ -255,7 +259,7 @@ struct ReaderView: View {
                         ReaderDeck(session: session, palette: palette, proxy: pagerProxy,
                                    showContents: $showContents, showAppearance: $showQuickAppearance,
                                    onSearch: openSearch,
-                                   isBookmarked: !bookmarksHere.isEmpty, onToggleBookmark: toggleBookmark) { location in
+                                   isBookmarked: bookmarkHere, onToggleBookmark: toggleBookmark) { location in
                             jump(to: location)
                         }
                         .frame(width: deck.width, height: deck.height)
@@ -270,6 +274,11 @@ struct ReaderView: View {
                     }
                 }
                 .animation(.snappy, value: trail)
+                .onChange(of: BookmarkInputs(location: session.location, textSize: layout.textSize, style: style,
+                                             marks: bookmarks.map(\.mark)), initial: true) {
+                    // After the pager's update has laid the page out for the new position or size.
+                    DispatchQueue.main.async { refreshBookmarkHere() }
+                }
                 .frame(width: full.width, height: full.height, alignment: .topLeading)
                 .offset(x: -shift.x, y: -shift.y)
                 .onChange(of: fresh, initial: true) { _, new in
@@ -334,8 +343,7 @@ struct ReaderView: View {
             Button("Appearance", systemImage: "textformat.size") { openQuickAppearance() }
         }
         ToolbarItem(placement: .primaryAction) {
-            let marked = !bookmarksHere.isEmpty
-            Button(marked ? "Remove Bookmark" : "Add Bookmark", systemImage: marked ? "bookmark.fill" : "bookmark") {
+            Button(bookmarkHere ? "Remove Bookmark" : "Add Bookmark", systemImage: bookmarkHere ? "bookmark.fill" : "bookmark") {
                 toggleBookmark()
             }
             .disabled(session?.isReady != true)
@@ -502,24 +510,37 @@ struct ReaderView: View {
 
     /// The page that holds the reading position (the right-hand page of a spread), from the layout
     /// on screen; nil until it is laid out (never lays one out: see `BookSession.laidOutChapter`).
-    private var currentPage: (chapter: PaginatedChapter, page: Int)? {
+    /// Not for the body: it reads the pagination cache.
+    private func currentPage() -> (chapter: PaginatedChapter, page: Int)? {
         guard let session, session.isReady, let chapter = session.laidOutChapter(session.location.spineIndex) else { return nil }
         return (chapter, chapter.pageIndex(containing: session.location.textOffset))
     }
 
-    /// The bookmarks on the current page: any whose offset falls in its character range, so a
-    /// bookmark made at another text size still counts.
-    private var bookmarksHere: [Bookmark] { bookmarks(onCurrentPageOf: bookmarks) }
+    /// What decides whether the page holding the position has a bookmark.
+    private struct BookmarkInputs: Equatable {
+        var location: ReadingLocation
+        var textSize: CGSize
+        var style: TypesetStyle
+        var marks: [BookmarkMark]
+    }
 
+    /// Whether the current page holds a bookmark: any whose offset falls in its character range,
+    /// so a bookmark made at another text size still counts. Called outside the body only.
+    private func refreshBookmarkHere() {
+        let here = !bookmarks(onCurrentPageOf: bookmarks).isEmpty
+        if here != bookmarkHere { bookmarkHere = here }
+    }
+
+    /// The bookmarks on the current page, from the layout on screen (outside the body only).
     private func bookmarks(onCurrentPageOf list: [Bookmark]) -> [Bookmark] {
-        guard let (chapter, page) = currentPage else { return [] }
+        guard let (chapter, page) = currentPage() else { return [] }
         let ids = Set(chapter.bookmarks(list.map(\.mark), onPage: page).map(\.id))
         return list.filter { ids.contains($0.id) }
     }
 
     /// Marks the current page at its first character, or unmarks it (every bookmark on it).
     private func toggleBookmark() {
-        guard let session, let (chapter, page) = currentPage else { return }
+        guard let session, let (chapter, page) = currentPage() else { return }
         let here = bookmarks(onCurrentPageOf: library.bookmarks(for: book))
         if !here.isEmpty {
             for bookmark in here { library.delete(bookmark) }
