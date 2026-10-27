@@ -134,6 +134,22 @@ final class BookSession {
         return moved
     }
 
+    /// Puts bookmarks where their pointers say when that is another offset in the same chapter
+    /// (see `reanchorPosition`). Returns how many moved.
+    @discardableResult
+    func reanchor(_ bookmarks: [Bookmark]) -> Int {
+        var moved = 0
+        for bookmark in bookmarks where bookmark.spineIndex >= 0 && bookmark.spineIndex < chapters.count {
+            guard let offset = chapters[bookmark.spineIndex].reanchoredOffset(
+                bookmark.textOffset, pointer: bookmark.xpointer, spineIndex: bookmark.spineIndex
+            ) else { continue }
+            log.info("reanchored bookmark \(bookmark.id, privacy: .public) \(bookmark.spineIndex):\(bookmark.textOffset) → \(offset)")
+            bookmark.textOffset = offset
+            moved += 1
+        }
+        return moved
+    }
+
     func clamp(_ loc: ReadingLocation) -> ReadingLocation {
         guard !chapters.isEmpty else { return .start }
         let spine = max(0, min(loc.spineIndex, chapters.count - 1))

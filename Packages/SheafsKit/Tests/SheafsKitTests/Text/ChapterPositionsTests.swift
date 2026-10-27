@@ -62,4 +62,15 @@ struct ChapterPositionsTests {
         #expect(Self.after.reanchoredOffset(3, pointer: hidden, spineIndex: 4) == nil)
         #expect(Self.after.reanchoredOffset(3, pointer: nil, spineIndex: 4) == nil)
     }
+
+    /// A bookmark is an offset + pointer like the reading position (the start of its page).
+    @Test("a bookmark saved before follows its pointer")
+    func bookmark() throws {
+        let old = try Self.start(of: "Alpha", in: Self.before)
+        let pointer = Self.before.pointer(at: old, spineIndex: 2).serialized
+        let new = try Self.start(of: "Alpha", in: Self.after)
+        #expect(old != new)
+        #expect(Self.after.reanchoredOffset(old, pointer: pointer, spineIndex: 2) == new)
+        #expect(Self.before.reanchoredOffset(old, pointer: pointer, spineIndex: 2) == nil)
+    }
 }

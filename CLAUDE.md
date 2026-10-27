@@ -167,7 +167,8 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     honoured are RE-ANCHORED on open (`Text/ChapterPositions`): the reading position follows
     `book.xpointer` when it names a block of the same chapter at another offset, and a highlight
     whose offsets no longer hold its quoted `text` moves to where its start/end pointers say, if
-    the text is there (`BookSession.reanchor`, logged; else left alone). `StylesheetTests`,
+    the text is there (`BookSession.reanchor`, logged; else left alone); bookmarks follow their
+    `xpointer` like the position. `StylesheetTests`,
     `ChapterPositionsTests`; `ChapterReferenceTests` runs every fixture chapter with and without
     its stylesheets against the Python reference.
   - `Text/XPointer` — `/body/DocFragment[N]/body/…/p[K]/text()[k].off` parse/serialize (N 1-based
