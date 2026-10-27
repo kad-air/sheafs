@@ -275,4 +275,36 @@ final class BookSession {
     }
 
     var chapterCount: Int { chapters.count }
+
+    // MARK: Pictures
+
+    /// The image block whose attachment is at `textOffset` of chapter `spineIndex`.
+    func imageBlock(spineIndex: Int, textOffset: Int) -> (source: String, alt: String?)? {
+        guard spineIndex >= 0, spineIndex < chapters.count,
+              let block = chapters[spineIndex].block(containing: textOffset),
+              case .image(let source, let alt) = block.kind else { return nil }
+        return (source, alt)
+    }
+
+    /// Every picture in the book, in reading order (for `-SheafsOpenImage`).
+    func imageLocations() -> [ReadingLocation] {
+        chapters.enumerated().flatMap { spine, chapter in
+            chapter.blocks.compactMap { block -> ReadingLocation? in
+                guard case .image = block.kind, block.textLength == 1 else { return nil }
+                return ReadingLocation(spineIndex: spine, textOffset: block.textOffset)
+            }
+        }
+    }
+
+    /// The picture `source` of chapter `spineIndex` at its own resolution, for the full-screen viewer
+    /// (the page's attachment is downsampled to the page). Decoded off the main actor; a huge one is
+    /// held to 4096 px on its long side.
+    func fullImage(source: String, spineIndex: Int) async -> UIImage? {
+        guard let epub, spineIndex >= 0, spineIndex < epub.spine.count else { return nil }
+        let path = EPUBPath.resolve(EPUBPath.split(source).path, relativeTo: epub.spine[spineIndex].item.path)
+        return await Task.detached(priority: .userInitiated) { () -> UIImage? in
+            guard let data = try? epub.data(at: path) else { return nil }
+            return ImageViewerLayout.decode(data, maxPixelSize: 4096)
+        }.value
+    }
 }

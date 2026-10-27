@@ -71,6 +71,8 @@ struct ReaderView: View {
     @State private var searchAfterContents = false
     /// The searched query's hits in the chapter jumped to, painted until the next turn or tap.
     @State private var foundMarks: [HighlightMark] = []
+    /// The picture open full screen, if any.
+    @State private var viewedImage: ViewedImage?
 
     private let log = Logger(subsystem: "io.sheafs.reader", category: "reader")
 
@@ -122,6 +124,16 @@ struct ReaderView: View {
                 })
                 .frame(maxWidth: quickPanelWidth ?? .infinity)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .overlay {
+            // Over everything, the bars included; the reader's forced colour scheme still applies.
+            if let viewedImage {
+                ImageViewer(viewed: viewedImage, palette: palette, division: regions?.division,
+                            divisionIsActive: regions?.divisionIsActive ?? false, orientation: orientation) {
+                    closeImage()
+                }
+                .transition(.opacity)
             }
         }
         .preferredColorScheme(colorScheme)
@@ -422,6 +434,7 @@ struct ReaderView: View {
     private var volumeButtonsArmed: Bool {
         (settings.volumeButtonsTurn || volumeProbeRequested) && scenePhase == .active && session?.isReady == true && regions != nil
             && !showContents && !showAppearance && !showSearch && footnote == nil && editingAnnotation == nil && !pagerSheet
+            && viewedImage == nil
     }
 
     /// `-SheafsVolumeProbe` (a debug launch argument) arms the buttons whatever the setting says.
@@ -433,7 +446,7 @@ struct ReaderView: View {
         VolumeLog.shared.note("armed=\(armed): setting=\(settings.volumeButtonsTurn) scene=\(scenePhase) "
             + "ready=\(session?.isReady == true) regions=\(regions != nil) contents=\(showContents) "
             + "appearance=\(showAppearance) search=\(showSearch) footnote=\(footnote != nil) note=\(editingAnnotation != nil) "
-            + "systemSheet=\(pagerSheet)")
+            + "systemSheet=\(pagerSheet) image=\(viewedImage != nil)")
         guard armed else {
             volumeButtons.stop()
             return
@@ -479,7 +492,32 @@ struct ReaderView: View {
             open(link: href, from: spine)
         case .annotation(let id):
             editingAnnotation = annotations.first { $0.id == id }
+        case .image(let tap):
+            open(image: tap)
         }
+    }
+
+    /// Opens a tapped picture full screen, at its own resolution (decoded off the main actor).
+    private func open(image tap: ImageTap) {
+        guard let session else { return }
+        let alt = session.imageBlock(spineIndex: tap.spineIndex, textOffset: tap.textOffset)?.alt
+        Task {
+            guard let image = await session.fullImage(source: tap.source, spineIndex: tap.spineIndex) else {
+                print("[image] can't decode \(tap.source) (spine \(tap.spineIndex))")
+                log.error("image \(tap.source, privacy: .public) could not be decoded")
+                return
+            }
+            withAnimation(.snappy) {
+                chromeVisible = false
+                showQuickAppearance = false
+                viewedImage = ViewedImage(image: image, alt: alt, source: tap.source, pageFrame: tap.pageFrame)
+            }
+        }
+    }
+
+    private func closeImage() {
+        print("[image] viewer closed")
+        withAnimation(.snappy) { viewedImage = nil }
     }
 
     /// Makes a highlight from the selection; a note opens the editor right away.
@@ -712,6 +750,7 @@ struct ReaderView: View {
         openAppearanceFromLaunchArgument()
         searchFromLaunchArgument()
         bookmarkFromLaunchArgument(session: fresh)
+        openImageFromLaunchArgument(session: fresh)
         if let remote = await sync.pull(for: book) {
             offer(remote, session: fresh, force: false)
         }
@@ -884,6 +923,70 @@ struct ReaderView: View {
     }
 
     private static var searchArgumentConsumed = false
+
+    /// `-SheafsOpenImage <n>` moves to the book's nth picture (1-based, reading order) and, once its
+    /// page is up, first SINGLE-taps its middle through `PagerController.tap(at:)` (the single-tap
+    /// recognizer's action: it must only toggle the bars, like any centre tap), then double-taps it
+    /// through `PagerController.doubleTap(at:)` (the double-tap recognizer's action, behind the same
+    /// `acceptsDoubleTap` check its `shouldReceive` makes), so the simulator can check the gestures'
+    /// decisions and the viewer without a finger. `-SheafsOpenImageSide left` (a spread) shows the
+    /// picture's page on the LEFT, by moving to the page after it. `-SheafsCloseImageAfter <s>`
+    /// closes the viewer that many seconds after it opened, as ✕ does.
+    private func openImageFromLaunchArgument(session: BookSession) {
+        guard !Self.imageArgumentConsumed else { return }
+        Self.imageArgumentConsumed = true
+        let wanted = UserDefaults.standard.integer(forKey: "SheafsOpenImage")
+        guard wanted > 0 else { return }
+        let pictures = session.imageLocations()
+        guard wanted <= pictures.count else {
+            print("[image] -SheafsOpenImage \(wanted): the book has \(pictures.count) pictures")
+            return
+        }
+        let target = pictures[wanted - 1]
+        let onLeft = UserDefaults.standard.string(forKey: "SheafsOpenImageSide") == "left"
+        print("[image] -SheafsOpenImage \(wanted) → \(target.spineIndex):\(target.textOffset)\(onLeft ? " on the left page" : "")")
+        session.location = target
+        let closeAfter = UserDefaults.standard.double(forKey: "SheafsCloseImageAfter")
+        Task {
+            var moved = !onLeft
+            // The pager appears once the window's regions are known, then lays the spread out.
+            for _ in 0 ..< 150 {
+                try? await Task.sleep(for: .milliseconds(200))
+                guard let controller = pagerProxy.controller,
+                      let point = controller.imageCentre(spineIndex: target.spineIndex, textOffset: target.textOffset) else { continue }
+                if !moved {
+                    // The spread shows the page holding the position on the right: go to the page after
+                    // the picture's, and the picture's page is on the left.
+                    guard let chapter = session.laidOutChapter(target.spineIndex) else { continue }
+                    let page = chapter.pageIndex(containing: target.textOffset)
+                    session.location = page + 1 < chapter.pageCount
+                        ? ReadingLocation(spineIndex: target.spineIndex, textOffset: chapter.range(ofPage: page + 1).location)
+                        : ReadingLocation(spineIndex: target.spineIndex + 1, textOffset: 0)
+                    moved = true
+                    continue
+                }
+                // Until the pager has re-shown the spread, the picture is still on the right.
+                if onLeft, point.x >= controller.view.bounds.midX { continue }
+                print("[image] picture's middle at \(point) in a view \(controller.view.bounds.size) wide")
+                controller.tap(at: point)
+                try? await Task.sleep(for: .milliseconds(1500))
+                print("[image] after a single tap on the picture the viewer is \(viewedImage == nil ? "closed" : "OPEN")")
+                guard controller.doubleTap(at: point) else {
+                    print("[image] the double tap did not take the picture")
+                    return
+                }
+                if closeAfter > 0 {
+                    for _ in 0 ..< 50 where viewedImage == nil { try? await Task.sleep(for: .milliseconds(100)) }
+                    try? await Task.sleep(for: .seconds(closeAfter))
+                    if viewedImage != nil { closeImage() }
+                }
+                return
+            }
+            print("[image] -SheafsOpenImage \(wanted): picture never appeared on a page")
+        }
+    }
+
+    private static var imageArgumentConsumed = false
 
     private func accept(_ prompt: RemotePrompt) {
         jump(to: prompt.location)

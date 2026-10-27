@@ -1,6 +1,16 @@
 import Foundation
 import UIKit
 
+/// An image on a page of a `PaginatedChapter`.
+struct PageImage: Equatable {
+    /// The attachment's character (one U+FFFC), in chapter coordinates.
+    var index: Int
+    /// The image's `src` as written in the chapter (`Block.Kind.image`).
+    var source: String
+    /// Where it draws, in page coordinates (origin at the text's top-left).
+    var rect: CGRect
+}
+
 /// A chapter laid out into fixed-size pages with TextKit (one tall container per part, cut at
 /// line boundaries). When an `anchor` offset is given, a page break is forced exactly there, so the
 /// text at the reading position is the first line of its page after a fold, a rotation or a font
@@ -105,6 +115,28 @@ final class PaginatedChapter {
         let onPage = NSIntersectionRange(range, self.range(ofPage: page))
         guard onPage.length > 0 else { return [] }
         return part.rects(for: NSRange(location: onPage.location - part.offset, length: onPage.length), page: local)
+    }
+
+    /// The images drawn on `page`: each attachment's character (chapter coordinates), its `src` as
+    /// written, and the rect it draws in (page coordinates, origin at the text's top-left).
+    func images(onPage page: Int) -> [PageImage] {
+        guard let (part, local) = part(forPage: page) else { return [] }
+        let onPage = range(ofPage: page)
+        var result: [PageImage] = []
+        textStorage.enumerateAttribute(.sheafsImageSource, in: onPage) { value, range, _ in
+            guard let source = value as? String else { return }
+            for index in range.location ..< NSMaxRange(range) {
+                guard let rect = part.attachmentRect(at: index - part.offset, page: local) else { continue }
+                result.append(PageImage(index: index, source: source, rect: rect))
+            }
+        }
+        return result
+    }
+
+    /// The image under `point` (page coordinates) on `page`, if any. A few points of slack around
+    /// the picture, so a tap on its edge still lands.
+    func image(at point: CGPoint, page: Int) -> PageImage? {
+        images(onPage: page).first { $0.rect.insetBy(dx: -6, dy: -6).contains(point) }
     }
 
     /// The word around `index`, for a long press; on whitespace or punctuation the nearest word in
@@ -255,6 +287,20 @@ final class PaginatedChapter {
                 rects.append(rect.offsetBy(dx: 0, dy: -top))
             }
             return rects
+        }
+
+        /// Where the attachment at `index` (part coordinates) draws on `page`: its cell, standing on
+        /// the line's baseline (`Typesetter` gives every image bounds with a zero origin).
+        func attachmentRect(at index: Int, page: Int) -> CGRect? {
+            guard page >= 0, page < pageGlyphRanges.count, index >= 0, index < textStorage.length else { return nil }
+            let glyph = layoutManager.glyphIndexForCharacter(at: index)
+            guard NSLocationInRange(glyph, pageGlyphRanges[page]) else { return nil }
+            let size = layoutManager.attachmentSize(forGlyphAt: glyph)
+            guard size.width > 0, size.height > 0 else { return nil }
+            let line = layoutManager.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
+            let location = layoutManager.location(forGlyphAt: glyph)
+            return CGRect(x: line.minX + location.x, y: line.minY + location.y - size.height - pageTops[page],
+                          width: size.width, height: size.height)
         }
 
         func characterIndex(at point: CGPoint, page: Int) -> Int? {

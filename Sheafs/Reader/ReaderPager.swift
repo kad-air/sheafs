@@ -8,11 +8,23 @@ struct PageSlot: Hashable {
     var page: Int
 }
 
-enum ReaderTap {
+enum ReaderTap: Equatable {
     case previous, next, center
     case link(href: String, spineIndex: Int)
     /// A tap on an existing highlight.
     case annotation(id: UUID)
+    /// A double tap on a picture: open it full screen.
+    case image(ImageTap)
+}
+
+/// A picture someone double-tapped: which one, and where its page is on screen (window coordinates), so
+/// the viewer can stay on that page's side of a fold.
+struct ImageTap: Equatable {
+    var spineIndex: Int
+    /// The attachment's character in the chapter (its image block's `textOffset`).
+    var textOffset: Int
+    var source: String
+    var pageFrame: CGRect
 }
 
 /// A run of selected text in one chapter.
@@ -104,6 +116,9 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
     private let endHandle = SelectionHandleView(isStart: false)
     private lazy var editMenu = UIEditMenuInteraction(delegate: self)
     private weak var scrollView: UIScrollView?
+    /// Double tap on a picture opens it. It only takes touches that land on a picture, so the
+    /// single tap (which requires it to fail) waits for a possible second tap only there.
+    private var imageDoubleTap: UITapGestureRecognizer?
     private let log = Logger(subsystem: "io.sheafs.reader", category: "pager")
 
     init(session: BookSession) {
@@ -134,6 +149,12 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
         tap.delegate = self
         view.addGestureRecognizer(tap)
+        let doubleTap = UITapGestureRecognizer(target: self, action: #selector(handleDoubleTap(_:)))
+        doubleTap.numberOfTapsRequired = 2
+        doubleTap.delegate = self
+        view.addGestureRecognizer(doubleTap)
+        tap.require(toFail: doubleTap)
+        imageDoubleTap = doubleTap
         let press = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
         press.minimumPressDuration = 0.4
         press.delegate = self
@@ -391,11 +412,49 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
         // The handles have their own pans; taps and presses on them must not reach the page.
-        !(touch.view is SelectionHandleView)
+        if touch.view is SelectionHandleView { return false }
+        // The picture double tap never sees a touch off a picture, so a single tap anywhere else
+        // (turn zones, centre, links, highlights) fires at once instead of waiting for a second tap.
+        if gestureRecognizer === imageDoubleTap { return acceptsDoubleTap(at: touch.location(in: view)) }
+        return true
+    }
+
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        if gestureRecognizer === imageDoubleTap { return acceptsDoubleTap(at: gestureRecognizer.location(in: view)) }
+        return true
+    }
+
+    /// Whether a double tap at `point` (this view's coordinates) is one on a picture of the spread
+    /// on screen: not while text is selected (a tap clears it) or while a page is turning (the
+    /// spread under the leaf is not the one in view).
+    func acceptsDoubleTap(at point: CGPoint) -> Bool {
+        guard selection == nil, !flip.isActive, let spread = currentSpread else { return false }
+        return spread.image(at: view.convert(point, to: spread.view)) != nil
+    }
+
+    @objc private func handleDoubleTap(_ gesture: UITapGestureRecognizer) {
+        doubleTap(at: gesture.location(in: view))
+    }
+
+    /// A double tap at `point`: opens the picture there. False (and nothing happens) off a picture.
+    @discardableResult
+    func doubleTap(at point: CGPoint) -> Bool {
+        guard acceptsDoubleTap(at: point), let spread = currentSpread,
+              let image = spread.image(at: view.convert(point, to: spread.view)) else { return false }
+        log.info("image double tap at \(point.debugDescription, privacy: .public): \(image.source, privacy: .public) spine=\(image.spineIndex) offset=\(image.textOffset)")
+        print("[image] double tap at \(point) → \(image.source) spine=\(image.spineIndex) offset=\(image.textOffset) page=\(image.pageFrame)")
+        onTap?(.image(image))
+        return true
     }
 
     @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
-        let point = gesture.location(in: view)
+        tap(at: gesture.location(in: view))
+    }
+
+    /// A single tap at `point` (this view's coordinates): a highlight, a link, else the page-turn
+    /// zones and the centre. Pictures are opened by a double tap (`doubleTap(at:)`), so a single
+    /// tap on one does what it would anywhere else.
+    func tap(at point: CGPoint) {
         if selection != nil {
             clearSelection()
             return
@@ -413,14 +472,25 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         }
         let width = view.bounds.width
         if tapTurnsPages, point.x < width * 0.22 {
+            print("[tap] at \(point) → previous")
             turnPage(forward: false, from: point)
             onTap?(.previous)
         } else if tapTurnsPages, point.x > width * 0.78 {
+            print("[tap] at \(point) → next")
             turnPage(forward: true, from: point)
             onTap?(.next)
         } else {
+            print("[tap] at \(point) → center")
             onTap?(.center)
         }
+    }
+
+    /// Debug (`-SheafsOpenImage`): the middle of the picture at `textOffset` of chapter
+    /// `spineIndex` in this view, while the spread on screen shows it.
+    func imageCentre(spineIndex: Int, textOffset: Int) -> CGPoint? {
+        guard let spread = currentSpread,
+              let rect = spread.imageRect(spineIndex: spineIndex, textOffset: textOffset) else { return nil }
+        return spread.view.convert(CGPoint(x: rect.midX, y: rect.midY), to: view)
     }
 
     @objc private func handleFlipPan(_ gesture: UIPanGestureRecognizer) {
@@ -818,6 +888,28 @@ final class SpreadViewController: UIViewController {
                   characterIndex < chapter.textStorage.length,
                   let href = chapter.textStorage.attribute(.sheafsLink, at: characterIndex, effectiveRange: nil) as? String else { continue }
             return (href, slot.spineIndex)
+        }
+        return nil
+    }
+
+    /// The picture under a point in this controller's view, if any, with its page's frame in the window.
+    func image(at point: CGPoint) -> ImageTap? {
+        for (index, pageView) in pageViews.enumerated() where pageView.frame.contains(point) {
+            guard index < slots.count, let slot = slots[index],
+                  let hit = pageView.image(at: view.convert(point, to: pageView)) else { continue }
+            let frame = pageView.window.map { pageView.convert(pageView.bounds, to: $0) } ?? pageView.frame
+            return ImageTap(spineIndex: slot.spineIndex, textOffset: hit.index, source: hit.source, pageFrame: frame)
+        }
+        return nil
+    }
+
+    /// Where the picture at `textOffset` of chapter `spineIndex` is drawn, in this controller's
+    /// view, when a page of this spread shows it.
+    func imageRect(spineIndex: Int, textOffset: Int) -> CGRect? {
+        for (index, pageView) in pageViews.enumerated() {
+            guard index < slots.count, let slot = slots[index], slot.spineIndex == spineIndex,
+                  let image = pageView.images().first(where: { $0.index == textOffset }) else { continue }
+            return pageView.convert(image.rect, to: view)
         }
         return nil
     }

@@ -1,0 +1,203 @@
+#!/usr/bin/env bash
+# End-to-end check of the full-screen picture viewer on the iPhone Duo simulator. Opens Alice (the
+# fixture; its cover page is a picture) with `-SheafsOpenImage 1`, which single-taps the middle of
+# the picture through the single-tap recognizer's action, then double-taps it through the double-tap
+# recognizer's (`PagerController.tap(at:)` / `doubleTap(at:)`), and `-SheafsCloseImageAfter 3`, which
+# closes the viewer as ✕ does. Fails loudly unless, on the cover display, in book pose with the
+# picture on the RIGHT page and in book pose with it on the LEFT page (`-SheafsOpenImageSide left`):
+#   - the single tap on the picture is an ordinary centre tap and leaves the viewer closed;
+#   - the double tap hits the picture and the viewer opens it at the JPEG's own 800 × 1104 pixels
+#     (what `sips` reads from the file in the EPUB, not the page's downsampled copy);
+#   - the screenshot shows the picture at the viewer's size, not the page's: the whole window wide on
+#     the cover display; in book pose only the tapped page's half, nothing of it across the hinge;
+#   - after closing, the picture is back to its size on the page.
+# And that folding the phone shut while the viewer is open on the inner display closes it.
+# (The simulator cannot be tapped from a script, so UIKit's recognizer timing itself, i.e. no wait
+# for a second tap off a picture, is not exercised here.)
+#   SIM="iPhone Duo" (default), DERIVED_DATA=/tmp/sheafs-derived (builds there, incrementally),
+#   OUT=/tmp/sheafs-image-viewer (screenshots, kept)
+set -euo pipefail
+cd "$(dirname "$0")/.."
+fail() { echo "IMAGE VIEWER CHECK FAILED: $*" >&2; exit 1; }
+SIM=${SIM:-iPhone Duo}
+DD=${DERIVED_DATA:-/tmp/sheafs-derived}
+OUT=${OUT:-/tmp/sheafs-image-viewer}
+HINGE=scripts/hinge/hinge
+EPUB=Packages/SheafsKit/Tests/SheafsKitTests/Fixtures/alice-epub3.epub
+COVER_JPG=OEBPS/7981341119032183217_cover.jpg
+WORK=$(mktemp -d)
+CONSOLE_PID=""
+mkdir -p "$OUT"
+
+UDID=$(xcrun simctl list devices available -j | python3 -I -c '
+import json, sys
+name = sys.argv[1]
+for runtime in json.load(sys.stdin)["devices"].values():
+    for d in runtime:
+        if d["name"] == name: print(d["udid"]); sys.exit()
+' "$SIM")
+[[ -n $UDID ]] || fail "no simulator named \"$SIM\""
+xcrun simctl bootstatus "$UDID" -b >/dev/null
+# Cleans up and keeps the script's own status (a failing cleanup step must not turn OK into a failure).
+cleanup() {
+  local status=$?
+  [[ -n $CONSOLE_PID ]] && { kill "$CONSOLE_PID" >/dev/null 2>&1 || true; }
+  xcrun simctl terminate "$UDID" io.sheafs.reader >/dev/null 2>&1 || true
+  rm -rf "$WORK"
+  exit "$status"
+}
+trap cleanup EXIT
+
+# The second source for the picture's size: the file itself.
+(cd "$WORK" && unzip -q -o "$OLDPWD/$EPUB" "$COVER_JPG")
+read -r JPG_W JPG_H <<<"$(sips -g pixelWidth -g pixelHeight "$WORK/$COVER_JPG" | awk '/pixelWidth/{w=$2} /pixelHeight/{h=$2} END{print w, h}')"
+[[ $JPG_W == 800 && $JPG_H == 1104 ]] || fail "the fixture's cover is ${JPG_W}×${JPG_H}, expected 800×1104"
+
+[[ -f Config/Signing.xcconfig ]] || cp Config/Signing.example.xcconfig Config/Signing.xcconfig
+xcodegen generate --quiet
+xcodebuild -project Sheafs.xcodeproj -scheme Sheafs -destination "platform=iOS Simulator,id=$UDID" \
+  -derivedDataPath "$DD" -quiet build >"$WORK/build.log" 2>&1 || { tail -n 30 "$WORK/build.log" >&2; fail "build"; }
+xcrun simctl install "$UDID" "$DD/Build/Products/Debug-iphonesimulator/Sheafs.app"
+xcrun simctl terminate "$UDID" io.sheafs.reader >/dev/null 2>&1 || true
+DATA=$(xcrun simctl get_app_container "$UDID" io.sheafs.reader data)
+mkdir -p "$DATA/Documents"
+cp "$EPUB" "$DATA/Documents/"
+xcrun simctl launch "$UDID" io.sheafs.reader >/dev/null            # imports Documents/ (dedupes)
+sleep 4
+xcrun simctl terminate "$UDID" io.sheafs.reader >/dev/null 2>&1 || true
+
+# The picture's extent along the screenshot's middle rows, in points (3 px each): "<left> <right>
+# <width>", where a pixel counts when it differs from the page colour (sampled in the top-left
+# corner, which the picture never reaches) by more than 24 in some channel; "none" when nothing does.
+# An optional second argument only looks left of that x (pt), e.g. the left page of a spread.
+span() {
+  sips -s format bmp "$1" --out "$WORK/shot.bmp" >/dev/null
+  python3 -I - "$WORK/shot.bmp" "${2:-100000}" <<'PY'
+import struct, sys
+data = open(sys.argv[1], "rb").read()
+offset, = struct.unpack_from("<I", data, 10)
+width, height = struct.unpack_from("<ii", data, 18)
+bpp, = struct.unpack_from("<H", data, 28)
+step = bpp // 8
+row = (width * step + 3) & ~3
+h = abs(height)
+def pixel(x, y):  # y from the top
+    yy = (height - 1 - y) if height > 0 else y
+    i = offset + yy * row + x * step
+    b, g, r = data[i:i + 3]
+    return r, g, b
+background = pixel(18, 18)
+limit = min(width, int(float(sys.argv[2]) * 3))
+cols = [x for x in range(limit)
+        if any(max(abs(a - b) for a, b in zip(pixel(x, y), background)) > 24 for y in (h // 2 - 30, h // 2, h // 2 + 30))]
+if not cols:
+    print("none")
+else:
+    print(f"{cols[0] / 3:.0f} {(cols[-1] + 1) / 3:.0f} {(cols[-1] + 1 - cols[0]) / 3:.0f}")
+PY
+}
+
+# launch_and_open <name> [launch arguments…]: launches on the current pose and waits for the viewer;
+# checks the single tap left it closed and the double tap took the cover picture at its own pixels.
+launch_and_open() {
+  local name=$1
+  shift
+  # A launch right after the app's tests have run on the simulator sometimes never attaches: simctl
+  # prints nothing at all (not even the pid) for a minute. That is the harness, not the app, so such
+  # a launch is retried once; a launch that runs but never opens the viewer still fails.
+  local attempt
+  for attempt in 1 2; do
+    : >"$WORK/console.log"
+    xcrun simctl launch --console-pty "$UDID" io.sheafs.reader -SheafsOpen Alice -SheafsOpenImage 1 "$@" \
+      >"$WORK/console.log" 2>&1 &
+    CONSOLE_PID=$!
+    for _ in $(seq 1 40); do [[ -s $WORK/console.log ]] && break; sleep 0.5; done
+    [[ -s $WORK/console.log ]] && break
+    echo "  (simctl launch printed nothing in 20 s, attempt $attempt; relaunching)"
+    finish
+  done
+  for _ in $(seq 1 120); do grep -aq '^\[image\] viewer shown' "$WORK/console.log" && break; sleep 0.5; done
+  local shown
+  shown=$(grep -a '^\[image\] viewer shown' "$WORK/console.log" | tail -1) || true
+  if [[ -z $shown ]]; then
+    grep -aE '\[(image|tap|layout|goto)\]' "$WORK/console.log" | tail -n 30 >&2 || true
+    cp "$WORK/console.log" "$OUT/$name-console.log"
+    fail "$name: the viewer never opened (no '[image] viewer shown' line; see above)"
+  fi
+  grep -aq '^\[tap\] at .* → center' "$WORK/console.log" || fail "$name: the single tap on the picture was not a centre tap"
+  grep -aq '^\[image\] after a single tap on the picture the viewer is closed' "$WORK/console.log" \
+    || fail "$name: a SINGLE tap on the picture opened the viewer (or never ran)"
+  grep -aq "^\[image\] double tap at .*${COVER_JPG#OEBPS/}" "$WORK/console.log" || fail "$name: the double tap did not hit the cover picture"
+  [[ $shown == *"pixels=${JPG_W}x${JPG_H}"* ]] || fail "$name: the viewer's picture is not the file's ${JPG_W}×${JPG_H}: $shown"
+  echo "  $(grep -a '^\[tap\] at' "$WORK/console.log" | tail -1)"
+  echo "  $(grep -a '^\[image\] double tap at' "$WORK/console.log" | tail -1)"
+  echo "  $shown"
+}
+
+# expect_span <name> <what> <png> <python condition on l, r, w> [x limit]
+expect_span() {
+  local name=$1 what=$2 png=$3 check=$4 got
+  got=$(span "$png" "${5:-}")
+  python3 -I -c "import sys; l, r, w = map(float, sys.argv[1].split()); sys.exit(0 if ($check) else 1)" "$got" \
+    || fail "$name: $what, the picture spans [$got] (left right width, pt), wanted $check ($png)"
+  echo "  ok: $what, the picture spans [$got] pt"
+}
+
+pose() {  # pose <device orientation> <hinge°>
+  "$HINGE" -d "$UDID" orient "$1"
+  "$HINGE" -d "$UDID" "$2"
+  sleep 2
+}
+
+finish() {
+  xcrun simctl terminate "$UDID" io.sheafs.reader >/dev/null 2>&1 || true
+  kill "$CONSOLE_PID" >/dev/null 2>&1 || true
+  CONSOLE_PID=""
+}
+
+# phase <name> <device orientation> <hinge°> <--display flag> <check open> <check closed> [x limit closed] [launch arguments…]
+phase() {
+  local name=$1 orient=$2 angle=$3 display=$4 open_check=$5 closed_check=$6 limit=$7
+  shift 7
+  echo "• $name"
+  pose "$orient" "$angle"
+  launch_and_open "$name" -SheafsCloseImageAfter 3 "$@"
+  sleep 1                                       # the fade-in
+  xcrun simctl io "$UDID" screenshot "$display" "$OUT/$name-open.png" >/dev/null 2>&1 || fail "$name: screenshot"
+  expect_span "$name" open "$OUT/$name-open.png" "$open_check"
+  for _ in $(seq 1 30); do grep -aq '^\[image\] viewer closed' "$WORK/console.log" && break; sleep 0.5; done
+  grep -aq '^\[image\] viewer closed' "$WORK/console.log" || fail "$name: the viewer never closed"
+  sleep 1                                       # the fade-out
+  xcrun simctl io "$UDID" screenshot "$display" "$OUT/$name-closed.png" >/dev/null 2>&1 || fail "$name: screenshot"
+  expect_span "$name" "closed, back on the page" "$OUT/$name-closed.png" "$closed_check" "$limit"
+  finish
+}
+
+# Cover display, 466 pt wide: the viewer fits the 800 × 1104 picture to the whole width; on the page
+# it is 0.96 of the text's height, about 380 pt wide.
+phase cover portrait 0 --display=primary 'w >= 460' 'w < 440' ""
+# Inner display in book pose (951 pt wide, the hinge at 455.5…495.5). The picture on the right page:
+# the viewer keeps to the right half, 455 pt wide, nothing of it left of the hinge; about 400 pt on the page.
+phase book-pose-right portrait 110 --display=primary-1 'l >= 495 and w >= 445' 'l >= 495 and w < 430' ""
+# The picture on the LEFT page (the page after it on the right): the left half, nothing right of the
+# hinge. Closed, only the left page is measured (the right one has text).
+phase book-pose-left portrait 110 --display=primary-1 'r <= 456 and w >= 445' 'r <= 456 and w < 430' 455 \
+  -SheafsOpenImageSide left
+
+# Folding shut while the viewer is open on the inner display closes it (its viewport is gone).
+echo "• fold-while-open"
+pose portrait 180
+launch_and_open fold-while-open
+sleep 1
+"$HINGE" -d "$UDID" 0 >/dev/null
+for _ in $(seq 1 20); do grep -aq '^\[image\] viewer closed' "$WORK/console.log" && break; sleep 0.5; done
+grep -aq '^\[image\] the display changed under the viewer' "$WORK/console.log" \
+  || fail "fold-while-open: folding did not close the viewer for the display change"
+grep -aq '^\[image\] viewer closed' "$WORK/console.log" || fail "fold-while-open: the viewer never closed"
+echo "  $(grep -a '^\[image\] the display changed' "$WORK/console.log" | tail -1)"
+sleep 2
+xcrun simctl io "$UDID" screenshot --display=primary "$OUT/fold-while-open-cover.png" >/dev/null 2>&1 || fail "fold-while-open: screenshot"
+expect_span fold-while-open "on the cover display after folding" "$OUT/fold-while-open-cover.png" 'w < 440'
+finish
+"$HINGE" -d "$UDID" 180 >/dev/null
+echo "IMAGE VIEWER OK (screenshots in $OUT)"
