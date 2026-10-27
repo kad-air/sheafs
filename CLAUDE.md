@@ -1,7 +1,7 @@
 # Sheafs
 
 Native EPUB reader for iPhone, iPad and the foldable iPhone Duo, iOS 27.0 and later. SwiftUI + TextKit + Foundation (plus
-Metal for the page flip) only; no web views, no third-party packages. Open source (MIT), so **no personal names, emails,
+Metal for the page flip, LinkPresentation for the share sheet's header) only; no web views, no third-party packages. Open source (MIT), so **no personal names, emails,
 hostnames or secrets anywhere in the tree** — `scripts/check` greps for them and fails.
 
 ## Commands
@@ -23,6 +23,12 @@ scripts/check-site [--render]     # the marketing site in docs/ (GitHub Pages, s
 scripts/check-auto-theme          # end to end on a simulator (SIM="iPhone Duo"): theme Automatic follows
                                   #   live Light/Dark flips, incl. the user's own Light/Dark picks (Sepia /
                                   #   pure Black) (reads the page colour off screenshots)
+scripts/check-image-viewer        # end to end on a simulator (SIM="iPhone Duo"): a single tap on Alice's
+                                  #   cover picture is a plain centre tap, a double tap opens it full screen
+                                  #   at the JPEG's own pixels: the whole width on the cover display, only
+                                  #   the tapped page's half in book pose (right page and left page), and it
+                                  #   closes; folding shut closes it too (reads the picture's extent off
+                                  #   screenshots, OUT=/tmp/sheafs-image-viewer)
 scripts/check-volume-device       # on the PHONE (unlocked; DEVICE=<udid>, BOOK=<title>, APP=<built .app> or
                                   #   ASC_KEY_* to build): probes the volume one step at a time like presses
                                   #   and asserts each read, turned the right way (landed location) and was
@@ -77,10 +83,27 @@ the first containing it) or to the paragraph at that fraction of the book that f
 sheet once the book is ready.
 `-SheafsThemeSwitch paper|sepia|night|system` (with `-SheafsOpen`) switches the theme 5 s after the
 book is ready, as tapping its swatch would.
+`-SheafsSearch <text> [-SheafsSearchPick <n> [-SheafsSearchBack YES]]` (with `-SheafsOpen`) opens the
+search sheet with `text` searched; with a pick it then takes the n-th result (1-based) as a tap would:
+the jump and the painted hits, no taps needed (`[search] …` lines on stdout); with Back it then taps
+"Back to page N" 3 s later, which must clear the hits.
+`-SheafsBookmark toggle|jump` (with `-SheafsOpen`, once the page is laid out) toggles the bookmark on
+the page at the position, or `jump(to:)`s to the book's first bookmark (leaving a "Back to page N"
+trail); `-SheafsContents contents|bookmarks|notes` opens the contents sheet on that segment.
+`-SheafsOpenImage <n>` (with `-SheafsOpen`) moves to the book's nth picture (1-based, reading order)
+and, once its page is up, single-taps its middle (`PagerController.tap(at:)`, the single-tap
+recognizer's action) and then double-taps it (`doubleTap(at:)`, the double-tap recognizer's action,
+behind the same `acceptsDoubleTap` its `shouldReceive` uses; not the recognizers' timing);
+`-SheafsOpenImageSide left` puts the picture's page on the left of a spread; `-SheafsCloseImageAfter
+<s>` closes the viewer that long after, as ✕ does. The app prints `[tap] at … → center`,
+`[image] double tap at …`, `[image] viewer shown … pixels=WxH … viewport=…` and `[image] viewer closed`.
 `-SheafsFlipAuto forward|back
 -SheafsFlipFreeze <0…1> [-SheafsFlipGrab <0…1 down the page>]` starts one page flip on its own
 once the book is up and holds it at that amount, so `simctl io … screenshot` can catch the leaf
 mid-air (the next tap lands it).
+`-SheafsSelect <0…1>` (with `-SheafsOpen`) selects the sentence at that fraction of the reading
+position's page 1 s after the book is up and opens the selection menu, as a long press would (simctl
+cannot long-press); `-SheafsSelectThen share` then taps Share, so the share sheet can be screenshotted.
 `xcrun simctl openurl <udid> "sheafs://open?book=<uuid>"` is the widget's tap (the simulator asks
 "Open in Sheafs?" first; a real widget tap doesn't). `simctl get_app_container <udid>
 io.sheafs.reader group.io.sheafs.reader` is the folder the widget reads.
@@ -110,9 +133,84 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     Python twin. 🔴 Offsets contract: block text + "\n" per block, UTF-16 units, images and rules are
     exactly one U+FFFC; the app's `Typesetter` must (and does) produce an attributed string of the
     same length so a `textOffset` is an `NSAttributedString` index. `SheafsTests` pins it.
+    The publisher's CSS (`Text/Stylesheet`): the head's `<link rel="stylesheet">`s (through a
+    `StylesheetLibrary`, which reads and parses each zip path ONCE per book, single-flight under a
+    per-file lock even while `BookSession` converts chapters in parallel, and follows `@import`)
+    and `<style>` blocks (`<![CDATA[`/`<!--` wrappers stripped), in document order; a `media`
+    attribute must be absent, `all` or `screen`. Selectors are tag/`.class`/`#id`/`*` compounds
+    with descendant and child chains; a selector with anything else (pseudo-classes and -elements,
+    attribute selectors, `+`/`~`) is dropped WHOLE, so `p::first-letter` never styles the paragraph.
+    🔴 Rules inside `@supports` ALWAYS apply and inside `@media` when the query is absent, `all` or
+    `screen` (not `print`, not feature queries): Standard Ebooks' core.css hides the title page's
+    h1/p and the imprint/colophon h2 with `display:none` for ADE and shows them again inside
+    `@supports(font-size: 0)`; honouring only the hide lost every SE title page. Other at-rule
+    blocks (`@font-face`, `@page`) are skipped. Cascade: the tag's own style (`em` italic, `b`/`dt`
+    bold: the user-agent sheet) first, then specificity and source order, then the `style`
+    attribute, then `!important` (also `! important`); declarations on `html` reach `body`. Applied
+    where the frame is built (`ChapterBuilder.cssProperties`), semantics only:
+    italic/bold/small caps/underline/strike, ON and OFF (`font-style: normal` un-italicises an
+    `<em>`); `vertical-align: super`/`sub` add raising, and `baseline` NEVER takes a `sup`/`sub`
+    tag's away (normalize.css sets it on every `sup` and raises with `position`); center/right
+    alignment; `display: none`, which skips the content like `hidden` while the element and its
+    children still take their path steps (CREngine counts them) and their ids still record anchors
+    at the offset where they stand (a note in a hidden `aside` doesn't fall back to offset 0).
+    Small caps that replace the markup's bold (SE's `b, strong { font-variant: small-caps;
+    font-weight: normal }`) carry `InlineStyle.boldAsSmallCaps`: `Typesetter.hasSmallCaps` reads
+    the face's features, and Georgia, Palatino, Charter and Times New Roman have none, so there the
+    run is drawn BOLD instead of vanishing into plain roman (`FontTests` records each family). 🔴
+    `text-align: justify`/`left` (and `align="justify"`) read as `.natural`: justification is the
+    reader's setting, and `Typesetter` justifies a `.justified` block whatever it says. Not read:
+    colours, fonts, sizes, margins, text-indent, `text-transform` (it would change the text
+    length); not supported: `text-decoration` propagation (a descendant's `none` does remove an
+    ancestor's underline here, unlike a browser) and `@import` inside a `<style>` block.
+    Hidden content shifts offsets, so positions and highlights saved before stylesheets were
+    honoured are RE-ANCHORED on open (`Text/ChapterPositions`): the reading position follows
+    `book.xpointer` when it names a block of the same chapter at another offset, and a highlight
+    whose offsets no longer hold its quoted `text` moves to where its start/end pointers say, if
+    the text is there (`BookSession.reanchor`, logged; else left alone); bookmarks follow their
+    `xpointer` like the position. `StylesheetTests`,
+    `ChapterPositionsTests`; `ChapterReferenceTests` runs every fixture chapter with and without
+    its stylesheets against the Python reference.
+    A `<table>` is ONE `.table(TableContent)` block: rows (each with its `tr`'s CREngine path) of
+    cells (own runs, `th`/`thead` header flag, colspan, cell alignment), plus the caption. 🔴 Its
+    text is one U+FFFC PER ROW plus one for the caption, joined by U+2028 (`objectText`; row k at
+    offset 2k), NOT one U+FFFC for the whole table: each row is then its own line, so pagination
+    breaks between rows and a 100-row list of illustrations is not cut at one page. The cell text is
+    NOT in the plain text. Find-in-book searches it anyway: `FoldedText` folds each row's text
+    (and the caption's) onto that row's ONE object character, so a hit in a table is that
+    character, several hits in a row are several hits on it, and the snippet is the row's text.
+    A selection or highlight there covers whole rows, and is QUOTED as the rows' text: `Chapter.displayText(in:)` / `TableContent.plainText`,
+    used by the selection's text, Copy, Look Up, quote sharing, the highlight's `text`, the
+    export, footnotes, bookmark labels and `PageView.accessibilityLabel`). Positions resolve to rows: `Chapter.pointer(at:)` gives a row's
+    `tr` path with no `text()` offset, `Chapter.offset(of:exact:near:)` maps a pointer into a row or
+    cell back onto its row, exactly (`near` picks the part of a row an image split;
+    `BookSession.location(for:near:)`); re-anchoring compares a highlight's quote with
+    `displayText` too, so highlights over rows re-anchor like any other. 🔴 Not every `<table>` is a table:
+    `TableShape` (the converter holds a table's tokens back until its end tag, decides, replays)
+    FLATTENS it into ordinary blocks, the old behaviour (a row of plain cells = one paragraph,
+    cells joined by an em space; headings/paragraphs in cells = their own blocks), when a cell
+    holds a heading, list, blockquote or `pre`, two or more paragraphs (`p`, or `div` with text;
+    ONE `<p>` per cell is what calibre writes and stays a table), more than 600 non-space
+    characters, or when the table has a single column. That is what LAYOUT tables need: as one
+    row they'd be cut at the page and every anchor in them would resolve to the row. Blocks in a
+    cell become U+2028 lines, a nested table flattens into its cell, cells outside any `tr` make
+    one row, an image in a cell splits the table around it (both parts keep the table path; rows
+    left with only empty cells are dropped and the rest of the split row carries on in its column,
+    `Row.firstColumn`). The Python twin records tables too (`tables` per document, plus the loose
+    `Fixtures/table-chapter.xhtml` and `table-shapes.xhtml`), makes the same flatten decision
+    (`TableDecider`, two passes) and counts a `<p>` as a paragraph only outside kept tables;
+    `TableTests` compares them with whitespace runs normalised, nothing looser.
   - `Text/XPointer` — `/body/DocFragment[N]/body/…/p[K]/text()[k].off` parse/serialize (N 1-based
     over the FULL spine). We always serialize with indices (CrossPoint style); parsing tolerates
     missing `[1]`.
+  - `Text/BookSearch` — find-in-book. `BookSearchIndex(chapters:)` folds each chapter's text ONCE
+    (case, diacritics, width, NFKC, curly → straight quotes, whitespace runs → one space, soft
+    hyphens and other default-ignorables dropped; one character at a time, the query the same way)
+    into UTF-16 units mapped back to the original character's range, then every search is a scan.
+    A `SearchHit` is `spineIndex` + a UTF-16 `range` in the chapter plain text (the position and
+    highlight contract), always whole grapheme clusters; matches never cross blocks; `snippet(for:)`
+    gives whole words either side. `BookSearchTests` pins hits against per-chapter counts Python
+    made from the raw XHTML and against non-BMP/combining/ß cases.
   - `OPDS/` — Atom OPDS 1.2 parser (+ OpenSearch), `OPDSClient` (pre-emptive Basic auth, streaming
     download). `KOSync/` — the vanilla KOReader sync protocol; `PartialMD5` is the document key
     (offsets 0, 1 KiB, 4 KiB … 1 GiB; 🔴 the i = −1 read is at offset 0, not 256, matching KOReader's
@@ -132,27 +230,93 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     `spineIndex` + `startOffset`/`endOffset` in the SAME UTF-16 chapter offsets as the position,
     plus the CREngine pointers of both ends, the quoted `text`, a `note`, a `HighlightColor` and
     `isUnderline`; keyed by book id, not a relationship, so `LibraryStore.delete(book)` deletes them
-    by hand; `AnnotationExport.markdown` for sharing), `LibraryStore` (files in Application
+    by hand; `AnnotationExport.markdown` for sharing a book's notes, `AnnotationExport.quote` for one
+    selection: the text, a newline, `— Author, Title, Chapter`; both credit the book through
+    `AnnotationExport.Credit`, so they can't drift; only the quote's attribution drops a chapter
+    named like the book, the Markdown still heads it: a collection named after a later story;
+    the Markdown ends with a "## Bookmarks" list), `Bookmarks` (SwiftData `Bookmark`: `bookID` + `spineIndex` + `textOffset` of the FIRST
+    character of the page holding the position (the right page of a spread) + its `xpointer` + a
+    `label` (the page's first words, `Bookmark.label`) + `createdAt`; keyed by book id like
+    `Annotation`, deleted by hand with the book; the anchor is an offset, NEVER a page number:
+    `PaginatedChapter.bookmarks(_:onPage:)` puts one on whichever page's range holds it, so it
+    survives text-size changes, `BookmarkTests`), `LibraryStore` (files in Application
     Support/Books/<uuid>.epub, covers in Covers/<uuid>.jpg, import = copy + parse + partial MD5 +
-    thumbnail, dedupe by partial MD5; `annotations(for:)`/`add`/`delete`), `LibraryView` (cover grid;
+    thumbnail, dedupe by partial MD5; `annotations(for:)`/`bookmarks(for:)`/`add`/`delete`), `LibraryView` (cover grid;
     even column count when a fold is present, per the Duo HIG).
   - `Reader/` — `BookSession` (loads the EPUB and converts every chapter in a detached task; caches
     typeset+paginated chapters per style/page size; position ↔ progress ↔ xpointer ↔ TOC/href),
-    `Typesetter` (Block → NSAttributedString with the user's fonts), `Paginator` (`PaginatedChapter`:
+    `Typesetter` (Block → NSAttributedString with the user's fonts; a table block becomes one
+    `TableRowAttachment` per row/caption, laid out by `TableLayout`: columns sized to content
+    within the page width, too-wide tables scaled down and RE-MEASURED at each scale until they
+    fit (type doesn't narrow in proportion; the search re-measures only each column's widest cells,
+    then the whole table once); below 0.6 the WIDEST columns are cut to one level (`levelled`), so
+    short words never break, cells in the reader's font at
+    90 %, header bold, light rules, caption beneath; a row never exceeds the page minus the
+    spacing around the table: a taller one is set smaller (to half size), only then cut. CoreText
+    measuring, each distinct cell string once per scale (`TableLayout.Measurer`), run attributes
+    and fonts made once per style and size (`CellStyler`); rows render lazily in `image(forBounds:…)` at the drawing context's scale,
+    so nothing is cached and a style change re-typesets them with the rest; a 1 pt filler font and
+    zero line spacing make the rows abut; links in cells are hit-tested through
+    `PageView.tableLink` → `PaginatedChapter.attachmentFrame`; `TableLayoutTests`), `Paginator` (`PaginatedChapter`:
     one TextKit 1 `NSLayoutManager`, one `NSTextContainer` per page, drawn by `PageView`),
     `ReaderPager` (`UIPageViewController` .scroll whose units are spreads of 1–2 pages;
-    tap zones turn pages, centre tap toggles chrome, link and highlight hit-testing; text
+    tap zones turn pages, centre tap toggles chrome, link and highlight hit-testing; DOUBLE-TAP a
+    picture to open it (Kindle's convention; a single tap on a picture does what it does anywhere):
+    `PaginatedChapter.images(onPage:)` gives each attachment's character, `src` and drawn rect (its
+    cell on the baseline; a missing picture's placeholder is not tagged, so it is plain text). 🔴 The
+    double-tap recognizer's `shouldReceive` takes only touches ON a picture of the spread on screen
+    (no selection, no turn in flight) and the single tap `require(toFail:)`s it, so the 0.3 s wait
+    for a second tap happens only when the first lands on a picture; never let it take other touches.
+    A double tap becomes `ReaderTap.image` with the page's window frame, and `ReaderView` overlays `ImageViewer`
+    (`ImageViewer.swift`: the picture at its own resolution from `BookSession.fullImage`, not the
+    page's downsampled attachment, in a zooming `UIScrollView` 1–4×, double-tap zoom, swipe down or ✕,
+    the alt text as caption, Share; the page colour behind it, so the forced scheme holds). 🔴 Over a
+    VERTICAL fold (flat or book pose, like the spread) the viewer keeps to the HALF of the window on
+    the tapped page's side (`ImageViewerLayout.viewport`), never across the hinge; over an active
+    horizontal fold (tabletop) the upper half; else the whole window. A display change that moves
+    that viewport (fold, unfold, rotation, tabletop; not book pose ↔ flat) closes the viewer, since
+    the tapped page's side is stale. Its buttons and caption keep clear of `CoverCamera` like the
+    running head; `ImageViewerTests`, `scripts/check-image-viewer`; text
     SELECTION: a long press selects the word under the finger and grows by words while it moves,
     two `SelectionHandleView`s then adjust it by characters, a `UIEditMenuInteraction` offers
-    Highlight / Note / Color / Copy / Look Up; the selection lives in `PagerController`, the
+    Highlight / Note / Color / Copy / Share / Look Up; the selection lives in `PagerController`, the
     spread only provides geometry and the `PageView`s draw it; a tap, a page turn or a layout
     change clears it), `AnnotationViews` (`AnnotationEditorView`: colour, underline, note, show in
     book, delete; `NotesListView`: the Notes segment of the contents sheet, share as Markdown),
+    `BookSearchView` (`BookSearchModel`, owned by `ReaderView` for the reader's life: builds the
+    index detached on first open, searches debounced 250 ms off the main actor, each cancelling the
+    last, lists the first 500 hits grouped by chapter with counts; reached from the toolbar's
+    magnifying glass, the contents sheet and the tabletop deck. A result jumps through `jump(to:)`
+    (so it leaves a "Back to page N" stop) to `BookSession.pageStart(showing:inSpine:)`: the page
+    holding the hit, a chapter not laid out yet being laid out anchored at the hit's PARAGRAPH,
+    not the hit, so the page isn't cut mid-line; the query's hits in that chapter become
+    `HighlightMark`s with `isFound` (orange band under the glyphs, not tappable) until the next
+    page turn, tap, jump or back (`show()` never reports a location change, so `jump(to:)` and
+    `goBack()` clear them by hand); `FindInBookTests`),
+    `QuoteShare` (Share in the menu: `UIActivityViewController` with its popover source at the selection (on
+    the Duo, iOS 27 shows a centred card on both displays anyway); items are the quote text and a `QuoteCard` image, 1080 pt at scale 1 in the
+    palette's page colour and the reader's font, as tall as the text up to 9:16 where TextKit ends
+    the text with an ellipsis, on the card only (TextKit draws one only when the last kept line runs
+    on in its paragraph; a cut at a paragraph's end gets "…" appended by hand); text-first targets
+    (Messages, Mail, Notes, Reminders, Copy) get the text alone; the item sources are
+    `nonisolated` (UIKit may ask for items off the main thread); the sheet's header is `LPLinkMetadata` (the card as icon, the book as
+    title; without it a blank placeholder); Save Image needs `NSPhotoLibraryAddUsageDescription`
+    in `project.yml` or the system leaves it out; Share clears the selection like Copy; the share
+    sheet and Look Up (`LookUpController`, which reports its dismissal) are UIKit sheets SwiftUI
+    can't see, so the pager reports them (`onSystemSheet`) and `volumeButtonsArmed` disarms the
+    volume buttons while one is up;
+    `QuoteShareTests`), `BookmarkViews` (`BookmarksListView`: the Bookmarks segment, between Contents and Notes; label,
+    chapter, date; tap = `jump(to:)`, swipe to delete; the segment is kept between openings),
     `ReaderLayout`
     (`PageLayout.compute`: safe areas + reserved regions → page frames; see Duo below),
     `ReaderView` (chrome: system toolbar + glass progress strip, contents/appearance/footnote sheets,
     sync pull on open / debounced push; `@Query` of the book's annotations → `HighlightMark`s →
-    `BookSession.marks`, which every spread reads as it appears; every `jump(to:)` — link, contents, note,
+    `BookSession.marks`, which every spread reads as it appears; the same for bookmarks →
+    `BookmarkMark`s → `BookSession.bookmarks`, drawn by `PageView` as a ribbon hanging from the top
+    edge over the text's right edge (left of the cover camera's hole; the running head narrows to
+    clear it), never added to the text; the toolbar's (and `ReaderDeck`'s) bookmark toggle reflects
+    the page holding the position (from `laidOutChapter`, never laying one out) and adds a bookmark
+    at that page's first character or removes every bookmark on it; every `jump(to:)` — link, contents, note,
     slider, accepted sync — pushes the place it left onto a `ReturnTrail`, shown as a glass "Back to
     page N" capsule over the folio of the page holding the position (in the progress strip while
     the bars are up); ✕ forgets the trail, paging back onto a stop drops it; `ReturnTrailTests`), `ReaderSettings` (incl. the
@@ -167,7 +331,9 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     detailed sliders' grids (`QuickAppearanceTests`). Fonts are picked from `FontList` (each name in
     its own face; a popover from the panel, a pushed page from the sheet), not a `Menu`/menu
     `Picker`: system menus draw every item in the system font. `FontTests` checks every family is
-    really installed (a missing one falls back to the system font without a word).
+    really installed (a missing one falls back to the system font without a word) and records
+    which have small caps. Blockquotes are NOT italicised by the typesetter (letters and epigraphs
+    are blockquotes; the book's markup and stylesheet say what in them is italic).
   - `Reader/VolumeButtons` — `VolumeButtonPager` (setting `volumeButtonsTurn`, off by default):
     up = next page, down = previous (`Press.turnsForward`, the owner's choice). iOS has no public
     volume-button event outside a camera session (`AVCaptureEventInteraction` reaches only apps
@@ -186,7 +352,7 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     that range the level is not moved at all). The volume view sits ON screen (origin, 1 pt,
     alpha 0.01): off-screen it no longer hid the system volume HUD on iOS 27; on screen it does
     (confirmed on the Duo, keep it there). `ReaderView.volumeButtonsArmed` runs it only while the
-    scene is active, the book is ready, the regions are known and no sheet is up, and arming
+    scene is active, the book is ready, the regions are known and no sheet is up (SwiftUI sheets, and the pager's UIKit share sheet and Look Up), and arming
     RETRIES until the pager is in a window (it appears after the regions; arming once gave up
     silently). Stop restores the user's volume. `VolumeButtonTests` replays the device's log. The
     simulator can't press the buttons (and setting the hidden slider there changes nothing: no
@@ -380,7 +546,7 @@ state and is followed at once; a size change while the bars are up hides them fi
   ends at the fold, 455.5 pt = 1366.5 px, and the half-painted last row (alpha 0.5, premultiplied)
   drew a grey line across the display during every turn. `PageFlipEdgeTests`.
 - Page textures are cached per `PageSlot` and dropped on layout/palette/style changes; anything
-  else that changes what a page draws (highlights, selection) must call
+  else that changes what a page draws (highlights, bookmark ribbons, selection) must call
   `PageFlipDriver.invalidateTextures()` or the leaf shows stale content.
 - Never call `BookSession.paginatedChapter` for a chapter other than the one on screen from view
   code (body, labels): it lays the chapter out UNANCHORED and caches it, so returning there shows

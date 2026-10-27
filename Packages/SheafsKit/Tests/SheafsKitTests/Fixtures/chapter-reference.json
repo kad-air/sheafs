@@ -9,6 +9,7 @@
           "path": "OEBPS/wrap0000.xhtml",
           "samples": [],
           "spineIndex": 0,
+          "tables": [],
           "title": "\"Cover\""
         },
         {
@@ -39,6 +40,170 @@
             }
           ],
           "spineIndex": 1,
+          "tables": [
+            {
+              "caption": null,
+              "path": "/body/table[1]",
+              "rows": [
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "CHAPTER I."
+                    },
+                    {
+                      "header": false,
+                      "text": "Down the Rabbit-Hole"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[1]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "CHAPTER II."
+                    },
+                    {
+                      "header": false,
+                      "text": "The Pool of Tears"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[2]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "CHAPTER III."
+                    },
+                    {
+                      "header": false,
+                      "text": "A Caucus-Race and a Long Tale"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[3]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "CHAPTER IV."
+                    },
+                    {
+                      "header": false,
+                      "text": "The Rabbit Sends in a Little Bill"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[4]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "CHAPTER V."
+                    },
+                    {
+                      "header": false,
+                      "text": "Advice from a Caterpillar"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[5]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "CHAPTER VI."
+                    },
+                    {
+                      "header": false,
+                      "text": "Pig and Pepper"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[6]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "CHAPTER VII."
+                    },
+                    {
+                      "header": false,
+                      "text": "A Mad Tea-Party"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[7]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "CHAPTER VIII."
+                    },
+                    {
+                      "header": false,
+                      "text": "The Queen\u2019s Croquet-Ground"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[8]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "CHAPTER IX."
+                    },
+                    {
+                      "header": false,
+                      "text": "The Mock Turtle\u2019s Story"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[9]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "CHAPTER X."
+                    },
+                    {
+                      "header": false,
+                      "text": "The Lobster Quadrille"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[10]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "CHAPTER XI."
+                    },
+                    {
+                      "header": false,
+                      "text": "Who Stole the Tarts?"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[11]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "CHAPTER XII."
+                    },
+                    {
+                      "header": false,
+                      "text": "Alice\u2019s Evidence"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[12]"
+                }
+              ]
+            }
+          ],
           "title": "Alice\u2019s Adventures in Wonderland"
         },
         {
@@ -62,6 +227,7 @@
             }
           ],
           "spineIndex": 2,
+          "tables": [],
           "title": "CHAPTER I. Down the Rabbit-Hole"
         },
         {
@@ -85,6 +251,7 @@
             }
           ],
           "spineIndex": 3,
+          "tables": [],
           "title": "CHAPTER II. The Pool of Tears"
         },
         {
@@ -113,6 +280,7 @@
             }
           ],
           "spineIndex": 4,
+          "tables": [],
           "title": "CHAPTER III. A Caucus-Race and a Long Tale"
         },
         {
@@ -141,6 +309,7 @@
             }
           ],
           "spineIndex": 5,
+          "tables": [],
           "title": "CHAPTER IV. The Rabbit Sends in a Little Bill"
         },
         {
@@ -169,6 +338,7 @@
             }
           ],
           "spineIndex": 6,
+          "tables": [],
           "title": "CHAPTER V. Advice from a Caterpillar"
         },
         {
@@ -202,6 +372,7 @@
             }
           ],
           "spineIndex": 7,
+          "tables": [],
           "title": "CHAPTER VI. Pig and Pepper"
         },
         {
@@ -235,6 +406,7 @@
             }
           ],
           "spineIndex": 8,
+          "tables": [],
           "title": "CHAPTER VII. A Mad Tea-Party"
         },
         {
@@ -263,6 +435,7 @@
             }
           ],
           "spineIndex": 9,
+          "tables": [],
           "title": "CHAPTER VIII. The Queen\u2019s Croquet-Ground"
         },
         {
@@ -296,6 +469,7 @@
             }
           ],
           "spineIndex": 10,
+          "tables": [],
           "title": "CHAPTER IX. The Mock Turtle\u2019s Story"
         },
         {
@@ -329,6 +503,7 @@
             }
           ],
           "spineIndex": 11,
+          "tables": [],
           "title": "CHAPTER X. The Lobster Quadrille"
         },
         {
@@ -357,6 +532,7 @@
             }
           ],
           "spineIndex": 12,
+          "tables": [],
           "title": "CHAPTER XI. Who Stole the Tarts?"
         },
         {
@@ -385,6 +561,7 @@
             }
           ],
           "spineIndex": 13,
+          "tables": [],
           "title": "CHAPTER XII. Alice\u2019s Evidence"
         },
         {
@@ -399,6 +576,7 @@
           "path": "OEBPS/4040227324556390537_11-h-13.htm.xhtml",
           "samples": [],
           "spineIndex": 14,
+          "tables": [],
           "title": "THE FULL PROJECT GUTENBERG\u2122 LICENSE"
         }
       ]
@@ -543,6 +721,7 @@
             }
           ],
           "spineIndex": 0,
+          "tables": [],
           "title": "1"
         }
       ]
@@ -556,6 +735,7 @@
           "path": "OEBPS/wrap0000.html",
           "samples": [],
           "spineIndex": 0,
+          "tables": [],
           "title": "\"Cover\""
         },
         {
@@ -641,6 +821,1372 @@
             }
           ],
           "spineIndex": 1,
+          "tables": [
+            {
+              "caption": null,
+              "path": "/body/div[7]/table[1]",
+              "rows": [
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Ruskin House."
+                    },
+                    {
+                      "header": false,
+                      "text": ""
+                    },
+                    {
+                      "header": false,
+                      "text": "156. Charing Cross Road."
+                    }
+                  ],
+                  "path": "/body/div[7]/table[1]/tbody[1]/tr[1]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "London George Allen."
+                    }
+                  ],
+                  "path": "/body/div[7]/table[1]/tbody[1]/tr[2]"
+                }
+              ]
+            },
+            {
+              "caption": null,
+              "path": "/body/table[1]",
+              "rows": [
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": ""
+                    },
+                    {
+                      "header": false,
+                      "text": "PAGE"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[1]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Frontispiece"
+                    },
+                    {
+                      "header": false,
+                      "text": "iv"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[2]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Title-page"
+                    },
+                    {
+                      "header": false,
+                      "text": "v"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[3]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Dedication"
+                    },
+                    {
+                      "header": false,
+                      "text": "vii"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[4]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Heading to Preface"
+                    },
+                    {
+                      "header": false,
+                      "text": "ix"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[5]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Heading to List of Illustrations"
+                    },
+                    {
+                      "header": false,
+                      "text": "xxv"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[6]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Heading to Chapter I."
+                    },
+                    {
+                      "header": false,
+                      "text": "1"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[7]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cHe came down to see the place\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "2"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[8]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Mr. and Mrs. Bennet"
+                    },
+                    {
+                      "header": false,
+                      "text": "5"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[9]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cI hope Mr. Bingley will like it\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "6"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[10]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cI\u2019m the tallest\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "9"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[11]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cHe rode a black horse\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "10"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[12]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cWhen the party entered\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "12"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[13]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cShe is tolerable\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "15"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[14]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Heading to Chapter IV."
+                    },
+                    {
+                      "header": false,
+                      "text": "18"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[15]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Heading to Chapter V."
+                    },
+                    {
+                      "header": false,
+                      "text": "22"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[16]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cWithout once opening his lips\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "24"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[17]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Tailpiece to Chapter V."
+                    },
+                    {
+                      "header": false,
+                      "text": "26"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[18]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Heading to Chapter VI."
+                    },
+                    {
+                      "header": false,
+                      "text": "27"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[19]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cThe entreaties of several\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "31"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[20]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cA note for Miss Bennet\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "36"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[21]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cCheerful prognostics\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "40"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[22]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cThe apothecary came\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "43"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[23]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cCovering a screen\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "45"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[24]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cMrs. Bennet and her two youngest girls\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "53"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[25]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Heading to Chapter X."
+                    },
+                    {
+                      "header": false,
+                      "text": "60"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[26]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cNo, no; stay where you are\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "67"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[27]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cPiling up the fire\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "69"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[28]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Heading to Chapter XII."
+                    },
+                    {
+                      "header": false,
+                      "text": "75"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[29]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Heading to Chapter XIII."
+                    },
+                    {
+                      "header": false,
+                      "text": "78"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[30]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Heading to Chapter XIV."
+                    },
+                    {
+                      "header": false,
+                      "text": "84"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[31]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cProtested that he never read novels\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "87"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[32]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Heading to Chapter XV."
+                    },
+                    {
+                      "header": false,
+                      "text": "89"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[33]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Heading to Chapter XVI."
+                    },
+                    {
+                      "header": false,
+                      "text": "95"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[34]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cThe officers of the \u2014\u2014shire\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "97"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[35]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cDelighted to see their dear friend again\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "108"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[36]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Heading to Chapter XVIII."
+                    },
+                    {
+                      "header": false,
+                      "text": "113"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[37]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cSuch very superior dancing is not often seen\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "118"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[38]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cTo assure you in the most animated language\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "132"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[39]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Heading to Chapter XX."
+                    },
+                    {
+                      "header": false,
+                      "text": "139"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[40]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cThey entered the breakfast-room\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "143"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[41]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Heading to Chapter XXI."
+                    },
+                    {
+                      "header": false,
+                      "text": "146"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[42]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cWalked back with them\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "148"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[43]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Heading to Chapter XXII."
+                    },
+                    {
+                      "header": false,
+                      "text": "154"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[44]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cSo much love and eloquence\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "156"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[45]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cProtested he must be entirely mistaken\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "161"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[46]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cWhenever she spoke in a low voice\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "166"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[47]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Heading to Chapter XXIV."
+                    },
+                    {
+                      "header": false,
+                      "text": "168"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[48]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Heading to Chapter XXV."
+                    },
+                    {
+                      "header": false,
+                      "text": "175"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[49]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cOffended two or three young ladies\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "177"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[50]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cWill you come and see me?\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "181"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[51]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cOn the stairs\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "189"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[52]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cAt the door\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "194"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[53]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cIn conversation with the ladies\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "198"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[54]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cLady Catherine,\u201d said she, \u201cyou have given me a treasure\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "200"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[55]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Heading to Chapter XXX."
+                    },
+                    {
+                      "header": false,
+                      "text": "209"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[56]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cHe never failed to inform them\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "211"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[57]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cThe gentlemen accompanied him\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "213"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[58]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Heading to Chapter XXXI."
+                    },
+                    {
+                      "header": false,
+                      "text": "215"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[59]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Heading to Chapter XXXII."
+                    },
+                    {
+                      "header": false,
+                      "text": "221"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[60]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cAccompanied by their aunt\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "225"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[61]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cOn looking up\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "228"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[62]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Heading to Chapter XXXIV."
+                    },
+                    {
+                      "header": false,
+                      "text": "235"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[63]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cHearing herself called\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "243"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[64]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Heading to Chapter XXXVI."
+                    },
+                    {
+                      "header": false,
+                      "text": "253"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[65]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cMeeting accidentally in town\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "256"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[66]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cHis parting obeisance\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "261"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[67]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cDawson\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "263"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[68]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cThe elevation of his feelings\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "267"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[69]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cThey had forgotten to leave any message\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "270"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[70]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cHow nicely we are crammed in!\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "272"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[71]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Heading to Chapter XL."
+                    },
+                    {
+                      "header": false,
+                      "text": "278"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[72]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cI am determined never to speak of it again\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "283"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[73]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cWhen Colonel Miller\u2019s regiment went away\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "285"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[74]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cTenderly flirting\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "290"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[75]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "The arrival of the Gardiners"
+                    },
+                    {
+                      "header": false,
+                      "text": "294"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[76]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cConjecturing as to the date\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "301"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[77]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Heading to Chapter XLIV."
+                    },
+                    {
+                      "header": false,
+                      "text": "318"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[78]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cTo make herself agreeable to all\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "321"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[79]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cEngaged by the river\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "327"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[80]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Heading to Chapter XLVI."
+                    },
+                    {
+                      "header": false,
+                      "text": "334"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[81]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cI have not an instant to lose\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "339"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[82]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cThe first pleasing earnest of their welcome\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "345"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[83]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "The Post"
+                    },
+                    {
+                      "header": false,
+                      "text": "359"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[84]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cTo whom I have related the affair\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "363"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[85]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Heading to Chapter XLIX."
+                    },
+                    {
+                      "header": false,
+                      "text": "368"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[86]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cBut perhaps you would like to read it\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "370"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[87]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cThe spiteful old ladies\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "377"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[88]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cWith an affectionate smile\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "385"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[89]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cI am sure she did not listen\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "393"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[90]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cMr. Darcy with him\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "404"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[91]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cJane happened to look round\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "415"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[92]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cMrs. Long and her nieces\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "420"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[93]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cLizzy, my dear, I want to speak to you\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "422"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[94]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Heading to Chapter LVI."
+                    },
+                    {
+                      "header": false,
+                      "text": "431"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[95]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cAfter a short survey\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "434"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[96]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cBut now it comes out\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "442"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[97]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cThe efforts of his aunt\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "448"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[98]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cUnable to utter a syllable\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "457"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[99]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "\u201cThe obsequious civility\u201d"
+                    },
+                    {
+                      "header": false,
+                      "text": "466"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[100]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "Heading to Chapter LXI."
+                    },
+                    {
+                      "header": false,
+                      "text": "472"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[101]"
+                },
+                {
+                  "cells": [
+                    {
+                      "header": false,
+                      "text": "The End"
+                    },
+                    {
+                      "header": false,
+                      "text": "476"
+                    }
+                  ],
+                  "path": "/body/table[1]/tbody[1]/tr[102]"
+                }
+              ]
+            }
+          ],
           "title": "PRIDE. and PREJUDICE"
         },
         {
@@ -767,6 +2313,7 @@
             }
           ],
           "spineIndex": 2,
+          "tables": [],
           "title": "I hope Mr. Bingley will like it. CHAPTER II."
         },
         {
@@ -909,6 +2456,7 @@
             }
           ],
           "spineIndex": 3,
+          "tables": [],
           "title": "A note for Miss Bennet. CHAPTER VII."
         },
         {
@@ -1030,6 +2578,7 @@
             }
           ],
           "spineIndex": 4,
+          "tables": [],
           "title": "Piling up the fire. CHAPTER XI."
         },
         {
@@ -1151,6 +2700,7 @@
             }
           ],
           "spineIndex": 5,
+          "tables": [],
           "title": "delighted to see their dear friend again. CHAPTER XVII."
         },
         {
@@ -1278,6 +2828,7 @@
             }
           ],
           "spineIndex": 6,
+          "tables": [],
           "title": "\u201cto assure you in the most animated language.\u201d CHAPTER XIX."
         },
         {
@@ -1401,6 +2952,7 @@
             }
           ],
           "spineIndex": 7,
+          "tables": [],
           "title": "CHAPTER XXIV."
         },
         {
@@ -1510,6 +3062,7 @@
             }
           ],
           "spineIndex": 8,
+          "tables": [],
           "title": "\u201cLady Catherine, said she, you have given me a treasure.\u201d CHAPTER XXIX."
         },
         {
@@ -1614,6 +3167,7 @@
             }
           ],
           "spineIndex": 9,
+          "tables": [],
           "title": "\u201cOn looking up.\u201d CHAPTER XXXIII."
         },
         {
@@ -1719,6 +3273,7 @@
             }
           ],
           "spineIndex": 10,
+          "tables": [],
           "title": "\u201cHis parting obeisance.\u201d CHAPTER XXXVII."
         },
         {
@@ -1853,6 +3408,7 @@
             }
           ],
           "spineIndex": 11,
+          "tables": [],
           "title": "\u201cWhen Colonel Miller\u2019s regiment went away.\u201d CHAPTER XLI."
         },
         {
@@ -1973,6 +3529,7 @@
             }
           ],
           "spineIndex": 12,
+          "tables": [],
           "title": "\u201cEngaged by the river.\u201d CHAPTER XLV."
         },
         {
@@ -2106,6 +3663,7 @@
             }
           ],
           "spineIndex": 13,
+          "tables": [],
           "title": "\u201cThe Post.\u201d CHAPTER XLVIII."
         },
         {
@@ -2205,6 +3763,7 @@
             }
           ],
           "spineIndex": 14,
+          "tables": [],
           "title": "\u201cI am sure she did not listen.\u201d CHAPTER LII."
         },
         {
@@ -2341,6 +3900,7 @@
             }
           ],
           "spineIndex": 15,
+          "tables": [],
           "title": "\u201cLizzy, my dear, I want to speak to you.\u201d CHAPTER LV."
         },
         {
@@ -2425,10 +3985,212 @@
             }
           ],
           "spineIndex": 16,
+          "tables": [],
           "title": "\u201cUnable to utter a syllable.\u201d CHAPTER LIX."
         }
       ]
     }
   },
-  "sampleStride": 37
+  "sampleStride": 37,
+  "xhtml": {
+    "table-chapter.xhtml": {
+      "ids": [
+        "before",
+        "bramley",
+        "census",
+        "towns"
+      ],
+      "nonEmptyParagraphCount": 3,
+      "paragraphCount": 3,
+      "path": "table-chapter.xhtml",
+      "samples": [
+        {
+          "index": 0,
+          "path": "/body/section[1]/p[1]",
+          "text": "The census of 1901 counted the market towns of the valley."
+        },
+        {
+          "index": 2,
+          "path": "/body/section[1]/p[3]",
+          "text": "Nobody counted again."
+        }
+      ],
+      "spineIndex": 0,
+      "tables": [
+        {
+          "caption": "Table 1. The census of 1901",
+          "path": "/body/section[1]/table[1]",
+          "rows": [
+            {
+              "cells": [
+                {
+                  "header": true,
+                  "text": "Town"
+                },
+                {
+                  "header": true,
+                  "text": "People"
+                },
+                {
+                  "header": true,
+                  "text": "Notes"
+                }
+              ],
+              "path": "/body/section[1]/table[1]/thead[1]/tr[1]"
+            },
+            {
+              "cells": [
+                {
+                  "header": false,
+                  "text": "Ashby"
+                },
+                {
+                  "header": false,
+                  "text": "1,204"
+                },
+                {
+                  "header": false,
+                  "text": "The old market town"
+                }
+              ],
+              "path": "/body/section[1]/table[1]/tbody[1]/tr[1]"
+            },
+            {
+              "cells": [
+                {
+                  "header": false,
+                  "text": "Bramley"
+                },
+                {
+                  "header": false,
+                  "text": ""
+                },
+                {
+                  "header": false,
+                  "text": "Not counted"
+                }
+              ],
+              "path": "/body/section[1]/table[1]/tbody[1]/tr[2]"
+            }
+          ]
+        }
+      ],
+      "title": "Three Towns"
+    },
+    "table-shapes.xhtml": {
+      "ids": [
+        "c1",
+        "c2",
+        "calibre",
+        "inner",
+        "layout",
+        "long",
+        "loose",
+        "outer",
+        "single"
+      ],
+      "nonEmptyParagraphCount": 7,
+      "paragraphCount": 7,
+      "path": "table-shapes.xhtml",
+      "samples": [
+        {
+          "index": 0,
+          "path": "/body/p[1]",
+          "text": "Tables of every shape a converter leaves behind."
+        },
+        {
+          "index": 6,
+          "path": "/body/p[2]",
+          "text": "The end of the shapes."
+        }
+      ],
+      "spineIndex": 0,
+      "tables": [
+        {
+          "caption": null,
+          "path": "/body/table[1]",
+          "rows": [
+            {
+              "cells": [
+                {
+                  "header": false,
+                  "text": "North"
+                },
+                {
+                  "header": false,
+                  "text": "South"
+                }
+              ],
+              "path": "/body/table[1]"
+            }
+          ]
+        },
+        {
+          "caption": null,
+          "path": "/body/table[5]",
+          "rows": [
+            {
+              "cells": [
+                {
+                  "header": false,
+                  "text": "Year"
+                },
+                {
+                  "header": false,
+                  "text": "Stones"
+                }
+              ],
+              "path": "/body/table[5]/tr[1]"
+            },
+            {
+              "cells": [
+                {
+                  "header": false,
+                  "text": "1881"
+                },
+                {
+                  "header": false,
+                  "text": "412"
+                }
+              ],
+              "path": "/body/table[5]/tr[2]"
+            }
+          ]
+        },
+        {
+          "caption": null,
+          "path": "/body/table[6]/tr[1]/td[1]/table[1]",
+          "rows": [
+            {
+              "cells": [
+                {
+                  "header": true,
+                  "text": "Field"
+                },
+                {
+                  "header": true,
+                  "text": "Acres"
+                }
+              ],
+              "path": "/body/table[6]/tr[1]/td[1]/table[1]/tr[1]"
+            },
+            {
+              "cells": [
+                {
+                  "header": false,
+                  "text": "Long"
+                },
+                {
+                  "header": false,
+                  "text": "12"
+                }
+              ],
+              "path": "/body/table[6]/tr[1]/td[1]/table[1]/tr[2]"
+            }
+          ]
+        }
+      ],
+      "title": "Table Shapes"
+    }
+  }
 }

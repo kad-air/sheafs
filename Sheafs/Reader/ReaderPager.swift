@@ -8,11 +8,23 @@ struct PageSlot: Hashable {
     var page: Int
 }
 
-enum ReaderTap {
+enum ReaderTap: Equatable {
     case previous, next, center
     case link(href: String, spineIndex: Int)
     /// A tap on an existing highlight.
     case annotation(id: UUID)
+    /// A double tap on a picture: open it full screen.
+    case image(ImageTap)
+}
+
+/// A picture someone double-tapped: which one, and where its page is on screen (window coordinates), so
+/// the viewer can stay on that page's side of a fold.
+struct ImageTap: Equatable {
+    var spineIndex: Int
+    /// The attachment's character in the chapter (its image block's `textOffset`).
+    var textOffset: Int
+    var source: String
+    var pageFrame: CGRect
 }
 
 /// A run of selected text in one chapter.
@@ -36,12 +48,15 @@ struct ReaderPager: UIViewControllerRepresentable {
     let location: ReadingLocation
     let tapTurnsPages: Bool
     let marks: [HighlightMark]
+    let bookmarks: [BookmarkMark]
     let highlightColor: HighlightColor
     let pageTurn: PageTurnStyle
     let proxy: PagerProxy
     var onLocationChange: (ReadingLocation) -> Void
     var onTap: (ReaderTap) -> Void
     var onSelectionAction: (SelectionAction) -> Void
+    /// A UIKit sheet (share, Look Up) went up (true) or away (false).
+    var onSystemSheet: (Bool) -> Void = { _ in }
 
     func makeUIViewController(context: Context) -> PagerController {
         let controller = PagerController(session: session)
@@ -58,11 +73,13 @@ struct ReaderPager: UIViewControllerRepresentable {
         controller.onLocationChange = onLocationChange
         controller.onTap = onTap
         controller.onSelectionAction = onSelectionAction
+        controller.onSystemSheet = onSystemSheet
         controller.tapTurnsPages = tapTurnsPages
         controller.highlightColor = highlightColor
         controller.pageTurn = pageTurn
         session.configure(style: style, textSize: layout.textSize)
         controller.apply(marks: marks)
+        controller.apply(bookmarks: bookmarks)
         controller.apply(layout: layout, palette: palette, location: location, animated: false)
     }
 }
@@ -79,6 +96,7 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
     var onLocationChange: ((ReadingLocation) -> Void)?
     var onTap: ((ReaderTap) -> Void)?
     var onSelectionAction: ((SelectionAction) -> Void)?
+    var onSystemSheet: ((Bool) -> Void)?
     var tapTurnsPages = true
     var highlightColor = HighlightColor.yellow
     /// How pages turn: a flipping leaf (the default) or the page controller's slide. The flip
@@ -101,6 +119,9 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
     private let endHandle = SelectionHandleView(isStart: false)
     private lazy var editMenu = UIEditMenuInteraction(delegate: self)
     private weak var scrollView: UIScrollView?
+    /// Double tap on a picture opens it. It only takes touches that land on a picture, so the
+    /// single tap (which requires it to fail) waits for a possible second tap only there.
+    private var imageDoubleTap: UITapGestureRecognizer?
     private let log = Logger(subsystem: "io.sheafs.reader", category: "pager")
 
     init(session: BookSession) {
@@ -133,6 +154,12 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
         tap.delegate = self
         view.addGestureRecognizer(tap)
+        let doubleTap = UITapGestureRecognizer(target: self, action: #selector(handleDoubleTap(_:)))
+        doubleTap.numberOfTapsRequired = 2
+        doubleTap.delegate = self
+        view.addGestureRecognizer(doubleTap)
+        tap.require(toFail: doubleTap)
+        imageDoubleTap = doubleTap
         let press = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
         press.minimumPressDuration = 0.4
         press.delegate = self
@@ -233,6 +260,7 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         if layoutChanged || paletteChanged || styleChanged || displayedLocation == nil || displayedLocation != location {
             show(location: location, animated: animated && !layoutChanged)
             autoFlipForScreenshots()
+            autoSelectForScreenshots()
         }
     }
 
@@ -258,6 +286,15 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
     func apply(marks: [HighlightMark]) {
         guard marks != session.marks else { return }
         session.marks = marks
+        currentSpread?.refreshMarks()
+        flip.invalidateTextures()
+    }
+
+    /// The book's bookmarks; like the highlights, the visible spread redraws its ribbons and the
+    /// flip's cached leaves are dropped (they would show the old ribbon).
+    func apply(bookmarks: [BookmarkMark]) {
+        guard bookmarks != session.bookmarks else { return }
+        session.bookmarks = bookmarks
         currentSpread?.refreshMarks()
         flip.invalidateTextures()
     }
@@ -396,11 +433,49 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
         // The handles have their own pans; taps and presses on them must not reach the page.
-        !(touch.view is SelectionHandleView)
+        if touch.view is SelectionHandleView { return false }
+        // The picture double tap never sees a touch off a picture, so a single tap anywhere else
+        // (turn zones, centre, links, highlights) fires at once instead of waiting for a second tap.
+        if gestureRecognizer === imageDoubleTap { return acceptsDoubleTap(at: touch.location(in: view)) }
+        return true
+    }
+
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        if gestureRecognizer === imageDoubleTap { return acceptsDoubleTap(at: gestureRecognizer.location(in: view)) }
+        return true
+    }
+
+    /// Whether a double tap at `point` (this view's coordinates) is one on a picture of the spread
+    /// on screen: not while text is selected (a tap clears it) or while a page is turning (the
+    /// spread under the leaf is not the one in view).
+    func acceptsDoubleTap(at point: CGPoint) -> Bool {
+        guard selection == nil, !flip.isActive, let spread = currentSpread else { return false }
+        return spread.image(at: view.convert(point, to: spread.view)) != nil
+    }
+
+    @objc private func handleDoubleTap(_ gesture: UITapGestureRecognizer) {
+        doubleTap(at: gesture.location(in: view))
+    }
+
+    /// A double tap at `point`: opens the picture there. False (and nothing happens) off a picture.
+    @discardableResult
+    func doubleTap(at point: CGPoint) -> Bool {
+        guard acceptsDoubleTap(at: point), let spread = currentSpread,
+              let image = spread.image(at: view.convert(point, to: spread.view)) else { return false }
+        log.info("image double tap at \(point.debugDescription, privacy: .public): \(image.source, privacy: .public) spine=\(image.spineIndex) offset=\(image.textOffset)")
+        print("[image] double tap at \(point) → \(image.source) spine=\(image.spineIndex) offset=\(image.textOffset) page=\(image.pageFrame)")
+        onTap?(.image(image))
+        return true
     }
 
     @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
-        let point = gesture.location(in: view)
+        tap(at: gesture.location(in: view))
+    }
+
+    /// A single tap at `point` (this view's coordinates): a highlight, a link, else the page-turn
+    /// zones and the centre. Pictures are opened by a double tap (`doubleTap(at:)`), so a single
+    /// tap on one does what it would anywhere else.
+    func tap(at point: CGPoint) {
         if selection != nil {
             clearSelection()
             return
@@ -418,14 +493,25 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         }
         let width = view.bounds.width
         if tapTurnsPages, point.x < width * 0.22 {
+            print("[tap] at \(point) → previous")
             turnPage(forward: false, from: point)
             onTap?(.previous)
         } else if tapTurnsPages, point.x > width * 0.78 {
+            print("[tap] at \(point) → next")
             turnPage(forward: true, from: point)
             onTap?(.next)
         } else {
+            print("[tap] at \(point) → center")
             onTap?(.center)
         }
+    }
+
+    /// Debug (`-SheafsOpenImage`): the middle of the picture at `textOffset` of chapter
+    /// `spineIndex` in this view, while the spread on screen shows it.
+    func imageCentre(spineIndex: Int, textOffset: Int) -> CGPoint? {
+        guard let spread = currentSpread,
+              let rect = spread.imageRect(spineIndex: spineIndex, textOffset: textOffset) else { return nil }
+        return spread.view.convert(CGPoint(x: rect.midX, y: rect.midY), to: view)
     }
 
     @objc private func handleFlipPan(_ gesture: UIPanGestureRecognizer) {
@@ -550,6 +636,66 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         editMenu.presentEditMenu(with: UIEditMenuConfiguration(identifier: nil, sourcePoint: CGPoint(x: union.midX, y: union.minY)))
     }
 
+    /// The share sheet for a quote, as text and as a card in the reader's theme and typeface,
+    /// anchored to the selection (a popover where the display is wide enough). The selection
+    /// clears as it does for Copy.
+    private func shareQuote(_ selection: TextSelection, text: String) {
+        let rects = selectionRects()
+        let anchor = rects.dropFirst().reduce(rects.first, { $0?.union($1) })
+            ?? CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 1, height: 1)
+        clearSelection()
+        let credit = AnnotationExport.Credit(title: session.book.title, author: session.book.author,
+                                             chapter: session.chapterTitle(for: selection.spineIndex))
+        let started = Date()
+        let sheet = QuoteShare.sheet(text: text, credit: credit, palette: palette, font: session.style?.font ?? .newYork)
+        log.notice("share quote: spine \(selection.spineIndex) range \(selection.range.location)+\(selection.range.length), sheet made in \(Int(Date().timeIntervalSince(started) * 1000)) ms, presenting from \(String(describing: self.presentedViewController == nil ? "self" : "self (busy)"))")
+        sheet.popoverPresentationController?.sourceView = view
+        sheet.popoverPresentationController?.sourceRect = anchor
+        // Called once the sheet is gone, whether an activity ran or it was cancelled.
+        sheet.completionWithItemsHandler = { [weak self, log] activity, completed, _, error in
+            log.notice("share quote: \(activity?.rawValue ?? "dismissed") completed=\(completed) error=\(String(describing: error))")
+            self?.onSystemSheet?(false)
+        }
+        onSystemSheet?(true)
+        present(sheet, animated: true) { [log] in log.notice("share quote: sheet presented") }
+    }
+
+    private var autoSelected = false
+
+    /// Debug: `-SheafsSelect <0…1>` selects the sentence at that fraction of the reading position's
+    /// page once the book is up and opens the selection menu, as a long press would; with
+    /// `-SheafsSelectThen share` it then shares it, as tapping Share would.
+    private func autoSelectForScreenshots() {
+        let defaults = UserDefaults.standard
+        guard !autoSelected, defaults.object(forKey: "SheafsSelect") != nil else { return }
+        autoSelected = true
+        let fraction = min(1, max(0, defaults.double(forKey: "SheafsSelect")))
+        let then = defaults.string(forKey: "SheafsSelectThen")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            guard let self, let slot = currentSpread?.lastSlot, let chapter = session.paginatedChapter(slot.spineIndex) else { return }
+            let page = chapter.range(ofPage: slot.page)
+            let string = chapter.textStorage.string as NSString
+            guard page.length > 0 else { return }
+            let index = min(NSMaxRange(page) - 1, page.location + Int(Double(page.length) * fraction))
+            var sentence = chapter.wordRange(at: index)
+            string.enumerateSubstrings(in: string.paragraphRange(for: NSRange(location: index, length: 0)),
+                                       options: .bySentences) { _, range, _, stop in
+                if NSLocationInRange(index, range) { sentence = range; stop.pointee = true }
+            }
+            let visible = NSIntersectionRange(sentence, page)
+            log.notice("auto select: spine \(slot.spineIndex) page \(slot.page) range \(visible.location)+\(visible.length)")
+            guard visible.length > 0 else { return }
+            setSelection(TextSelection(spineIndex: slot.spineIndex, range: visible))
+            presentMenu()
+            guard then == "share" else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                guard let self, let (trimmed, text) = trimmedSelection() else { return }
+                editMenu.dismissMenu()
+                shareQuote(trimmed, text: text)
+            }
+        }
+    }
+
     /// The selected text, trimmed of the whitespace a word drag may have swept in, with the
     /// selection shrunk to match.
     private func trimmedSelection() -> (TextSelection, String)? {
@@ -563,7 +709,11 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         while end > start, let scalar = Unicode.Scalar(string.character(at: end - 1)), blank.contains(scalar) { end -= 1 }
         guard end > start else { return nil }
         let trimmed = NSRange(location: start, length: end - start)
-        return (TextSelection(spineIndex: selection.spineIndex, range: trimmed), string.substring(with: trimmed))
+        // Quoted as it reads: a table row is its cells' text, not its object character.
+        let text = selection.spineIndex < session.chapters.count
+            ? session.chapters[selection.spineIndex].displayText(in: start ..< end)
+            : string.substring(with: trimmed)
+        return (TextSelection(spineIndex: selection.spineIndex, range: trimmed), text)
     }
 
     func editMenuInteraction(_ interaction: UIEditMenuInteraction, targetRectFor configuration: UIEditMenuConfiguration) -> CGRect {
@@ -596,14 +746,35 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
                 self?.clearSelection()
             },
         ]
+        // Not for a selection of nothing but an illustration: there are no words to quote.
+        if !AnnotationExport.quoteText(text).isEmpty {
+            children.append(UIAction(title: "Share", image: UIImage(systemName: "square.and.arrow.up")) { [weak self] _ in
+                self?.shareQuote(trimmed, text: text)
+            })
+        }
         if UIReferenceLibraryViewController.dictionaryHasDefinition(forTerm: text) {
             children.append(UIAction(title: "Look Up", image: UIImage(systemName: "character.book.closed")) { [weak self] _ in
                 guard let self else { return }
                 clearSelection()
-                present(UIReferenceLibraryViewController(term: text), animated: true)
+                let lookUp = LookUpController(term: text)
+                lookUp.onDismiss = { [weak self] in self?.onSystemSheet?(false) }
+                onSystemSheet?(true)
+                present(lookUp, animated: true)
             })
         }
         return UIMenu(children: children)
+    }
+}
+
+/// Look Up, telling the pager when it has gone (it has no completion handler of its own).
+final class LookUpController: UIReferenceLibraryViewController {
+    var onDismiss: (() -> Void)?
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        guard isBeingDismissed || presentingViewController == nil else { return }
+        onDismiss?()
+        onDismiss = nil
     }
 }
 
@@ -714,11 +885,13 @@ final class SpreadViewController: UIViewController {
         }
     }
 
-    /// Gives every page the highlights of its chapter (the view keeps the ones on its page).
+    /// Gives every page the highlights of its chapter (the view keeps the ones on its page) and a
+    /// ribbon when a bookmark's offset falls on it.
     func refreshMarks() {
         for (index, pageView) in pageViews.enumerated() {
             guard index < slots.count, let slot = slots[index] else { continue }
             pageView.marks = session.marks.filter { $0.spineIndex == slot.spineIndex }
+            pageView.isBookmarked = pageView.chapter.map { !$0.bookmarks(session.bookmarks, onPage: slot.page).isEmpty } ?? false
         }
     }
 
@@ -739,8 +912,31 @@ final class SpreadViewController: UIViewController {
             let local = view.convert(point, to: pageView)
             guard let characterIndex = pageView.characterIndex(at: local),
                   characterIndex < chapter.textStorage.length,
-                  let href = chapter.textStorage.attribute(.sheafsLink, at: characterIndex, effectiveRange: nil) as? String else { continue }
+                  let href = chapter.textStorage.attribute(.sheafsLink, at: characterIndex, effectiveRange: nil) as? String
+                    ?? pageView.tableLink(at: local) else { continue }
             return (href, slot.spineIndex)
+        }
+        return nil
+    }
+
+    /// The picture under a point in this controller's view, if any, with its page's frame in the window.
+    func image(at point: CGPoint) -> ImageTap? {
+        for (index, pageView) in pageViews.enumerated() where pageView.frame.contains(point) {
+            guard index < slots.count, let slot = slots[index],
+                  let hit = pageView.image(at: view.convert(point, to: pageView)) else { continue }
+            let frame = pageView.window.map { pageView.convert(pageView.bounds, to: $0) } ?? pageView.frame
+            return ImageTap(spineIndex: slot.spineIndex, textOffset: hit.index, source: hit.source, pageFrame: frame)
+        }
+        return nil
+    }
+
+    /// Where the picture at `textOffset` of chapter `spineIndex` is drawn, in this controller's
+    /// view, when a page of this spread shows it.
+    func imageRect(spineIndex: Int, textOffset: Int) -> CGRect? {
+        for (index, pageView) in pageViews.enumerated() {
+            guard index < slots.count, let slot = slots[index], slot.spineIndex == spineIndex,
+                  let image = pageView.images().first(where: { $0.index == textOffset }) else { continue }
+            return pageView.convert(image.rect, to: view)
         }
         return nil
     }

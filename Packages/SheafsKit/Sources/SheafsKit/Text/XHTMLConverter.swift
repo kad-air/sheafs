@@ -11,12 +11,21 @@ import Foundation
 /// Conversion rules in brief:
 /// - Only `<body>` content matters (the `<head><title>` becomes `Chapter.title`). `script`,
 ///   `style`, `head`, `template` and anything with a `hidden` attribute is skipped.
+/// - CSS: the head's `<style>` blocks and (given a `StylesheetLibrary`) its linked stylesheets,
+///   in document order, cascade by specificity and source order with the `style` attribute
+///   on top (`Stylesheet`). They set italic/bold/small caps/underline/super- and subscript,
+///   alignment (center and right; justification is the reader's) and `display: none`, which
+///   skips the content like `hidden`. Paths count every element, hidden or not.
 /// - `Block.elementPath` follows CREngine: from `<body>` down, each step `tag[n]` with `n`
 ///   1-based among same-tag siblings opened so far. A closing tag pops to the nearest matching
 ///   open element; an unmatched close is ignored. Opening a block-level element implicitly
 ///   closes an open `p`.
 /// - Block text has whitespace collapsed (U+00A0 is kept), `<br>` becomes U+2028, and every
 ///   block is followed by one "\n" in the chapter's plain text; offsets are UTF-16 units.
+/// - A `<table>` is one `.table` block: rows of cells with their own runs (blocks inside a cell
+///   become lines, a nested table flattens into its cell) and the caption. Its text is one
+///   U+FFFC per row plus one for the caption, joined by U+2028; an image in a cell splits the
+///   table around it (both parts keep the table's path).
 public struct XHTMLConverter: Sendable {
     public init() {}
 
@@ -26,9 +35,18 @@ public struct XHTMLConverter: Sendable {
         convert(Self.decodeText(data))
     }
 
-    /// Converts an already decoded document.
-    public func convert(_ html: String) -> Chapter {
-        var builder = ChapterBuilder()
+    /// Converts a spine document with the stylesheets it links. `documentPath` is its zip path,
+    /// which the `href`s are relative to.
+    public func convert(_ data: Data, documentPath: String, stylesheets: StylesheetLibrary) -> Chapter {
+        convert(Self.decodeText(data)) { href in
+            stylesheets.stylesheet(href: href, relativeTo: documentPath)
+        }
+    }
+
+    /// Converts an already decoded document. Its `<style>` blocks apply; linked stylesheets
+    /// only when `linkedStylesheet` loads them.
+    public func convert(_ html: String, linkedStylesheet: ((String) -> Stylesheet?)? = nil) -> Chapter {
+        var builder = ChapterBuilder(linkedStylesheet: linkedStylesheet)
         for token in HTMLTokenizer(html).tokens() {
             builder.consume(token)
         }

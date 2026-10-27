@@ -13,7 +13,7 @@ struct ChapterBuilder {
     static let lineSeparator: Unicode.Scalar = "\u{2028}"
     /// The text of an image or rule block.
     static let objectReplacement = "\u{FFFC}"
-    /// Joins the cells of a table row.
+    /// Joins the cells of a table nested in a table cell (and of a stray row outside any table).
     static let cellSeparator = " \u{2003} "
 
     // MARK: Types
@@ -25,6 +25,8 @@ struct ChapterBuilder {
     /// One open element.
     private struct Frame {
         var tag: String
+        /// What stylesheet selectors match against.
+        var element: CSSElement
         var path: String
         var role: ElementRole
         /// Children opened so far, by tag (drives the `tag[n]` steps).
@@ -40,6 +42,11 @@ struct ChapterBuilder {
         var hidden: Bool
         var inSVG: Bool
         var preformatted: Bool
+        /// Open `table` elements built as tables, this one included: 1 is the table being built,
+        /// more is a table nested in one of its cells.
+        var tableDepth: Int
+        /// Inside a `thead`: its cells are header cells.
+        var inTableHead: Bool
 
         // Role-specific.
         var blockKind: BlockKind?
@@ -64,6 +71,8 @@ struct ChapterBuilder {
         var lastWasSpace = true
         /// A table cell ended; the next cell with content is preceded by the separator.
         var pendingSeparator = false
+        /// A block ended inside a table cell; the next text starts a new line of the cell.
+        var pendingLineBreak = false
         /// Anchors recorded while this block was open; clamped to the block's final extent.
         var anchorIDs: [String] = []
 
@@ -92,12 +101,19 @@ struct ChapterBuilder {
                     }
                 }
             } else {
-                if pendingSeparator, text.unicodeScalars.contains(where: { !ChapterBuilder.isCollapsibleSpace($0) }) {
+                if pendingSeparator || pendingLineBreak,
+                   text.unicodeScalars.contains(where: { !ChapterBuilder.isCollapsibleSpace($0) }) {
+                    let lineBreak = pendingLineBreak
                     pendingSeparator = false
+                    pendingLineBreak = false
                     if !runs.isEmpty {
-                        trimTrailingSpace()
-                        appendRaw(ChapterBuilder.cellSeparator, style: [], link: nil)
-                        lastWasSpace = true
+                        if lineBreak {
+                            appendLineBreak()
+                        } else {
+                            trimTrailingSpace()
+                            appendRaw(ChapterBuilder.cellSeparator, style: [], link: nil)
+                            lastWasSpace = true
+                        }
                     }
                 }
                 var last = lastWasSpace
@@ -169,6 +185,141 @@ struct ChapterBuilder {
         }
     }
 
+    /// The table being built: finished rows, the open row and cell, the caption.
+    private struct TableBuilder {
+        let path: String
+        let alignment: BlockAlignment
+        let indent: Int
+        private(set) var rows: [TableContent.Row] = []
+        private var rowPath: String?
+        private var rowCells: [TableContent.Cell] = []
+        /// The open row is the rest of a row an image split: where it carries on, and dropped
+        /// if nothing but empty cells follow the image.
+        private var rowFirstColumn = 0
+        private var rowResumed = false
+        private var cell: BlockBuilder?
+        private var cellShape = TableContent.Cell(runs: [])
+        private var captionText: BlockBuilder?
+        private(set) var caption: [InlineRun]?
+        /// Anchors recorded inside the table; clamped to its extent when it is emitted.
+        var anchorIDs: [String] = []
+
+        init(path: String, alignment: BlockAlignment, indent: Int) {
+            self.path = path
+            self.alignment = alignment
+            self.indent = indent
+        }
+
+        /// Where an anchor inside the table points: the object of the row being built.
+        var anchorOffset: Int { 2 * rows.count }
+
+        private static func textBuilder() -> BlockBuilder {
+            BlockBuilder(kind: .paragraph, alignment: .natural, indent: 0, path: "", preformatted: false,
+                         isRow: false, dropLeadingNewline: false)
+        }
+
+        mutating func startRow(path: String) {
+            finishRow()
+            rowPath = path
+        }
+
+        mutating func startCell(isHeader: Bool, columnSpan: Int, alignment: BlockAlignment?) {
+            finishCaption()
+            finishCell()
+            if rowPath == nil { rowPath = path }
+            cell = Self.textBuilder()
+            cellShape = TableContent.Cell(runs: [], isHeader: isHeader, columnSpan: columnSpan, alignment: alignment)
+        }
+
+        mutating func startCaption() {
+            finishCaption()
+            if caption == nil { captionText = Self.textBuilder() }
+        }
+
+        mutating func addText(_ text: String, style: InlineStyle, link: String?) {
+            if captionText != nil {
+                captionText?.append(text, style: style, link: link)
+                return
+            }
+            if cell == nil {
+                // Text loose in a row or table (not just indentation) makes a cell of its own.
+                guard text.unicodeScalars.contains(where: { !ChapterBuilder.isCollapsibleSpace($0) }) else { return }
+                startCell(isHeader: false, columnSpan: 1, alignment: nil)
+            }
+            cell?.append(text, style: style, link: link)
+        }
+
+        mutating func lineBreak() {
+            if captionText != nil { captionText?.appendLineBreak() } else { cell?.appendLineBreak() }
+        }
+
+        /// A block element opened or closed inside the cell: what follows starts a new line.
+        mutating func blockBoundary() {
+            if captionText != nil { captionText?.pendingLineBreak = true } else { cell?.pendingLineBreak = true }
+        }
+
+        /// A cell of a nested table: joined to the previous one by the cell separator.
+        mutating func cellBoundary() {
+            cell?.pendingSeparator = true
+        }
+
+        mutating func finishCell() {
+            guard var text = cell else { return }
+            cell = nil
+            text.trimTrailing()
+            var finished = cellShape
+            finished.runs = text.runs
+            rowCells.append(finished)
+        }
+
+        mutating func finishRow() {
+            finishCell()
+            let empty = rowCells.allSatisfy(\.runs.isEmpty)
+            if let rowPath, !rowCells.isEmpty, !(rowResumed && empty) {
+                rows.append(TableContent.Row(cells: rowCells, elementPath: rowPath, firstColumn: rowFirstColumn))
+            }
+            rowPath = nil
+            rowCells = []
+            rowFirstColumn = 0
+            rowResumed = false
+        }
+
+        mutating func finishCaption() {
+            guard var text = captionText else { return }
+            captionText = nil
+            text.trimTrailing()
+            if caption == nil, !text.runs.isEmpty { caption = text.runs }
+        }
+
+        /// The rows so far, the open row included, without the caption; the open row and cell
+        /// continue (same path, same kind of cell) in what comes next.
+        mutating func takeFinishedPart() -> TableContent {
+            let openPath = rowPath
+            let openCell = cell == nil ? nil : cellShape
+            // The open cell carries on after the image in its own column.
+            let resumeColumn = rowFirstColumn + rowCells.reduce(0) { $0 + $1.columnSpan }
+            if var text = cell {
+                text.trimTrailing()
+                if text.runs.isEmpty { cell = nil }
+            }
+            // Nothing but empty cells before the image: no row (and no ruled empty table) for it.
+            rowResumed = true
+            finishRow()
+            let part = TableContent(rows: rows)
+            rows = []
+            if let openPath {
+                rowPath = openPath
+                rowFirstColumn = resumeColumn
+                rowResumed = true
+            }
+            if let openCell {
+                cell = Self.textBuilder()
+                cellShape = openCell
+            }
+            return part
+        }
+    }
+
     // MARK: State
 
     private var phase = Phase.beforeBody
@@ -181,6 +332,25 @@ struct ChapterBuilder {
     /// The marker of a list item that has no text of its own (`<li><p>text</p></li>`): the first
     /// paragraph inside it becomes the list item block.
     private var pendingListItem: BlockKind?
+    /// The table being built: while it is open every piece of text goes into its cells.
+    private var table: TableBuilder?
+    /// The tokens of a table held back until its end tag (see `TableShape`).
+    private var bufferedTable: [HTMLToken]?
+    private var bufferedTableDepth = 0
+    /// How the next `table` start (a replayed one) is built.
+    private var pendingTableMode: TableMode?
+
+    // Stylesheets.
+    /// Loads the stylesheet a `<link rel="stylesheet" href>` names (nil: none, or no loader).
+    private let linkedStylesheet: ((String) -> Stylesheet?)?
+    /// The document's stylesheets in order: linked ones and `<style>` blocks from the head.
+    private var cascade = StyleCascade()
+    private var hasStyleRules = false
+    /// The `<html>` element, the ancestor of `<body>` that selectors like `html body p` expect.
+    private var rootElement = CSSElement(tag: "html", attributes: [:])
+    private var rootAttributes: [String: String] = [:]
+    /// The text of the head `<style>` block being read.
+    private var styleBuffer: String?
 
     // Before the body.
     private var inHead = false
@@ -189,9 +359,24 @@ struct ChapterBuilder {
     private var titleBuffer: String?
     private var title: String?
 
+    init(linkedStylesheet: ((String) -> Stylesheet?)? = nil) {
+        self.linkedStylesheet = linkedStylesheet
+    }
+
     // MARK: Input
 
     mutating func consume(_ token: HTMLToken) {
+        if bufferedTable != nil {
+            bufferTableToken(token)
+            return
+        }
+        // A table is held back until its end tag, then replayed as a table or as plain blocks.
+        if phase == .inBody, table == nil, pendingTableMode == nil, case let .start(name, _, selfClosing) = token,
+           name == "table", !selfClosing {
+            bufferedTable = [token]
+            bufferedTableDepth = 1
+            return
+        }
         switch phase {
         case .beforeBody:
             consumeBeforeBody(token)
@@ -207,6 +392,7 @@ struct ChapterBuilder {
     }
 
     mutating func finish() -> Chapter {
+        if bufferedTable != nil { replayBufferedTable() }
         switch phase {
         case .inBody: closeBody()
         case .beforeBody: finishTitle()
@@ -236,21 +422,42 @@ struct ChapterBuilder {
             return
         }
         if let skipped = skippedHeadElement {
-            if case let .end(name) = token, name == skipped { skippedHeadElement = nil }
+            switch token {
+            case let .text(text):
+                styleBuffer?.append(text)
+            case let .end(name) where name == skipped:
+                skippedHeadElement = nil
+                if let css = styleBuffer {
+                    styleBuffer = nil
+                    addStylesheet(Stylesheet(css: css))
+                }
+            default:
+                break
+            }
             return
         }
 
         switch token {
         case let .start(name, attributes, selfClosing):
             switch name {
-            case "html", "meta", "link", "base", "basefont", "bgsound":
+            case "html":
+                rootElement = CSSElement(tag: "html", attributes: attributes)
+                rootAttributes = attributes
+            case "link":
+                linkStylesheet(attributes)
+            case "meta", "base", "basefont", "bgsound":
                 break
             case "head":
                 inHead = true
             case "title":
                 if title == nil, !selfClosing { titleBuffer = "" }
             case "style", "script", "template", "noscript":
-                if !selfClosing { skippedHeadElement = name }
+                if !selfClosing {
+                    skippedHeadElement = name
+                    if name == "style", Self.isCSS(type: attributes["type"]), CSSScanner.mediaApplies(attributes["media"]) {
+                        styleBuffer = ""
+                    }
+                }
             case "body":
                 beginBody(attributes)
             default:
@@ -292,6 +499,52 @@ struct ChapterBuilder {
         return collapsed
     }
 
+    // MARK: Stylesheets
+
+    private mutating func linkStylesheet(_ attributes: [String: String]) {
+        let rel = (attributes["rel"] ?? "").lowercased().split(whereSeparator: \.isWhitespace)
+        guard rel.contains("stylesheet"), !rel.contains("alternate"), Self.isCSS(type: attributes["type"]),
+              CSSScanner.mediaApplies(attributes["media"]),
+              let href = attributes["href"], !href.isEmpty,
+              let sheet = linkedStylesheet?(href) else { return }
+        addStylesheet(sheet)
+    }
+
+    private mutating func addStylesheet(_ sheet: Stylesheet) {
+        cascade.sheets.append(sheet)
+        if sheet.ruleCount > 0 { hasStyleRules = true }
+    }
+
+    private static func isCSS(type: String?) -> Bool {
+        guard let type = type?.trimmingCharacters(in: .whitespaces).lowercased(), !type.isEmpty else { return true }
+        return type == "text/css"
+    }
+
+    /// The CSS that applies to an element about to be opened under the current stack (`<html>`
+    /// above `<body>`): the stylesheets' rules, then its own `style` attribute.
+    private func cssProperties(for element: CSSElement, attributes: [String: String], isRoot: Bool = false) -> CSSProperties {
+        let inline = CSSDeclarations(attributes["style"])
+        guard hasStyleRules else {
+            var properties = inline.normal
+            properties.overlay(inline.important)
+            return properties
+        }
+        let ancestors = isRoot ? [] : [rootElement] + stack.map(\.element)
+        return cascade.properties(for: element, ancestors: ancestors[...], inline: inline)
+    }
+
+    /// The tag's style (inherited + its own) with the CSS applied, keeping `.boldAsSmallCaps`
+    /// true to its definition: set where small caps replaced the markup's bold, gone otherwise.
+    private static func style(markup: InlineStyle, css: CSSProperties) -> InlineStyle {
+        var style = css.applied(to: markup)
+        if style.contains(.smallCaps), !style.contains(.bold) {
+            if markup.contains(.bold) { style.insert(.boldAsSmallCaps) }
+        } else {
+            style.remove(.boldAsSmallCaps)
+        }
+        return style
+    }
+
     // MARK: Body
 
     private mutating func beginBody(_ attributes: [String: String]) {
@@ -299,17 +552,21 @@ struct ChapterBuilder {
         while !stack.isEmpty { popFrame() }
         flush()
         phase = .inBody
-        let css = InlineCSS(attributes["style"])
+        // `<html>` is not a frame, but what the CSS declares on it is inherited by the body.
+        let rootCSS = cssProperties(for: rootElement, attributes: rootAttributes, isRoot: true)
+        let rootStyle = Self.style(markup: [], css: rootCSS)
+        let element = CSSElement(tag: "body", attributes: attributes)
+        let css = cssProperties(for: element, attributes: attributes)
         let body = Frame(
-            tag: "body", path: "/body", role: .container,
-            style: css.style, link: nil,
-            alignment: XHTMLSemantics.alignment(of: attributes, css: css),
+            tag: "body", element: element, path: "/body", role: .container,
+            style: Self.style(markup: rootStyle, css: css), link: nil,
+            alignment: css.alignment ?? XHTMLSemantics.alignment(of: attributes) ?? rootCSS.alignment,
             indent: 0, inBlockquote: false, listDepth: 0,
-            hidden: css.hidden || attributes["hidden"] != nil,
-            inSVG: false, preformatted: false
+            hidden: rootCSS.hidden == true || css.hidden == true || attributes["hidden"] != nil,
+            inSVG: false, preformatted: false, tableDepth: 0, inTableHead: false
         )
         stack = [body]
-        if !body.hidden { recordAnchors(attributes, tag: "body") }
+        recordAnchors(attributes, tag: "body")
     }
 
     private mutating func closeBody() {
@@ -331,6 +588,8 @@ struct ChapterBuilder {
         }
         let isVoidElement = HTMLTokenizer.voidElements.contains(name)
         let role = XHTMLSemantics.role(of: name)
+        let tableMode = name == "table" ? pendingTableMode : nil
+        if name == "table" { pendingTableMode = nil }
 
         if XHTMLSemantics.closesParagraph.contains(name) { autoClose(for: name) }
 
@@ -341,17 +600,24 @@ struct ChapterBuilder {
         stack[top].counts[name] = n
         let parent = stack[top]
 
-        let css = InlineCSS(attributes["style"])
+        // Stylesheet rules and the style attribute act at exactly this point: they change the
+        // frame's style, alignment and visibility, never the element's path.
+        let element = CSSElement(tag: name, attributes: attributes)
+        let css = cssProperties(for: element, attributes: attributes)
+        let ownAlignment = css.alignment ?? XHTMLSemantics.alignment(of: attributes)
         var frame = Frame(
-            tag: name, path: parent.path + "/" + name + "[" + String(n) + "]", role: role,
-            style: parent.style.union(XHTMLSemantics.style(forTag: name)).union(css.style),
+            tag: name, element: element, path: parent.path + "/" + name + "[" + String(n) + "]", role: role,
+            style: Self.style(markup: parent.style.union(XHTMLSemantics.style(forTag: name)), css: css),
             link: parent.link,
-            alignment: XHTMLSemantics.alignment(of: attributes, css: css) ?? parent.alignment,
+            alignment: ownAlignment ?? parent.alignment,
             indent: parent.indent, inBlockquote: parent.inBlockquote, listDepth: parent.listDepth,
-            hidden: parent.hidden || css.hidden || attributes["hidden"] != nil
+            hidden: parent.hidden || css.hidden == true || attributes["hidden"] != nil
                 || XHTMLSemantics.hiddenElements.contains(name),
             inSVG: parent.inSVG || name == "svg",
-            preformatted: parent.preformatted || name == "pre"
+            preformatted: parent.preformatted || name == "pre",
+            // A flattened table is not counted: a table inside it is built as an outermost one.
+            tableDepth: parent.tableDepth + (name == "table" && (table != nil || tableMode != .flatten) ? 1 : 0),
+            inTableHead: name == "thead" || (parent.inTableHead && name != "table")
         )
 
         switch name {
@@ -361,7 +627,7 @@ struct ChapterBuilder {
                 frame.style.insert(.superscript)
             }
         case "center":
-            if XHTMLSemantics.alignment(of: attributes, css: css) == nil { frame.alignment = .center }
+            if ownAlignment == nil { frame.alignment = .center }
         case "blockquote":
             frame.indent += 1
             frame.inBlockquote = true
@@ -374,8 +640,6 @@ struct ChapterBuilder {
             }
         case "dd":
             frame.indent += 1
-        case "dt":
-            frame.style.insert(.bold)
         default:
             break
         }
@@ -397,7 +661,13 @@ struct ChapterBuilder {
             break
         }
 
-        if !frame.hidden {
+        if !frame.hidden, table != nil {
+            handleStartInTable(name, attributes, alignment: ownAlignment, frame: frame)
+        } else if !frame.hidden, name == "table", tableMode != .flatten {
+            flush()
+            recordAnchors(attributes, tag: name)
+            table = TableBuilder(path: frame.path, alignment: frame.alignment ?? .natural, indent: frame.indent)
+        } else if !frame.hidden {
             // 1. Close whatever the new element ends, and open its block.
             switch name {
             case "img", "hr":
@@ -434,6 +704,10 @@ struct ChapterBuilder {
             default:
                 break
             }
+        } else {
+            // Hidden content still has its anchors, at the offset where it would have been: a
+            // note link into a CSS-hidden `aside` lands there instead of at the chapter start.
+            recordAnchors(attributes, tag: name)
         }
 
         guard !isVoidElement else { return }
@@ -458,7 +732,11 @@ struct ChapterBuilder {
         let frame = stack.removeLast()
         guard !frame.hidden else { return }
         if frame.tag == "q" { addText("\u{201D}", style: frame.style, link: frame.link) }
-        if frame.role != .inline { flush() }
+        if table != nil {
+            popInTable(frame)
+        } else if frame.role != .inline {
+            flush()
+        }
         if frame.tag == "li" { pendingListItem = nil }
     }
 
@@ -499,15 +777,125 @@ struct ChapterBuilder {
         return .listItem(ordered: stack[listIndex].isOrderedList, ordinal: ordinal)
     }
 
+    /// Records the element's `id` (and an `a`'s `name`) at the current offset; inside a table, at
+    /// the object of the row being built.
     private mutating func recordAnchors(_ attributes: [String: String], tag: String) {
-        let here = offset + (current?.length ?? 0)
+        let here = offset + (table?.anchorOffset ?? current?.length ?? 0)
         var names: [String] = []
         if let id = attributes["id"], !id.isEmpty { names.append(id) }
         if tag == "a", let name = attributes["name"], !name.isEmpty { names.append(name) }
         for name in names where anchors[name] == nil {
             anchors[name] = here
-            current?.anchorIDs.append(name)
+            if table != nil { table?.anchorIDs.append(name) } else { current?.anchorIDs.append(name) }
         }
+    }
+
+    // MARK: Tables
+
+    /// Holds a table's tokens back until its end tag (or a `body` tag), then replays them.
+    private mutating func bufferTableToken(_ token: HTMLToken) {
+        bufferedTable?.append(token)
+        switch token {
+        case let .start(name, _, selfClosing) where name == "table" && !selfClosing:
+            bufferedTableDepth += 1
+        case let .end(name) where name == "table":
+            bufferedTableDepth -= 1
+        case let .start(name, _, _) where name == "body":
+            bufferedTableDepth = 0
+        case let .end(name) where name == "body":
+            bufferedTableDepth = 0
+        default:
+            break
+        }
+        if bufferedTableDepth <= 0 { replayBufferedTable() }
+    }
+
+    /// Converts the held-back table as a table or as plain blocks (`TableShape`). A table nested
+    /// in a flattened one is held back and decided on its own when the replay reaches it.
+    private mutating func replayBufferedTable() {
+        guard let tokens = bufferedTable else { return }
+        bufferedTable = nil
+        bufferedTableDepth = 0
+        pendingTableMode = TableShape.mode(of: tokens)
+        for token in tokens { consume(token) }
+    }
+
+    /// An element opening inside the table being built. Rows, cells and the caption of that
+    /// table shape it; anything else only breaks lines inside the current cell (a nested
+    /// table's rows become lines, its cells are joined by the cell separator). An image ends
+    /// the table so far: the image becomes its own block and the table continues after it in a
+    /// new block with the same path, like a paragraph an image interrupts.
+    private mutating func handleStartInTable(_ name: String, _ attributes: [String: String], alignment: BlockAlignment?,
+                                             frame: Frame) {
+        let direct = frame.tableDepth == 1
+        switch name {
+        case "tr" where direct:
+            table?.startRow(path: frame.path)
+        case "td" where direct, "th" where direct:
+            let span = attributes["colspan"].flatMap { Int($0.trimmingCharacters(in: .whitespaces)) } ?? 1
+            table?.startCell(isHeader: name == "th" || frame.inTableHead, columnSpan: max(1, min(span, 64)),
+                             alignment: alignment)
+        case "caption" where direct:
+            table?.startCaption()
+        case "td", "th":
+            table?.cellBoundary()
+        case "br":
+            table?.lineBreak()
+        case "img", "image":
+            let source = name == "img"
+                ? attributes["src"] ?? attributes["xlink:href"] ?? attributes["href"]
+                : attributes["xlink:href"] ?? attributes["href"] ?? attributes["src"]
+            guard name == "img" || frame.inSVG, let source, !source.isEmpty else { break }
+            guard var builder = table else { break }
+            table = nil
+            let part = builder.takeFinishedPart()
+            emitTable(part, from: &builder)
+            recordAnchors(attributes, tag: name)
+            emitImage(frame: frame, source: source, alt: attributes["alt"])
+            table = builder
+            return
+        default:
+            if XHTMLSemantics.role(of: name) != .inline { table?.blockBoundary() }
+        }
+        recordAnchors(attributes, tag: name)
+    }
+
+    /// An element closing inside the table being built.
+    private mutating func popInTable(_ frame: Frame) {
+        let direct = frame.tableDepth == 1
+        switch frame.tag {
+        case "table" where direct:
+            guard var builder = table else { return }
+            table = nil
+            builder.finishCaption()
+            builder.finishRow()
+            let content = TableContent(rows: builder.rows, caption: builder.caption)
+            emitTable(content, from: &builder)
+        case "tr" where direct:
+            table?.finishRow()
+        case "td" where direct, "th" where direct:
+            table?.finishCell()
+        case "caption" where direct:
+            table?.finishCaption()
+        default:
+            if frame.role != .inline { table?.blockBoundary() }
+        }
+    }
+
+    /// Appends a table block (nothing when it has no rows and no caption) and pulls the anchors
+    /// recorded inside it back onto its last object.
+    private mutating func emitTable(_ content: TableContent, from builder: inout TableBuilder) {
+        let text = content.objectText
+        let last = offset + max(0, text.utf16.count - 1)
+        for id in builder.anchorIDs {
+            if let position = anchors[id], position > last { anchors[id] = last }
+        }
+        builder.anchorIDs.removeAll()
+        guard !text.isEmpty else { return }
+        append(Block(
+            id: blocks.count, kind: .table(content), runs: [InlineRun(text: text)],
+            alignment: builder.alignment, indent: builder.indent, elementPath: builder.path, textOffset: offset
+        ))
     }
 
     // MARK: Blocks
@@ -551,6 +939,10 @@ struct ChapterBuilder {
     }
 
     private mutating func addText(_ text: String, style: InlineStyle, link: String?) {
+        if table != nil {
+            table?.addText(text, style: style, link: link)
+            return
+        }
         if current == nil {
             guard text.unicodeScalars.contains(where: { !Self.isCollapsibleSpace($0) }) else { return }
             openImplicitBlock()

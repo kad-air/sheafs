@@ -163,16 +163,19 @@ struct XHTMLConverterTests {
             <dl><dt>Term</dt><dd>Meaning</dd></dl>
             <table><caption>Cap2</caption><tr><td>A</td><td>B</td></tr><tr><td> C </td><td></td><td><a href="x">D</a></td></tr></table>
             """)
-        #expect(chapter.blockTexts == ["\u{FFFC}", "A cap", "Term", "Meaning", "Cap2", "A \u{2003} B", "C \u{2003} D"])
+        // The table is ONE block (its rows and caption are objects), not a block per row.
+        #expect(chapter.blockTexts == ["\u{FFFC}", "A cap", "Term", "Meaning", "\u{FFFC}\u{2028}\u{FFFC}\u{2028}\u{FFFC}"])
         #expect(chapter.blocks[1].kind == .caption)
         #expect(chapter.blocks[2].kind == .paragraph)
         #expect(chapter.blocks[2].runs == [T.run("Term", .bold)])
         #expect(chapter.blocks[3].indent == 1)
         #expect(chapter.blocks[3].runs == [T.run("Meaning")])
-        #expect(chapter.blocks[4].kind == .caption)
-        #expect(chapter.blocks[5].elementPath == "/body/table[1]/tr[1]")
-        #expect(chapter.blocks[6].elementPath == "/body/table[1]/tr[2]")
-        #expect(chapter.blocks[6].runs == [T.run("C \u{2003} "), T.run("D", link: "x")])
+        #expect(chapter.blocks[4].elementPath == "/body/table[1]")
+        #expect(chapter.blocks[4].kind == .table(TableContent(rows: [
+            .init(cells: [.init(runs: [T.run("A")]), .init(runs: [T.run("B")])], elementPath: "/body/table[1]/tr[1]"),
+            .init(cells: [.init(runs: [T.run("C")]), .init(runs: []), .init(runs: [T.run("D", link: "x")])],
+                  elementPath: "/body/table[1]/tr[2]"),
+        ], caption: [T.run("Cap2")])))
     }
 
     // MARK: Inline
@@ -260,6 +263,8 @@ struct XHTMLConverterTests {
 
     // MARK: Alignment
 
+    /// `text-align: justify` reads as `.natural`: whether text is justified is the reader's
+    /// setting (`Typesetter` justifies `.justified` blocks whatever the setting says).
     @Test("alignment comes from center, align, text-align and class conventions, and is inherited")
     func alignment() {
         let chapter = T.convert("""
@@ -277,7 +282,7 @@ struct XHTMLConverterTests {
             <p>m</p>
             """)
         #expect(chapter.blocks.map(\.alignment) == [
-            .center, .trailing, .center, .center, .center, .center, .justified,
+            .center, .trailing, .center, .center, .center, .center, .natural,
             .trailing, .natural, .center, .trailing, .natural, .natural,
         ])
     }

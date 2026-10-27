@@ -16,12 +16,15 @@ final class PagerProxy {
 struct ReaderView: View {
     let book: Book
     @Query private var annotations: [Annotation]
+    @Query private var bookmarks: [Bookmark]
 
     init(book: Book) {
         self.book = book
         let id = book.id
         _annotations = Query(filter: #Predicate<Annotation> { $0.bookID == id },
                              sort: [SortDescriptor(\Annotation.spineIndex), SortDescriptor(\Annotation.startOffset)])
+        _bookmarks = Query(filter: #Predicate<Bookmark> { $0.bookID == id },
+                           sort: [SortDescriptor(\Bookmark.spineIndex), SortDescriptor(\Bookmark.textOffset)])
     }
 
     @Environment(\.dismiss) private var dismiss
@@ -37,6 +40,12 @@ struct ReaderView: View {
     @State private var session: BookSession?
     @State private var chromeVisible = false
     @State private var showContents = false
+    /// The page holding the position has a bookmark. State, refreshed after the inputs change
+    /// (`refreshBookmarkHere`), so the body never reads the pagination cache: every prefetch would
+    /// otherwise re-run the whole reader body.
+    @State private var bookmarkHere = false
+    /// The contents sheet's segment, kept between openings.
+    @State private var contentsTab = ContentsView.ContentsTab.contents
     @State private var showAppearance = false
     /// The small panel over the bottom of the page; `showAppearance` is the detailed sheet behind it.
     @State private var showQuickAppearance = false
@@ -45,6 +54,9 @@ struct ReaderView: View {
     @State private var orientation: UIInterfaceOrientation = .unknown
     @State private var footnote: Footnote?
     @State private var editingAnnotation: Annotation?
+    /// A UIKit sheet the pager put up (the share sheet, Look Up): SwiftUI can't see it, and the
+    /// volume buttons must be the volume again while it is up.
+    @State private var pagerSheet = false
     @State private var remotePrompt: RemotePrompt?
     @State private var pagerProxy = PagerProxy()
     @State private var volumeButtons = VolumeButtonPager()
@@ -52,6 +64,15 @@ struct ReaderView: View {
     @State private var sliderValue: Double = 0
     @State private var isScrubbing = false
     @State private var trail = ReturnTrail()
+    @State private var showSearch = false
+    /// Find-in-book, made the first time the search opens; kept so reopening shows the last results.
+    @State private var search: BookSearchModel?
+    /// The contents sheet's Search button: the search opens once that sheet is gone.
+    @State private var searchAfterContents = false
+    /// The searched query's hits in the chapter jumped to, painted until the next turn or tap.
+    @State private var foundMarks: [HighlightMark] = []
+    /// The picture open full screen, if any.
+    @State private var viewedImage: ViewedImage?
 
     private let log = Logger(subsystem: "io.sheafs.reader", category: "reader")
 
@@ -105,14 +126,41 @@ struct ReaderView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .overlay {
+            // Over everything, the bars included; the reader's forced colour scheme still applies.
+            if let viewedImage {
+                ImageViewer(viewed: viewedImage, palette: palette, division: regions?.division,
+                            divisionIsActive: regions?.divisionIsActive ?? false, orientation: orientation) {
+                    closeImage()
+                }
+                .transition(.opacity)
+            }
+        }
         .preferredColorScheme(colorScheme)
         .background { SystemColorSchemeReader { systemScheme = $0 } }
         .tint(Color(uiColor: palette.link))
-        .sheet(isPresented: $showContents) {
+        .sheet(isPresented: $showContents, onDismiss: {
+            if searchAfterContents {
+                searchAfterContents = false
+                openSearch()
+            }
+        }) {
             if let session {
-                ContentsView(session: session, book: book, annotations: annotations) { location in
+                ContentsView(session: session, book: book, annotations: annotations, bookmarks: bookmarks,
+                             tab: $contentsTab, onSelect: { location in
                     showContents = false
                     jump(to: location)
+                }, onSearch: {
+                    searchAfterContents = true
+                    showContents = false
+                })
+            }
+        }
+        .sheet(isPresented: $showSearch) {
+            if let search {
+                BookSearchView(model: search) { hit in
+                    showSearch = false
+                    jump(to: hit)
                 }
             }
         }
@@ -205,21 +253,25 @@ struct ReaderView: View {
                 ZStack(alignment: .topLeading) {
                     ReaderPager(session: session, layout: layout, style: style, palette: palette,
                                 location: session.location, tapTurnsPages: settings.tapToTurn,
-                                marks: annotations.map(\.mark), highlightColor: settings.highlightColor, pageTurn: settings.pageTurn, proxy: pagerProxy,
+                                marks: annotations.map(\.mark) + foundMarks, bookmarks: bookmarks.map(\.mark), highlightColor: settings.highlightColor, pageTurn: settings.pageTurn, proxy: pagerProxy,
                                 onLocationChange: { location in
                                     if volumeButtons.isRunning {
                                         VolumeLog.shared.note("landed at spine=\(location.spineIndex) offset=\(location.textOffset)")
                                     }
                                     session.location = location
+                                    if !foundMarks.isEmpty { foundMarks = [] }
                                     trail.arrived(at: location, samePage: samePage)
                                     persist(location)
                                     if chromeVisible { withAnimation { chromeVisible = false } }
                                 },
                                 onTap: handle(tap:),
-                                onSelectionAction: handle(selection:))
+                                onSelectionAction: handle(selection:),
+                                onSystemSheet: { pagerSheet = $0 })
                     if let deck = layout.deckFrame {
                         ReaderDeck(session: session, palette: palette, proxy: pagerProxy,
-                                   showContents: $showContents, showAppearance: $showQuickAppearance) { location in
+                                   showContents: $showContents, showAppearance: $showQuickAppearance,
+                                   onSearch: openSearch,
+                                   isBookmarked: bookmarkHere, onToggleBookmark: toggleBookmark) { location in
                             jump(to: location)
                         }
                         .frame(width: deck.width, height: deck.height)
@@ -234,6 +286,11 @@ struct ReaderView: View {
                     }
                 }
                 .animation(.snappy, value: trail)
+                .onChange(of: BookmarkInputs(location: session.location, textSize: layout.textSize, style: style,
+                                             marks: bookmarks.map(\.mark)), initial: true) {
+                    // After the pager's update has laid the page out for the new position or size.
+                    DispatchQueue.main.async { refreshBookmarkHere() }
+                }
                 .frame(width: full.width, height: full.height, alignment: .topLeading)
                 .offset(x: -shift.x, y: -shift.y)
                 .onChange(of: fresh, initial: true) { _, new in
@@ -292,8 +349,18 @@ struct ReaderView: View {
         }
         .visibilityPriority(.high)
         ToolbarItem(placement: .primaryAction) {
+            Button("Search", systemImage: "magnifyingglass") { openSearch() }
+        }
+        ToolbarItem(placement: .primaryAction) {
             Button("Appearance", systemImage: "textformat.size") { openQuickAppearance() }
         }
+        ToolbarItem(placement: .primaryAction) {
+            Button(bookmarkHere ? "Remove Bookmark" : "Add Bookmark", systemImage: bookmarkHere ? "bookmark.fill" : "bookmark") {
+                toggleBookmark()
+            }
+            .disabled(session?.isReady != true)
+        }
+        .visibilityPriority(.high)
         ToolbarOverflowMenu {
             Button("Sync Position Now", systemImage: "arrow.triangle.2.circlepath") {
                 Task { await syncNow() }
@@ -366,7 +433,8 @@ struct ReaderView: View {
     /// the foreground stops them, so Control Center's volume works and they re-arm on return.
     private var volumeButtonsArmed: Bool {
         (settings.volumeButtonsTurn || volumeProbeRequested) && scenePhase == .active && session?.isReady == true && regions != nil
-            && !showContents && !showAppearance && footnote == nil && editingAnnotation == nil
+            && !showContents && !showAppearance && !showSearch && footnote == nil && editingAnnotation == nil && !pagerSheet
+            && viewedImage == nil
     }
 
     /// `-SheafsVolumeProbe` (a debug launch argument) arms the buttons whatever the setting says.
@@ -377,7 +445,8 @@ struct ReaderView: View {
     private func armVolumeButtons(_ armed: Bool) {
         VolumeLog.shared.note("armed=\(armed): setting=\(settings.volumeButtonsTurn) scene=\(scenePhase) "
             + "ready=\(session?.isReady == true) regions=\(regions != nil) contents=\(showContents) "
-            + "appearance=\(showAppearance) footnote=\(footnote != nil) note=\(editingAnnotation != nil)")
+            + "appearance=\(showAppearance) search=\(showSearch) footnote=\(footnote != nil) note=\(editingAnnotation != nil) "
+            + "systemSheet=\(pagerSheet) image=\(viewedImage != nil)")
         guard armed else {
             volumeButtons.stop()
             return
@@ -409,6 +478,7 @@ struct ReaderView: View {
     }
 
     private func handle(tap: ReaderTap) {
+        if !foundMarks.isEmpty { foundMarks = [] }
         switch tap {
         case .center:
             if showQuickAppearance {
@@ -422,7 +492,32 @@ struct ReaderView: View {
             open(link: href, from: spine)
         case .annotation(let id):
             editingAnnotation = annotations.first { $0.id == id }
+        case .image(let tap):
+            open(image: tap)
         }
+    }
+
+    /// Opens a tapped picture full screen, at its own resolution (decoded off the main actor).
+    private func open(image tap: ImageTap) {
+        guard let session else { return }
+        let alt = session.imageBlock(spineIndex: tap.spineIndex, textOffset: tap.textOffset)?.alt
+        Task {
+            guard let image = await session.fullImage(source: tap.source, spineIndex: tap.spineIndex) else {
+                print("[image] can't decode \(tap.source) (spine \(tap.spineIndex))")
+                log.error("image \(tap.source, privacy: .public) could not be decoded")
+                return
+            }
+            withAnimation(.snappy) {
+                chromeVisible = false
+                showQuickAppearance = false
+                viewedImage = ViewedImage(image: image, alt: alt, source: tap.source, pageFrame: tap.pageFrame)
+            }
+        }
+    }
+
+    private func closeImage() {
+        print("[image] viewer closed")
+        withAnimation(.snappy) { viewedImage = nil }
     }
 
     /// Makes a highlight from the selection; a note opens the editor right away.
@@ -447,6 +542,63 @@ struct ReaderView: View {
         library.add(annotation)
         log.info("highlight \(selection.spineIndex):\(selection.range.location)+\(selection.range.length) \(color.rawValue, privacy: .public)")
         return annotation
+    }
+
+    // MARK: Bookmarks
+
+    /// The page that holds the reading position (the right-hand page of a spread), from the layout
+    /// on screen; nil until it is laid out (never lays one out: see `BookSession.laidOutChapter`).
+    /// Not for the body: it reads the pagination cache.
+    private func currentPage() -> (chapter: PaginatedChapter, page: Int)? {
+        guard let session, session.isReady, let chapter = session.laidOutChapter(session.location.spineIndex) else { return nil }
+        return (chapter, chapter.pageIndex(containing: session.location.textOffset))
+    }
+
+    /// What decides whether the page holding the position has a bookmark.
+    private struct BookmarkInputs: Equatable {
+        var location: ReadingLocation
+        var textSize: CGSize
+        var style: TypesetStyle
+        var marks: [BookmarkMark]
+    }
+
+    /// Whether the current page holds a bookmark: any whose offset falls in its character range,
+    /// so a bookmark made at another text size still counts. Called outside the body only.
+    private func refreshBookmarkHere() {
+        let here = !bookmarks(onCurrentPageOf: bookmarks).isEmpty
+        if here != bookmarkHere { bookmarkHere = here }
+    }
+
+    /// The bookmarks on the current page, from the layout on screen (outside the body only).
+    private func bookmarks(onCurrentPageOf list: [Bookmark]) -> [Bookmark] {
+        guard let (chapter, page) = currentPage() else { return [] }
+        let ids = Set(chapter.bookmarks(list.map(\.mark), onPage: page).map(\.id))
+        return list.filter { ids.contains($0.id) }
+    }
+
+    /// Marks the current page at its first character, or unmarks it (every bookmark on it).
+    private func toggleBookmark() {
+        guard let session, let (chapter, page) = currentPage() else { return }
+        let here = bookmarks(onCurrentPageOf: library.bookmarks(for: book))
+        if !here.isEmpty {
+            for bookmark in here { library.delete(bookmark) }
+            log.info("bookmark removed at \(chapter.spineIndex):\(page) (\(here.count))")
+            print("[bookmark] removed \(here.count) on spine=\(chapter.spineIndex) page=\(page)")
+            return
+        }
+        let start = ReadingLocation(spineIndex: chapter.spineIndex, textOffset: chapter.range(ofPage: page).location)
+        var label = Bookmark.label(in: chapter.textStorage.string as NSString, at: start.textOffset)
+        // A page that starts in a table: the label is its rows' text, not their object characters.
+        if start.spineIndex < session.chapters.count, let block = session.chapters[start.spineIndex].block(containing: start.textOffset),
+           case .table = block.kind {
+            let quoted = session.chapters[start.spineIndex].displayText(in: start.textOffset ..< min(session.chapters[start.spineIndex].textLength, start.textOffset + 240))
+            label = Bookmark.label(in: quoted as NSString, at: 0)
+        }
+        let bookmark = Bookmark(bookID: book.id, spineIndex: start.spineIndex, textOffset: start.textOffset,
+                                xpointer: session.xpointer(for: start)?.serialized, label: label)
+        library.add(bookmark)
+        log.info("bookmark added at \(start.spineIndex):\(start.textOffset)")
+        print("[bookmark] added spine=\(start.spineIndex) offset=\(start.textOffset) pointer=\(bookmark.xpointer ?? "-") label=\(bookmark.label)")
     }
 
     /// Over a vertical fold (a spread, flat or in book pose) the panel keeps to the left page: controls
@@ -475,16 +627,21 @@ struct ReaderView: View {
         let looksLikeNote = ["note", "fn", "foot", "ref", "annot"].contains { fragment.contains($0) }
         if looksLikeNote, let block = session.chapters[target.spineIndex].block(containing: target.textOffset),
            block.textLength < 900 {
-            footnote = Footnote(text: block.text, location: target)
+            // A note in a table: its row's cells, not the row's object character.
+            var text = block.text
+            if case .table(let table) = block.kind { text = table.plainText(atOffset: target.textOffset - block.textOffset) }
+            footnote = Footnote(text: text, location: target)
         } else {
             jump(to: target)
         }
     }
 
     /// Every jump (link, contents, note, slider, synced position) remembers where it left from,
-    /// so the "Back to page N" button can return there.
+    /// so the "Back to page N" button can return there. Showing a page by hand never reports a
+    /// location change, so the found hits are dropped here (a search jump paints its own after).
     private func jump(to location: ReadingLocation) {
         guard let session else { return }
+        if !foundMarks.isEmpty { foundMarks = [] }
         let from = session.location
         let target = session.clamp(location)
         trail.leave(from, page: folio(of: from, session: session), for: target, samePage: samePage)
@@ -493,8 +650,33 @@ struct ReaderView: View {
         persist(target)
     }
 
+    /// A search result: lands on the page that shows the hit (its start, not the hit itself, so the
+    /// page is cut at a line as usual) through `jump(to:)`, which leaves a "Back to page N" stop,
+    /// and paints the query's hits in that chapter until the next turn or tap.
+    private func jump(to hit: SearchHit) {
+        guard let session else { return }
+        let target = session.pageStart(showing: hit.textOffset, inSpine: hit.spineIndex)
+        print("[search] jump to hit \(hit.spineIndex):\(hit.textOffset) → page start \(target.spineIndex):\(target.textOffset)")
+        jump(to: target)
+        foundMarks = (search?.hits(inSpine: hit.spineIndex) ?? [hit]).map { found in
+            HighlightMark(id: UUID(), spineIndex: found.spineIndex, range: NSRange(location: found.textOffset, length: found.length),
+                          color: .yellow, isUnderline: false, isFound: true)
+        }
+    }
+
+    private func openSearch() {
+        guard let session, session.isReady else { return }
+        if search == nil { search = BookSearchModel(session: session) }
+        withAnimation(.snappy) {
+            chromeVisible = false
+            showQuickAppearance = false
+        }
+        showSearch = true
+    }
+
     private func goBack() {
         guard let session, let place = trail.back() else { return }
+        if !foundMarks.isEmpty { foundMarks = [] }
         log.info("back to \(place.spineIndex):\(place.textOffset) trail=\(trail.stops.count)")
         session.location = session.clamp(place)
         persist(session.location)
@@ -570,11 +752,15 @@ struct ReaderView: View {
         session = fresh
         await fresh.load()
         guard fresh.isReady else { return }
+        if fresh.reanchor(annotations) + fresh.reanchor(bookmarks) > 0 { library.save() }
         book.lastOpenedAt = .now
         library.save()
         library.publishRecentBook()
         goToFromLaunchArgument(session: fresh)
         openAppearanceFromLaunchArgument()
+        searchFromLaunchArgument()
+        bookmarkFromLaunchArgument(session: fresh)
+        openImageFromLaunchArgument(session: fresh)
         if let remote = await sync.pull(for: book) {
             offer(remote, session: fresh, force: false)
         }
@@ -631,6 +817,49 @@ struct ReaderView: View {
 
     private static var appearanceArgumentConsumed = false
 
+    /// `-SheafsBookmark toggle|jump` toggles the bookmark on the page at the position, or jumps
+    /// (`jump(to:)`, so with a "Back to page N" trail) to the book's first bookmark, once the page is
+    /// laid out; `-SheafsContents contents|bookmarks|notes` opens the contents sheet on that
+    /// segment. Once per launch, for simulator checks (the simulator can't be tapped headless).
+    private func bookmarkFromLaunchArgument(session: BookSession) {
+        guard !Self.bookmarkArgumentConsumed else { return }
+        Self.bookmarkArgumentConsumed = true
+        let defaults = UserDefaults.standard
+        let action = defaults.string(forKey: "SheafsBookmark")
+        let segment = defaults.string(forKey: "SheafsContents")
+        guard action != nil || segment != nil else { return }
+        Task {
+            // The pager appears once the window's regions are known, and lays the page out then.
+            var waited = 0
+            while session.laidOutChapter(session.location.spineIndex) == nil, waited < 100 {
+                try? await Task.sleep(for: .milliseconds(100))
+                waited += 1
+            }
+            try? await Task.sleep(for: .seconds(1))
+            switch action {
+            case "toggle": toggleBookmark()
+            case "jump":
+                if let first = library.bookmarks(for: book).first {
+                    print("[bookmark] jump to spine=\(first.spineIndex) offset=\(first.textOffset)")
+                    jump(to: first.location)
+                } else {
+                    print("[bookmark] jump: the book has no bookmarks")
+                }
+            case nil: break
+            case let other?: print("[bookmark] unknown action \(other)")
+            }
+            switch segment {
+            case "contents": contentsTab = .contents
+            case "bookmarks": contentsTab = .bookmarks
+            case "notes": contentsTab = .notes
+            default: break
+            }
+            if segment != nil { showContents = true }
+        }
+    }
+
+    private static var bookmarkArgumentConsumed = false
+
     /// `-SheafsGoTo <contents title | 0…1>` moves to a table-of-contents entry (an exact title
     /// first, else the first title containing it) or to the paragraph at a fraction of the book
     /// that follows another paragraph (so the page starts on a whole paragraph, no heading is left
@@ -665,6 +894,110 @@ struct ReaderView: View {
 
     private static var goToArgumentConsumed = false
 
+    /// `-SheafsSearch <text>` opens the search sheet with `text` searched, once per launch; with
+    /// `-SheafsSearchPick <n>` it then picks the n-th result (1-based) as a tap would, so a
+    /// simulator check reaches the results and the painted hits without taps; `-SheafsSearchBack`
+    /// then goes back 3 s later, as the "Back to page N" capsule would (the hits must go).
+    private func searchFromLaunchArgument() {
+        guard !Self.searchArgumentConsumed else { return }
+        Self.searchArgumentConsumed = true
+        guard let text = UserDefaults.standard.string(forKey: "SheafsSearch"), !text.isEmpty else { return }
+        openSearch()
+        guard let search else { return }
+        search.query = text
+        search.search(immediately: true)
+        let pick = UserDefaults.standard.integer(forKey: "SheafsSearchPick")
+        guard pick > 0 else { return }
+        Task {
+            var waited = 0
+            while search.searchedQuery != text || search.isSearching, waited < 200 {
+                try? await Task.sleep(for: .milliseconds(100))
+                waited += 1
+            }
+            let rows = search.sections.flatMap(\.rows)
+            guard pick <= rows.count else {
+                print("[search] -SheafsSearchPick \(pick): only \(rows.count) results for \"\(text)\"")
+                return
+            }
+            // Let the sheet finish appearing before it is dismissed.
+            try? await Task.sleep(for: .seconds(1.5))
+            showSearch = false
+            jump(to: rows[pick - 1].hit)
+            // `-SheafsSearchBack`: then "Back to page N", as a tap on the capsule would.
+            guard UserDefaults.standard.bool(forKey: "SheafsSearchBack") else { return }
+            try? await Task.sleep(for: .seconds(3))
+            print("[search] back (launch argument), found marks before: \(foundMarks.count)")
+            goBack()
+            print("[search] back done, found marks after: \(foundMarks.count)")
+        }
+    }
+
+    private static var searchArgumentConsumed = false
+
+    /// `-SheafsOpenImage <n>` moves to the book's nth picture (1-based, reading order) and, once its
+    /// page is up, first SINGLE-taps its middle through `PagerController.tap(at:)` (the single-tap
+    /// recognizer's action: it must only toggle the bars, like any centre tap), then double-taps it
+    /// through `PagerController.doubleTap(at:)` (the double-tap recognizer's action, behind the same
+    /// `acceptsDoubleTap` check its `shouldReceive` makes), so the simulator can check the gestures'
+    /// decisions and the viewer without a finger. `-SheafsOpenImageSide left` (a spread) shows the
+    /// picture's page on the LEFT, by moving to the page after it. `-SheafsCloseImageAfter <s>`
+    /// closes the viewer that many seconds after it opened, as ✕ does.
+    private func openImageFromLaunchArgument(session: BookSession) {
+        guard !Self.imageArgumentConsumed else { return }
+        Self.imageArgumentConsumed = true
+        let wanted = UserDefaults.standard.integer(forKey: "SheafsOpenImage")
+        guard wanted > 0 else { return }
+        let pictures = session.imageLocations()
+        guard wanted <= pictures.count else {
+            print("[image] -SheafsOpenImage \(wanted): the book has \(pictures.count) pictures")
+            return
+        }
+        let target = pictures[wanted - 1]
+        let onLeft = UserDefaults.standard.string(forKey: "SheafsOpenImageSide") == "left"
+        print("[image] -SheafsOpenImage \(wanted) → \(target.spineIndex):\(target.textOffset)\(onLeft ? " on the left page" : "")")
+        session.location = target
+        let closeAfter = UserDefaults.standard.double(forKey: "SheafsCloseImageAfter")
+        Task {
+            var moved = !onLeft
+            // The pager appears once the window's regions are known, then lays the spread out.
+            for _ in 0 ..< 150 {
+                try? await Task.sleep(for: .milliseconds(200))
+                guard let controller = pagerProxy.controller,
+                      let point = controller.imageCentre(spineIndex: target.spineIndex, textOffset: target.textOffset) else { continue }
+                if !moved {
+                    // The spread shows the page holding the position on the right: go to the page after
+                    // the picture's, and the picture's page is on the left.
+                    guard let chapter = session.laidOutChapter(target.spineIndex) else { continue }
+                    let page = chapter.pageIndex(containing: target.textOffset)
+                    session.location = page + 1 < chapter.pageCount
+                        ? ReadingLocation(spineIndex: target.spineIndex, textOffset: chapter.range(ofPage: page + 1).location)
+                        : ReadingLocation(spineIndex: target.spineIndex + 1, textOffset: 0)
+                    moved = true
+                    continue
+                }
+                // Until the pager has re-shown the spread, the picture is still on the right.
+                if onLeft, point.x >= controller.view.bounds.midX { continue }
+                print("[image] picture's middle at \(point) in a view \(controller.view.bounds.size) wide")
+                controller.tap(at: point)
+                try? await Task.sleep(for: .milliseconds(1500))
+                print("[image] after a single tap on the picture the viewer is \(viewedImage == nil ? "closed" : "OPEN")")
+                guard controller.doubleTap(at: point) else {
+                    print("[image] the double tap did not take the picture")
+                    return
+                }
+                if closeAfter > 0 {
+                    for _ in 0 ..< 50 where viewedImage == nil { try? await Task.sleep(for: .milliseconds(100)) }
+                    try? await Task.sleep(for: .seconds(closeAfter))
+                    if viewedImage != nil { closeImage() }
+                }
+                return
+            }
+            print("[image] -SheafsOpenImage \(wanted): picture never appeared on a page")
+        }
+    }
+
+    private static var imageArgumentConsumed = false
+
     private func accept(_ prompt: RemotePrompt) {
         jump(to: prompt.location)
         book.lastSyncedPointer = prompt.pointer
@@ -680,17 +1013,29 @@ struct ContentsView: View {
     let session: BookSession
     let book: Book
     let annotations: [Annotation]
+    let bookmarks: [Bookmark]
+    @Binding var tab: ContentsTab
     var onSelect: (ReadingLocation) -> Void
+    var onSearch: (() -> Void)?
     @Environment(\.dismiss) private var dismiss
-    @State private var tab = ContentsTab.contents
 
-    enum ContentsTab: Hashable { case contents, notes }
+    enum ContentsTab: Hashable { case contents, bookmarks, notes }
+
+    private var title: String {
+        switch tab {
+        case .contents: "Contents"
+        case .bookmarks: "Bookmarks"
+        case .notes: "Notes"
+        }
+    }
 
     var body: some View {
         NavigationStack {
             Group {
                 if tab == .notes {
                     NotesListView(session: session, annotations: annotations, onSelect: onSelect)
+                } else if tab == .bookmarks {
+                    BookmarksListView(session: session, bookmarks: bookmarks, onSelect: onSelect)
                 } else if session.flatTOC.isEmpty {
                     List(0 ..< session.chapterCount, id: \.self) { index in
                         Button {
@@ -711,11 +1056,12 @@ struct ContentsView: View {
                 }
             }
             .listStyle(.plain)
-            .navigationTitle(tab == .notes ? "Notes" : "Contents")
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .safeAreaInset(edge: .top) {
                 Picker("Section", selection: $tab) {
                     Text("Contents").tag(ContentsTab.contents)
+                    Text("Bookmarks").tag(ContentsTab.bookmarks)
                     Text("Notes").tag(ContentsTab.notes)
                 }
                 .pickerStyle(.segmented)
@@ -727,9 +1073,15 @@ struct ContentsView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
-                if tab == .notes, !annotations.isEmpty {
+                if tab == .contents, let onSearch {
                     ToolbarItem(placement: .topBarLeading) {
-                        ShareLink(item: NotesListView.markdown(book: book, session: session, annotations: annotations),
+                        Button("Search", systemImage: "magnifyingglass", action: onSearch)
+                    }
+                }
+                if tab != .contents, !annotations.isEmpty || !bookmarks.isEmpty {
+                    ToolbarItem(placement: .topBarLeading) {
+                        ShareLink(item: NotesListView.markdown(book: book, session: session, annotations: annotations,
+                                                               bookmarks: bookmarks),
                                   subject: Text("Notes from \(book.title)")) {
                             Label("Share Notes", systemImage: "square.and.arrow.up")
                         }
@@ -801,6 +1153,10 @@ struct ReaderDeck: View {
     let proxy: PagerProxy
     @Binding var showContents: Bool
     @Binding var showAppearance: Bool
+    var onSearch: () -> Void
+    /// The page that holds the position has a bookmark.
+    var isBookmarked: Bool
+    var onToggleBookmark: () -> Void
     var onJump: (ReadingLocation) -> Void
     @Environment(ReaderSettings.self) private var settings
     @State private var value = 0.0
@@ -827,6 +1183,9 @@ struct ReaderDeck: View {
                 Button("Previous Page", systemImage: "chevron.backward") { proxy.turn(forward: false) }
                     .font(.title)
                 Button("Contents", systemImage: "list.bullet") { showContents = true }
+                Button("Search", systemImage: "magnifyingglass", action: onSearch)
+                Button(isBookmarked ? "Remove Bookmark" : "Add Bookmark",
+                       systemImage: isBookmarked ? "bookmark.fill" : "bookmark", action: onToggleBookmark)
                 Button("Smaller Text", systemImage: "textformat.size.smaller") { settings.fontSize = max(12, settings.fontSize - 1) }
                 Button("Larger Text", systemImage: "textformat.size.larger") { settings.fontSize = min(32, settings.fontSize + 1) }
                 Button("Appearance", systemImage: "paintpalette") { showAppearance = true }

@@ -1,4 +1,6 @@
+import CoreText
 import Foundation
+import Synchronization
 import UIKit
 import SheafsKit
 
@@ -31,6 +33,26 @@ extension NSAttributedString.Key {
 /// Turns a `Chapter` into an `NSAttributedString` whose UTF-16 layout matches the chapter's
 /// offsets exactly: every block's text followed by "\n".
 enum Typesetter {
+    /// Fonts (by PostScript name) known to have lower-case small caps.
+    nonisolated private static let smallCapsCache = Mutex<[String: Bool]>([:])
+
+    /// Whether the face has real lower-case small caps (`kLowerCaseType` /
+    /// `kLowerCaseSmallCapsSelector`, which CoreText also reports for OpenType `smcp`). Asking for
+    /// the feature in a face without it silently draws plain roman.
+    nonisolated static func hasSmallCaps(_ font: UIFont) -> Bool {
+        if let known = smallCapsCache.withLock({ $0[font.fontName] }) { return known }
+        var found = false
+        let features = CTFontCopyFeatures(font as CTFont) as? [[String: Any]] ?? []
+        for feature in features where (feature[kCTFontFeatureTypeIdentifierKey as String] as? Int) == kLowerCaseType {
+            let selectors = feature[kCTFontFeatureTypeSelectorsKey as String] as? [[String: Any]] ?? []
+            if selectors.contains(where: { ($0[kCTFontFeatureSelectorIdentifierKey as String] as? Int) == kLowerCaseSmallCapsSelector }) {
+                found = true
+            }
+        }
+        smallCapsCache.withLock { $0[font.fontName] = found }
+        return found
+    }
+
     nonisolated static func attributedString(for chapter: Chapter, style: TypesetStyle, images: ChapterImages,
                                              pageSize: CGSize) -> NSAttributedString {
         let result = NSMutableAttributedString()
@@ -46,6 +68,9 @@ enum Typesetter {
                                              fillsPage: chapter.blocks.count == 1))
             case .horizontalRule where block.textLength == 1:
                 piece.append(ruleAttachment(style: style, pageWidth: pageSize.width))
+            case .table(let table):
+                // One attachment per row (and the caption), each on its own line, drawn by `TableLayout`.
+                piece.append(TableLayout(table: table, style: style, pageSize: pageSize).attributedString())
             default:
                 for run in block.runs {
                     piece.append(NSAttributedString(string: run.text, attributes: attributes(for: run, block: block, style: style)))
@@ -91,9 +116,8 @@ enum Typesetter {
         let base = CGFloat(style.fontSize)
         var size = base
         var bold = run.style.contains(.bold)
-        var italic = run.style.contains(.italic)
+        let italic = run.style.contains(.italic)
         var color = style.palette.text
-        var attrs: [NSAttributedString.Key: Any] = [:]
 
         switch block.kind {
         case .heading(let level):
@@ -102,14 +126,24 @@ enum Typesetter {
         case .caption:
             size = base * 0.85
             color = style.palette.secondary
-        case .blockquote:
-            italic = true
+        // No house italics for blockquotes: letters and epigraphs are blockquotes, and the book's
+        // own markup and stylesheet say what in them is italic.
         case .preformatted:
             size = base * 0.85
         default:
             break
         }
-        if block.kind == .preformatted || run.style.contains(.code) {
+        return runAttributes(for: run, size: size, bold: bold, italic: italic, color: color, style: style,
+                             monospaced: block.kind == .preformatted)
+    }
+
+    /// The attributes of one run at a given size and weight: fonts, raised/lowered runs, small
+    /// caps, decorations, links. Shared by the body text and the cells of tables.
+    nonisolated static func runAttributes(for run: InlineRun, size: CGFloat, bold: Bool, italic: Bool, color: UIColor,
+                                          style: TypesetStyle, monospaced: Bool = false) -> [NSAttributedString.Key: Any] {
+        var color = color
+        var attrs: [NSAttributedString.Key: Any] = [:]
+        if monospaced || run.style.contains(.code) {
             let mono = UIFont.monospacedSystemFont(ofSize: size * 0.92, weight: bold ? .semibold : .regular)
             attrs[.font] = italic ? UIFont(descriptor: mono.fontDescriptor.withSymbolicTraits(.traitItalic) ?? mono.fontDescriptor, size: size * 0.92) : mono
         } else {
@@ -119,11 +153,17 @@ enum Typesetter {
                 attrs[.baselineOffset] = run.style.contains(.superscript) ? size * 0.36 : -size * 0.12
             }
             if run.style.contains(.smallCaps) {
-                let features: [[UIFontDescriptor.FeatureKey: Int]] = [[
-                    .type: kLowerCaseType, .selector: kLowerCaseSmallCapsSelector,
-                ]]
-                let descriptor = font.fontDescriptor.addingAttributes([.featureSettings: features])
-                font = UIFont(descriptor: descriptor, size: font.pointSize)
+                if hasSmallCaps(font) {
+                    let features: [[UIFontDescriptor.FeatureKey: Int]] = [[
+                        .type: kLowerCaseType, .selector: kLowerCaseSmallCapsSelector,
+                    ]]
+                    let descriptor = font.fontDescriptor.addingAttributes([.featureSettings: features])
+                    font = UIFont(descriptor: descriptor, size: font.pointSize)
+                } else if run.style.contains(.boldAsSmallCaps), !bold {
+                    // Georgia, Palatino, Charter, Times: the feature does nothing, and the
+                    // stylesheet took the bold away for it. Draw what the markup asked for.
+                    font = style.font.font(size: font.pointSize, bold: true, italic: italic)
+                }
             }
             attrs[.font] = font
         }
@@ -207,6 +247,17 @@ enum Typesetter {
             p.alignment = .center
             p.paragraphSpacingBefore = size * 0.8
             p.paragraphSpacing = size * 0.8
+        case .table:
+            // Rows abut (no line spacing): their rules are drawn in the row images. A table
+            // narrower than the page is centred; it is laid out at the full page width.
+            p.alignment = .center
+            p.lineSpacing = 0
+            p.hyphenationFactor = 0
+            p.paragraphSpacingBefore = size * 0.6
+            p.paragraphSpacing = size * 0.9
+            p.firstLineHeadIndent = 0
+            p.headIndent = 0
+            p.tailIndent = 0
         case .caption:
             p.alignment = block.alignment == .natural ? .center : p.alignment
             p.paragraphSpacing = size * 0.8
@@ -219,16 +270,17 @@ enum Typesetter {
         let attachment = NSTextAttachment()
         let maxWidth = max(40, pageSize.width)
         let maxHeight = max(40, pageSize.height * (fillsPage ? 0.96 : 0.9))
-        if let image = images.images[source], image.size.width > 0, image.size.height > 0 {
-            attachment.image = image
-            let fit = min(maxWidth / image.size.width, maxHeight / image.size.height)
-            let scale = fillsPage ? fit : min(1, fit)
-            attachment.bounds = CGRect(x: 0, y: 0, width: floor(image.size.width * scale), height: floor(image.size.height * scale))
-        } else {
-            // Missing image: a quiet placeholder so the flow is not disturbed.
+        guard let image = images.images[source], image.size.width > 0, image.size.height > 0 else {
+            // Missing or undecodable image: a quiet placeholder so the flow is not disturbed. Not
+            // tagged as a picture: there is nothing to open, so a tap there is a tap on text.
             attachment.image = placeholderImage(style: style)
             attachment.bounds = CGRect(x: 0, y: 0, width: 24, height: 24)
+            return NSAttributedString(attachment: attachment)
         }
+        attachment.image = image
+        let fit = min(maxWidth / image.size.width, maxHeight / image.size.height)
+        let scale = fillsPage ? fit : min(1, fit)
+        attachment.bounds = CGRect(x: 0, y: 0, width: floor(image.size.width * scale), height: floor(image.size.height * scale))
         let string = NSMutableAttributedString(attachment: attachment)
         string.addAttribute(.sheafsImageSource, value: source, range: NSRange(location: 0, length: string.length))
         return string
