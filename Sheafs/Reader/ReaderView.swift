@@ -587,9 +587,15 @@ struct ReaderView: View {
             return
         }
         let start = ReadingLocation(spineIndex: chapter.spineIndex, textOffset: chapter.range(ofPage: page).location)
+        var label = Bookmark.label(in: chapter.textStorage.string as NSString, at: start.textOffset)
+        // A page that starts in a table: the label is its rows' text, not their object characters.
+        if start.spineIndex < session.chapters.count, let block = session.chapters[start.spineIndex].block(containing: start.textOffset),
+           case .table = block.kind {
+            let quoted = session.chapters[start.spineIndex].displayText(in: start.textOffset ..< min(session.chapters[start.spineIndex].textLength, start.textOffset + 240))
+            label = Bookmark.label(in: quoted as NSString, at: 0)
+        }
         let bookmark = Bookmark(bookID: book.id, spineIndex: start.spineIndex, textOffset: start.textOffset,
-                                xpointer: session.xpointer(for: start)?.serialized,
-                                label: Bookmark.label(in: chapter.textStorage.string as NSString, at: start.textOffset))
+                                xpointer: session.xpointer(for: start)?.serialized, label: label)
         library.add(bookmark)
         log.info("bookmark added at \(start.spineIndex):\(start.textOffset)")
         print("[bookmark] added spine=\(start.spineIndex) offset=\(start.textOffset) pointer=\(bookmark.xpointer ?? "-") label=\(bookmark.label)")
@@ -621,7 +627,10 @@ struct ReaderView: View {
         let looksLikeNote = ["note", "fn", "foot", "ref", "annot"].contains { fragment.contains($0) }
         if looksLikeNote, let block = session.chapters[target.spineIndex].block(containing: target.textOffset),
            block.textLength < 900 {
-            footnote = Footnote(text: block.text, location: target)
+            // A note in a table: its row's cells, not the row's object character.
+            var text = block.text
+            if case .table(let table) = block.kind { text = table.plainText(atOffset: target.textOffset - block.textOffset) }
+            footnote = Footnote(text: text, location: target)
         } else {
             jump(to: target)
         }

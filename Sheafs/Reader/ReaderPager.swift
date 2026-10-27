@@ -688,7 +688,11 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         while end > start, let scalar = Unicode.Scalar(string.character(at: end - 1)), blank.contains(scalar) { end -= 1 }
         guard end > start else { return nil }
         let trimmed = NSRange(location: start, length: end - start)
-        return (TextSelection(spineIndex: selection.spineIndex, range: trimmed), string.substring(with: trimmed))
+        // Quoted as it reads: a table row is its cells' text, not its object character.
+        let text = selection.spineIndex < session.chapters.count
+            ? session.chapters[selection.spineIndex].displayText(in: start ..< end)
+            : string.substring(with: trimmed)
+        return (TextSelection(spineIndex: selection.spineIndex, range: trimmed), text)
     }
 
     func editMenuInteraction(_ interaction: UIEditMenuInteraction, targetRectFor configuration: UIEditMenuConfiguration) -> CGRect {
@@ -886,7 +890,8 @@ final class SpreadViewController: UIViewController {
             let local = view.convert(point, to: pageView)
             guard let characterIndex = pageView.characterIndex(at: local),
                   characterIndex < chapter.textStorage.length,
-                  let href = chapter.textStorage.attribute(.sheafsLink, at: characterIndex, effectiveRange: nil) as? String else { continue }
+                  let href = chapter.textStorage.attribute(.sheafsLink, at: characterIndex, effectiveRange: nil) as? String
+                    ?? pageView.tableLink(at: local) else { continue }
             return (href, slot.spineIndex)
         }
         return nil

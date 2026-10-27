@@ -68,6 +68,9 @@ enum Typesetter {
                                              fillsPage: chapter.blocks.count == 1))
             case .horizontalRule where block.textLength == 1:
                 piece.append(ruleAttachment(style: style, pageWidth: pageSize.width))
+            case .table(let table):
+                // One attachment per row (and the caption), each on its own line, drawn by `TableLayout`.
+                piece.append(TableLayout(table: table, style: style, pageSize: pageSize).attributedString())
             default:
                 for run in block.runs {
                     piece.append(NSAttributedString(string: run.text, attributes: attributes(for: run, block: block, style: style)))
@@ -115,7 +118,6 @@ enum Typesetter {
         var bold = run.style.contains(.bold)
         let italic = run.style.contains(.italic)
         var color = style.palette.text
-        var attrs: [NSAttributedString.Key: Any] = [:]
 
         switch block.kind {
         case .heading(let level):
@@ -131,7 +133,17 @@ enum Typesetter {
         default:
             break
         }
-        if block.kind == .preformatted || run.style.contains(.code) {
+        return runAttributes(for: run, size: size, bold: bold, italic: italic, color: color, style: style,
+                             monospaced: block.kind == .preformatted)
+    }
+
+    /// The attributes of one run at a given size and weight: fonts, raised/lowered runs, small
+    /// caps, decorations, links. Shared by the body text and the cells of tables.
+    nonisolated static func runAttributes(for run: InlineRun, size: CGFloat, bold: Bool, italic: Bool, color: UIColor,
+                                          style: TypesetStyle, monospaced: Bool = false) -> [NSAttributedString.Key: Any] {
+        var color = color
+        var attrs: [NSAttributedString.Key: Any] = [:]
+        if monospaced || run.style.contains(.code) {
             let mono = UIFont.monospacedSystemFont(ofSize: size * 0.92, weight: bold ? .semibold : .regular)
             attrs[.font] = italic ? UIFont(descriptor: mono.fontDescriptor.withSymbolicTraits(.traitItalic) ?? mono.fontDescriptor, size: size * 0.92) : mono
         } else {
@@ -235,6 +247,17 @@ enum Typesetter {
             p.alignment = .center
             p.paragraphSpacingBefore = size * 0.8
             p.paragraphSpacing = size * 0.8
+        case .table:
+            // Rows abut (no line spacing): their rules are drawn in the row images. A table
+            // narrower than the page is centred; it is laid out at the full page width.
+            p.alignment = .center
+            p.lineSpacing = 0
+            p.hyphenationFactor = 0
+            p.paragraphSpacingBefore = size * 0.6
+            p.paragraphSpacing = size * 0.9
+            p.firstLineHeadIndent = 0
+            p.headIndent = 0
+            p.tailIndent = 0
         case .caption:
             p.alignment = block.alignment == .natural ? .center : p.alignment
             p.paragraphSpacing = size * 0.8

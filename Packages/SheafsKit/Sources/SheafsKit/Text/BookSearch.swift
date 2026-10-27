@@ -107,6 +107,13 @@ public struct BookSearchIndex: Sendable {
         guard let block = chapter.block(containing: range.lowerBound) else {
             return SearchSnippet(before: "", match: "", after: "", isCutBefore: false, isCutAfter: false)
         }
+        if case .table(let table) = block.kind {
+            // The hit is a whole row: its text, nothing marked (the match is somewhere in it).
+            let row = table.plainText(atOffset: range.lowerBound - block.textOffset)
+            let cut = row.count > context * 3
+            return SearchSnippet(before: cut ? String(row.prefix(context * 3)) : row, match: "", after: "",
+                                 isCutBefore: false, isCutAfter: cut)
+        }
         let text = block.text as NSString
         let length = text.length
         let lower = max(0, min(length, range.lowerBound - block.textOffset))
@@ -157,6 +164,9 @@ struct FoldedText: Sendable {
     var starts: [Int32] = []
     /// …and ends.
     var ends: [Int32] = []
+    /// The unit comes from a table row's text, which all maps to the row's one object character:
+    /// several matches in one row are several hits on that character.
+    var inObject: [Bool] = []
 
     init(chapter: Chapter) {
         units.reserveCapacity(chapter.textLength)
@@ -165,6 +175,18 @@ struct FoldedText: Sendable {
         var offset = 0
         for block in chapter.blocks {
             offset = block.textOffset
+            if case .table(let table) = block.kind {
+                // A table's cells are not in the plain text: search each row's (and the caption's)
+                // text, every match landing on that row's object; matches never cross rows.
+                for object in stride(from: 0, to: block.textLength, by: 2) {
+                    let start = block.textOffset + object
+                    for character in table.plainText(atOffset: object) {
+                        append(SearchFolding.fold(character), from: start, to: start + 1, inObject: true)
+                    }
+                    append([0x0A], from: start, to: start + 1, inObject: true)
+                }
+                continue
+            }
             for character in block.text {
                 let width = character.utf16.count
                 append(SearchFolding.fold(character), from: offset, to: offset + width)
@@ -175,7 +197,7 @@ struct FoldedText: Sendable {
         }
     }
 
-    private mutating func append(_ folded: [UInt16], from start: Int, to end: Int) {
+    private mutating func append(_ folded: [UInt16], from start: Int, to end: Int, inObject: Bool = false) {
         if folded == [SearchFolding.space], units.last == SearchFolding.space || units.last == 0x0A || units.isEmpty {
             return // runs of whitespace fold to one space
         }
@@ -183,6 +205,7 @@ struct FoldedText: Sendable {
             units.append(unit)
             starts.append(Int32(start))
             ends.append(Int32(end))
+            self.inObject.append(inObject)
         }
     }
 
@@ -202,7 +225,7 @@ struct FoldedText: Sendable {
                         if j == m {
                             let range = Int(starts[i]) ..< Int(ends[i + m - 1])
                             // One character folded to several units ("ß" → "ss") can match twice.
-                            if let last = result.last, range.lowerBound < last.upperBound {
+                            if let last = result.last, range.lowerBound < last.upperBound, !inObject[i] {
                                 i += 1
                                 continue
                             }

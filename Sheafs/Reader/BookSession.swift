@@ -216,9 +216,11 @@ final class BookSession {
     }
 
     /// A location for a pointer written by this or another reader; nil when the chapter can't be found.
-    func location(for pointer: XPointer) -> ReadingLocation? {
+    /// `near`: the offset the position had here before, which picks between the two parts of a
+    /// table row an image split (they share the row's path).
+    func location(for pointer: XPointer, near: Int? = nil) -> ReadingLocation? {
         guard pointer.spineIndex >= 0, pointer.spineIndex < chapters.count else { return nil }
-        let offset = chapters[pointer.spineIndex].offset(of: pointer) ?? 0
+        let offset = chapters[pointer.spineIndex].offset(of: pointer, near: near) ?? 0
         return clamp(ReadingLocation(spineIndex: pointer.spineIndex, textOffset: offset))
     }
 

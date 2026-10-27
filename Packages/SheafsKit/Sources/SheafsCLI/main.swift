@@ -59,10 +59,15 @@ case "chapter":
                                            stylesheets: StylesheetLibrary(book: book))
     print("title: \(chapter.title ?? "-")  length: \(chapter.textLength)  anchors: \(chapter.anchorOffsets.count)")
     for block in chapter.blocks {
-        let text = block.text.count > 80 ? String(block.text.prefix(77)) + "…" : block.text
+        var kind = "\(block.kind)"
+        var text = block.text.count > 80 ? String(block.text.prefix(77)) + "…" : block.text
+        if case .table(let table) = block.kind {
+            kind = "table(\(table.rows.count)×\(table.columnCount)\(table.caption == nil ? "" : ", caption"))"
+            text = table.rows.first.map { $0.cells.map(\.text).joined(separator: " | ") } ?? ""
+        }
         let styled = block.runs.filter { !$0.style.isEmpty }.count
         let notes = (block.alignment == .natural ? "" : " [\(block.alignment)]") + (styled == 0 ? "" : " {\(styled) styled runs}")
-        print(String(format: "%6d  %-34@ %@%@  %@", block.textOffset, block.elementPath, "\(block.kind)", notes, text))
+        print(String(format: "%6d  %-34@ %@%@  %@", block.textOffset, block.elementPath, kind, notes, text))
     }
 
 case "md5":

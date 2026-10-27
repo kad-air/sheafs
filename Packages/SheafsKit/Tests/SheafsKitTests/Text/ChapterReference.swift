@@ -11,6 +11,22 @@ struct ChapterReference: Decodable, Sendable {
         var text: String
     }
 
+    struct Cell: Decodable, Sendable {
+        var header: Bool
+        var text: String
+    }
+
+    struct Row: Decodable, Sendable {
+        var path: String
+        var cells: [Cell]
+    }
+
+    struct Table: Decodable, Sendable {
+        var path: String
+        var caption: String?
+        var rows: [Row]
+    }
+
     struct Document: Decodable, Sendable {
         var path: String
         var spineIndex: Int
@@ -19,6 +35,7 @@ struct ChapterReference: Decodable, Sendable {
         var nonEmptyParagraphCount: Int
         var ids: [String]
         var samples: [Sample]
+        var tables: [Table]
     }
 
     struct EPUB: Decodable, Sendable {
@@ -27,6 +44,8 @@ struct ChapterReference: Decodable, Sendable {
 
     var sampleStride: Int
     var epubs: [String: EPUB]
+    /// Loose XHTML fixtures (`Fixtures/<name>`), keyed by file name.
+    var xhtml: [String: Document]
 
     static func load() throws -> ChapterReference {
         guard let url = Bundle.module.url(

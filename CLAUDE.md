@@ -171,6 +171,35 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     `xpointer` like the position. `StylesheetTests`,
     `ChapterPositionsTests`; `ChapterReferenceTests` runs every fixture chapter with and without
     its stylesheets against the Python reference.
+    A `<table>` is ONE `.table(TableContent)` block: rows (each with its `tr`'s CREngine path) of
+    cells (own runs, `th`/`thead` header flag, colspan, cell alignment), plus the caption. 🔴 Its
+    text is one U+FFFC PER ROW plus one for the caption, joined by U+2028 (`objectText`; row k at
+    offset 2k), NOT one U+FFFC for the whole table: each row is then its own line, so pagination
+    breaks between rows and a 100-row list of illustrations is not cut at one page. The cell text is
+    NOT in the plain text. Find-in-book searches it anyway: `FoldedText` folds each row's text
+    (and the caption's) onto that row's ONE object character, so a hit in a table is that
+    character, several hits in a row are several hits on it, and the snippet is the row's text.
+    A selection or highlight there covers whole rows, and is QUOTED as the rows' text: `Chapter.displayText(in:)` / `TableContent.plainText`,
+    used by the selection's text, Copy, Look Up, quote sharing, the highlight's `text`, the
+    export, footnotes, bookmark labels and `PageView.accessibilityLabel`). Positions resolve to rows: `Chapter.pointer(at:)` gives a row's
+    `tr` path with no `text()` offset, `Chapter.offset(of:exact:near:)` maps a pointer into a row or
+    cell back onto its row, exactly (`near` picks the part of a row an image split;
+    `BookSession.location(for:near:)`); re-anchoring compares a highlight's quote with
+    `displayText` too, so highlights over rows re-anchor like any other. 🔴 Not every `<table>` is a table:
+    `TableShape` (the converter holds a table's tokens back until its end tag, decides, replays)
+    FLATTENS it into ordinary blocks, the old behaviour (a row of plain cells = one paragraph,
+    cells joined by an em space; headings/paragraphs in cells = their own blocks), when a cell
+    holds a heading, list, blockquote or `pre`, two or more paragraphs (`p`, or `div` with text;
+    ONE `<p>` per cell is what calibre writes and stays a table), more than 600 non-space
+    characters, or when the table has a single column. That is what LAYOUT tables need: as one
+    row they'd be cut at the page and every anchor in them would resolve to the row. Blocks in a
+    cell become U+2028 lines, a nested table flattens into its cell, cells outside any `tr` make
+    one row, an image in a cell splits the table around it (both parts keep the table path; rows
+    left with only empty cells are dropped and the rest of the split row carries on in its column,
+    `Row.firstColumn`). The Python twin records tables too (`tables` per document, plus the loose
+    `Fixtures/table-chapter.xhtml` and `table-shapes.xhtml`), makes the same flatten decision
+    (`TableDecider`, two passes) and counts a `<p>` as a paragraph only outside kept tables;
+    `TableTests` compares them with whitespace runs normalised, nothing looser.
   - `Text/XPointer` — `/body/DocFragment[N]/body/…/p[K]/text()[k].off` parse/serialize (N 1-based
     over the FULL spine). We always serialize with indices (CrossPoint style); parsing tolerates
     missing `[1]`.
@@ -216,7 +245,19 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     even column count when a fold is present, per the Duo HIG).
   - `Reader/` — `BookSession` (loads the EPUB and converts every chapter in a detached task; caches
     typeset+paginated chapters per style/page size; position ↔ progress ↔ xpointer ↔ TOC/href),
-    `Typesetter` (Block → NSAttributedString with the user's fonts), `Paginator` (`PaginatedChapter`:
+    `Typesetter` (Block → NSAttributedString with the user's fonts; a table block becomes one
+    `TableRowAttachment` per row/caption, laid out by `TableLayout`: columns sized to content
+    within the page width, too-wide tables scaled down and RE-MEASURED at each scale until they
+    fit (type doesn't narrow in proportion; the search re-measures only each column's widest cells,
+    then the whole table once); below 0.6 the WIDEST columns are cut to one level (`levelled`), so
+    short words never break, cells in the reader's font at
+    90 %, header bold, light rules, caption beneath; a row never exceeds the page minus the
+    spacing around the table: a taller one is set smaller (to half size), only then cut. CoreText
+    measuring, each distinct cell string once per scale (`TableLayout.Measurer`), run attributes
+    and fonts made once per style and size (`CellStyler`); rows render lazily in `image(forBounds:…)` at the drawing context's scale,
+    so nothing is cached and a style change re-typesets them with the rest; a 1 pt filler font and
+    zero line spacing make the rows abut; links in cells are hit-tested through
+    `PageView.tableLink` → `PaginatedChapter.attachmentFrame`; `TableLayoutTests`), `Paginator` (`PaginatedChapter`:
     one TextKit 1 `NSLayoutManager`, one `NSTextContainer` per page, drawn by `PageView`),
     `ReaderPager` (`UIPageViewController` .scroll whose units are spreads of 1–2 pages;
     tap zones turn pages, centre tap toggles chrome, link and highlight hit-testing; DOUBLE-TAP a
