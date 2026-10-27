@@ -35,9 +35,11 @@ case "epub":
     print("version:    \(book.version ?? "-")   opf: \(book.opfPath)   cover: \(book.coverItem?.path ?? "-")")
     print("spine (\(book.spine.count)):")
     let converter = XHTMLConverter()
+    let stylesheets = StylesheetLibrary(book: book)
     var total = 0
     for (i, item) in book.spine.enumerated() {
-        let chapter = converter.convert((try? book.data(for: item.item)) ?? Data())
+        let chapter = converter.convert((try? book.data(for: item.item)) ?? Data(), documentPath: item.item.path,
+                                        stylesheets: stylesheets)
         total += chapter.textLength
         print(String(format: "  %3d  %-50@ %7d chars  %4d blocks%@", i, item.item.path, chapter.textLength, chapter.blocks.count,
                      item.linear ? "" : "  (non-linear)"))
@@ -52,11 +54,15 @@ case "chapter":
     guard args.count == 3, let index = Int(args[2]) else { usage() }
     let book = try EPUBBook(url: URL(fileURLWithPath: args[1]))
     guard index >= 0, index < book.spine.count else { fail("spine index out of range") }
-    let chapter = XHTMLConverter().convert(try book.data(for: book.spine[index].item))
+    let item = book.spine[index].item
+    let chapter = XHTMLConverter().convert(try book.data(for: item), documentPath: item.path,
+                                           stylesheets: StylesheetLibrary(book: book))
     print("title: \(chapter.title ?? "-")  length: \(chapter.textLength)  anchors: \(chapter.anchorOffsets.count)")
     for block in chapter.blocks {
         let text = block.text.count > 80 ? String(block.text.prefix(77)) + "…" : block.text
-        print(String(format: "%6d  %-34@ %@  %@", block.textOffset, block.elementPath, "\(block.kind)", text))
+        let styled = block.runs.filter { !$0.style.isEmpty }.count
+        let notes = (block.alignment == .natural ? "" : " [\(block.alignment)]") + (styled == 0 ? "" : " {\(styled) styled runs}")
+        print(String(format: "%6d  %-34@ %@%@  %@", block.textOffset, block.elementPath, "\(block.kind)", notes, text))
     }
 
 case "md5":

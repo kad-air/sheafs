@@ -21,9 +21,12 @@ struct ReaderEngineTests {
     @Test func typesetStringMatchesChapterOffsets() throws {
         let epub = try Self.alice()
         let converter = XHTMLConverter()
+        // With the book's stylesheets, as `BookSession` converts.
+        let stylesheets = StylesheetLibrary(book: epub)
         var checkedBlocks = 0
         for item in epub.spine {
-            let chapter = converter.convert(try epub.data(for: item.item))
+            let chapter = converter.convert(try epub.data(for: item.item), documentPath: item.item.path,
+                                            stylesheets: stylesheets)
             let string = Typesetter.attributedString(for: chapter, style: Self.style, images: ChapterImages(),
                                                      pageSize: CGSize(width: 320, height: 500))
             #expect(string.length == chapter.textLength, "chapter \(item.item.path)")

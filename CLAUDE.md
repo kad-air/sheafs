@@ -133,6 +133,22 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     Python twin. 🔴 Offsets contract: block text + "\n" per block, UTF-16 units, images and rules are
     exactly one U+FFFC; the app's `Typesetter` must (and does) produce an attributed string of the
     same length so a `textOffset` is an `NSAttributedString` index. `SheafsTests` pins it.
+    The publisher's CSS (`Text/Stylesheet`): the head's `<link rel="stylesheet">`s (through a
+    `StylesheetLibrary`, which parses each zip path once per book, follows `@import`, and is shared
+    by the parallel chapter conversions in `BookSession`) and `<style>` blocks, in document order.
+    Selectors are tag/`.class`/`#id`/`*` compounds with descendant and child chains; a selector with
+    anything else (pseudo-classes and -elements, attribute selectors, `+`/`~`) is dropped WHOLE, so
+    `p::first-letter` never styles the paragraph; at-rule blocks (`@media`, `@font-face`) are skipped.
+    Cascade: specificity, then source order, then the `style` attribute, then `!important`. It is
+    applied where the frame is built (`ChapterBuilder.cssProperties`) and only sets semantics:
+    italic/bold/small caps/underline/strike/super-/subscript, ON and OFF (`font-style: normal`
+    un-italicises an `<em>`), center/right alignment, and `display: none`, which skips the content
+    like `hidden` while the element and its children still take their path steps (CREngine counts
+    them). 🔴 `text-align: justify`/`left` (and `align="justify"`) read as `.natural`: justification
+    is the reader's setting, and `Typesetter` justifies a `.justified` block whatever it says (Alice's
+    `body { text-align: justify }` would have overruled the toggle). Colours, fonts, sizes, margins
+    and text-indent are not read. `StylesheetTests`; `ChapterReferenceTests` runs every fixture
+    chapter with and without its stylesheets against the Python reference.
   - `Text/XPointer` — `/body/DocFragment[N]/body/…/p[K]/text()[k].off` parse/serialize (N 1-based
     over the FULL spine). We always serialize with indices (CrossPoint style); parsing tolerates
     missing `[1]`.

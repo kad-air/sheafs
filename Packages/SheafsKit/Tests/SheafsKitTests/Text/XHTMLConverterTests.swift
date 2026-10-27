@@ -260,6 +260,8 @@ struct XHTMLConverterTests {
 
     // MARK: Alignment
 
+    /// `text-align: justify` reads as `.natural`: whether text is justified is the reader's
+    /// setting (`Typesetter` justifies `.justified` blocks whatever the setting says).
     @Test("alignment comes from center, align, text-align and class conventions, and is inherited")
     func alignment() {
         let chapter = T.convert("""
@@ -277,7 +279,7 @@ struct XHTMLConverterTests {
             <p>m</p>
             """)
         #expect(chapter.blocks.map(\.alignment) == [
-            .center, .trailing, .center, .center, .center, .center, .justified,
+            .center, .trailing, .center, .center, .center, .center, .natural,
             .trailing, .natural, .center, .trailing, .natural, .natural,
         ])
     }

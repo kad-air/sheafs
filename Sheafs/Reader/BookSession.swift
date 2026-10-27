@@ -64,12 +64,14 @@ final class BookSession {
             let loaded = try await Task.detached(priority: .userInitiated) { () throws -> Loaded in
                 let epub = try EPUBBook(url: url)
                 let converter = XHTMLConverter()
+                // Parsed once per file and shared by every chapter that links it.
+                let stylesheets = StylesheetLibrary(book: epub)
                 let spine = epub.spine
                 let chapters = await withTaskGroup(of: (Int, Chapter).self, returning: [Chapter].self) { group in
                     for (index, item) in spine.enumerated() {
                         group.addTask {
                             let data = (try? epub.data(for: item.item)) ?? Data()
-                            return (index, converter.convert(data))
+                            return (index, converter.convert(data, documentPath: item.item.path, stylesheets: stylesheets))
                         }
                     }
                     var result = Array(repeating: Chapter(blocks: [], textLength: 0, anchorOffsets: [:]), count: spine.count)
