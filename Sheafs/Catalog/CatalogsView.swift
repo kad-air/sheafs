@@ -16,7 +16,7 @@ struct CatalogsView: View {
                     ContentUnavailableView {
                         Label("No Catalogs", systemImage: "square.grid.2x2")
                     } description: {
-                        Text("An OPDS catalog is an online library your reader can browse and download EPUBs from. Add the address of a self-hosted server or a public catalog to get started.")
+                        Text("An OPDS catalog is an online library your reader can browse and download EPUBs from. Add the address of a self-hosted server, or put back the free Standard Ebooks and Project Gutenberg catalogs.")
                     } actions: {
                         Button("Add Catalog", systemImage: "plus") { showAdd = true }
                             .buttonStyle(.borderedProminent)

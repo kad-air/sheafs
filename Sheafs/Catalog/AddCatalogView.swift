@@ -14,6 +14,7 @@ struct AddCatalogView: View {
     let catalog: Catalog?
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Query private var catalogs: [Catalog]
     @State private var name: String
     @State private var urlText: String
     @State private var username: String
@@ -39,6 +40,22 @@ struct AddCatalogView: View {
     var body: some View {
         NavigationStack {
             Form {
+                if !missingBuiltIns.isEmpty {
+                    Section {
+                        ForEach(missingBuiltIns) { builtIn in
+                            Button {
+                                choose(builtIn)
+                            } label: {
+                                LabeledContent(builtIn.name, value: builtIn.url.host() ?? "")
+                            }
+                            .tint(.primary)
+                        }
+                    } header: {
+                        Text("Free Catalogs")
+                    } footer: {
+                        Text("Public-domain books, ready to browse. Tap one to fill in its address.")
+                    }
+                }
                 Section {
                     TextField("Name", text: $name)
                     TextField("URL", text: $urlText, prompt: Text("https://books.example.com/opds"))
@@ -56,7 +73,8 @@ struct AddCatalogView: View {
                 } header: {
                     Text("Sign In (Optional)")
                 } footer: {
-                    Text("Only needed if the catalog asks for a username and password. The password is kept in the keychain.")
+                    Text(BuiltInCatalog.owning(url)?.signInNote
+                         ?? "Only needed if the catalog asks for a username and password. The password is kept in the keychain.")
                 }
                 Section {
                     Button {
@@ -105,7 +123,18 @@ struct AddCatalogView: View {
         }
     }
 
+    /// The built-in catalogs not in the list (deleted, or never added), offered when adding.
+    private var missingBuiltIns: [BuiltInCatalog] {
+        guard catalog == nil else { return [] }
+        return BuiltInCatalog.all.filter { builtIn in !catalogs.contains { builtIn.isSameFeed(as: $0.urlString) } }
+    }
+
     // MARK: Actions
+
+    private func choose(_ builtIn: BuiltInCatalog) {
+        name = builtIn.name
+        urlText = builtIn.urlString
+    }
 
     private func resetTest() {
         testTask?.cancel()

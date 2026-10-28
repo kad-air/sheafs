@@ -89,6 +89,8 @@ final class CatalogFeedModel {
     let rootURL: URL
 
     private(set) var phase: Phase = .idle
+    /// The feed failed with 401: the catalog wants a username and password (or other ones).
+    private(set) var needsSignIn = false
     /// The feed the screen was opened on.
     private(set) var browse: Listing?
     /// Results of the last successful search, shown in place of `browse`.
@@ -140,11 +142,13 @@ final class CatalogFeedModel {
             do {
                 let feed = try await client.feed(at: url)
                 browse = Listing(token: nextToken(), feed: feed, url: url)
+                needsSignIn = false
                 phase = .loaded
                 log.info("feed loaded: \(feed.entries.count) entries, \(feed.kind == .acquisition ? "acquisition" : "navigation"), next=\(feed.nextURL != nil), search=\(feed.searchLink != nil) in \(began.duration(to: .now).formatted())")
             } catch is CancellationError {
                 phase = .idle
             } catch {
+                if case .unauthorized = error as? OPDSError { needsSignIn = true } else { needsSignIn = false }
                 phase = .failed(error.catalogMessage)
                 log.error("feed failed after \(began.duration(to: .now).formatted()): \(String(describing: error))")
             }

@@ -29,6 +29,7 @@ struct SheafsApp: App {
                     else { Task { await library.importFromOutside(url) } }
                 }
                 .task {
+                    BuiltInCatalog.seed(into: library.context)
                     await library.importFromDocuments()
                     library.publishRecentBook()
                 }
