@@ -3,7 +3,8 @@ import SwiftData
 import SheafsKit
 import os
 
-/// Downloads one entry's EPUB and imports it into the library.
+/// Downloads one entry's EPUB and imports it into the library, or swaps it in for the copy
+/// already there when the catalog's file is newer (`LibraryStore.replaceFile`).
 @Observable
 final class EntryDownloadModel {
     enum State {
@@ -11,6 +12,8 @@ final class EntryDownloadModel {
         /// `nil` until the server states a length, so the bar stays indeterminate until then.
         case downloading(fraction: Double?)
         case imported(Book)
+        /// An update finished: the book now has the catalog's file (or already had it).
+        case updated(Book, LibraryStore.ReplaceOutcome)
     }
 
     private(set) var state: State = .idle
@@ -27,7 +30,10 @@ final class EntryDownloadModel {
         return false
     }
 
-    func start(link: OPDSLink, connection: CatalogConnection, library: LibraryStore) {
+    /// Downloads `link`, then imports it as a new book, or, with `replacing`, puts it in that
+    /// book's place (same book, same place, highlights and bookmarks).
+    func start(entry: OPDSEntry, link: OPDSLink, connection: CatalogConnection, library: LibraryStore,
+               replacing: Book? = nil) {
         guard !isDownloading else { return }
         state = .downloading(fraction: nil)
         let temporary = FileManager.default.temporaryDirectory.appending(path: "\(UUID().uuidString).epub")
@@ -44,17 +50,20 @@ final class EntryDownloadModel {
                 if let contentType, contentType.localizedCaseInsensitiveContains("html") {
                     throw OPDSError.notEPUB(contentType: contentType)
                 }
-                let book = try await library.importBook(from: temporary, sourceLink: link.href,
-                                                        catalogName: catalogName)
-                // The same bytes may already be in the library from elsewhere; remember where this
-                // link leads so the catalog can mark the book.
-                if book.sourceURL == nil {
-                    book.sourceURL = link.href.absoluteString
-                    book.catalogName = catalogName
-                    library.save()
+                if let replacing {
+                    let outcome = try await library.replaceFile(of: replacing, with: temporary)
+                    library.remember(entry, link: link.href, catalogName: catalogName, on: replacing)
+                    state = .updated(replacing, outcome)
+                    log.info("downloaded and updated (\(String(describing: outcome))) in \(began.duration(to: .now).formatted())")
+                } else {
+                    let book = try await library.importBook(from: temporary, sourceLink: link.href,
+                                                            catalogName: catalogName)
+                    // The same bytes may already be in the library from elsewhere; remember where
+                    // this entry leads so the catalog can mark the book and spot a newer file.
+                    library.remember(entry, link: link.href, catalogName: catalogName, on: book)
+                    state = .imported(book)
+                    log.info("downloaded and imported in \(began.duration(to: .now).formatted())")
                 }
-                state = .imported(book)
-                log.info("downloaded and imported in \(began.duration(to: .now).formatted())")
             } catch is CancellationError {
                 state = .idle
             } catch {
@@ -80,33 +89,43 @@ final class EntryDownloadModel {
     }
 }
 
-/// One book: cover, details, and Download / Read.
+/// One book: cover, details, and Download / Read, plus Update when the catalog's file is newer
+/// than the copy in the library.
 struct CatalogEntryView: View {
     let entry: OPDSEntry
     let connection: CatalogConnection
     @Environment(LibraryStore.self) private var library
     @Environment(AppNavigation.self) private var navigation
-    @Query private var existing: [Book]
+    @Query private var books: [Book]
     @State private var download = EntryDownloadModel()
 
     init(entry: OPDSEntry, connection: CatalogConnection) {
         self.entry = entry
         self.connection = connection
-        let href = entry.epubLink?.href.absoluteString ?? ""
-        _existing = Query(filter: #Predicate<Book> { $0.sourceURL == href })
     }
 
-    /// The imported book, else one already in the library from this same link.
+    /// The imported or updated book, else the one downloaded from this entry before (by entry id,
+    /// link, or the UUID in a renamed link: `CatalogShelf`).
     private var book: Book? {
-        if case .imported(let imported) = download.state, !imported.isDeleted, imported.modelContext != nil {
-            return imported
+        switch download.state {
+        case .imported(let done), .updated(let done, _):
+            if !done.isDeleted, done.modelContext != nil { return done }
+        default:
+            break
         }
-        return existing.first
+        return CatalogShelf(books) { $0.catalogCopy }.item(for: entry)?.item
     }
 
     private var justImported: Bool {
         if case .imported(let imported) = download.state { return imported === book }
         return false
+    }
+
+    /// The catalog's file is newer than the book's: a new cover, a corrected title, a revision.
+    private var updateAvailable: Bool {
+        guard let book, entry.epubLink != nil else { return false }
+        if case .updated = download.state { return false }
+        return entry.isNewer(than: book.catalogCopy)
     }
 
     var body: some View {
@@ -205,17 +224,27 @@ struct CatalogEntryView: View {
                 }
             }
         } else if let book {
-            Button {
-                navigation.open(book)
-            } label: {
-                Label(justImported ? "Read Now" : "In Library · Read", systemImage: "book")
-                    .frame(maxWidth: .infinity)
+            VStack(alignment: .leading, spacing: 12) {
+                Button {
+                    navigation.open(book)
+                } label: {
+                    Label(justImported ? "Read Now" : "In Library · Read", systemImage: "book")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                if updateAvailable, let link = entry.epubLink {
+                    update(book, link: link)
+                } else if case .updated(_, let outcome) = download.state {
+                    Label(outcome == .replaced ? "Updated to the catalog’s copy." : "Already up to date.",
+                          systemImage: "checkmark.circle")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
         } else if let link = entry.epubLink {
             Button {
-                download.start(link: link, connection: connection, library: library)
+                download.start(entry: entry, link: link, connection: connection, library: library)
             } label: {
                 Label("Download", systemImage: "arrow.down.circle")
                     .frame(maxWidth: .infinity)
@@ -224,6 +253,24 @@ struct CatalogEntryView: View {
             .controlSize(.large)
         } else {
             unavailable
+        }
+    }
+
+    /// The catalog changed this book's file since it was downloaded. Updating swaps the file in
+    /// place, so nothing the reader made of the book is lost.
+    private func update(_ book: Book, link: OPDSLink) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button {
+                download.start(entry: entry, link: link, connection: connection, library: library, replacing: book)
+            } label: {
+                Label("Update", systemImage: "arrow.triangle.2.circlepath")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+            Text("The catalog has a newer copy of this book. Updating keeps your place, highlights and bookmarks.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
         }
     }
 

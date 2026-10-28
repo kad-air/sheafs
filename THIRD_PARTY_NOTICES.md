@@ -11,5 +11,8 @@ testing and use a private, undocumented protocol (verified with Xcode 27.1 / iOS
 
 `Packages/SheafsKit/Tests/SheafsKitTests/Fixtures/alice-epub3.epub` and `pride-epub2.epub` are
 Project Gutenberg editions (#11 and #1342) of public-domain works, included unmodified as parser
-fixtures under the Project Gutenberg License that each file carries. `hub-fixture.epub` is a
+fixtures under the Project Gutenberg License that each file carries. `alice-epub3-edited.epub` is
+`alice-epub3.epub` with only its title and cover image changed (the cover is the one from
+`pride-epub2.epub`), the chapters and the license they carry untouched, as a catalog server's
+editor would change a file. `hub-fixture.epub` is a
 synthetic book with placeholder text; `opds-feed.xml` is a snapshot of a self-hosted catalog feed.

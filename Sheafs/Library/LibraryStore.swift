@@ -135,6 +135,97 @@ final class LibraryStore {
                       partialMD5: key, coverJPEG: cover)
     }
 
+    // MARK: Catalog copies
+
+    /// Records which catalog entry `book` came from (its id and `updated`, and the link), so the
+    /// catalog finds the book again after the server renames the file and can offer Update when
+    /// the server's file changes. Only fills in what a book downloaded from elsewhere lacks: a
+    /// book already tied to an entry keeps that entry.
+    func remember(_ entry: OPDSEntry, link: URL, catalogName: String?, on book: Book) {
+        let tiedElsewhere = book.sourceEntryID != nil && book.sourceEntryID != entry.id
+        if !tiedElsewhere, book.sourceURL == nil || entry.matches(book.catalogCopy) {
+            book.sourceURL = link.absoluteString
+            book.catalogName = catalogName ?? book.catalogName
+            book.sourceEntryID = entry.id
+            book.sourceUpdated = entry.updated
+        }
+        save()
+    }
+
+    nonisolated enum ReplaceError: LocalizedError {
+        /// The new file's bytes are another book's.
+        case alreadyInLibrary(title: String)
+
+        var errorDescription: String? {
+            switch self {
+            case .alreadyInLibrary(let title): "That file is already in your library as “\(title)”."
+            }
+        }
+    }
+
+    nonisolated enum ReplaceOutcome: Equatable, Sendable {
+        /// The bytes were the same as the copy's; only the record of the entry was refreshed.
+        case unchanged
+        /// The file, sync key, title, author and cover are the new file's.
+        case replaced
+    }
+
+    /// Swaps `book`'s file for the one at `url` (the catalog's newer copy) IN PLACE: same book,
+    /// same id, so the reading position (`spineIndex` + `textOffset` + `xpointer`), highlights,
+    /// notes and bookmarks all stay. The title, author, language, size, cover and the sync key
+    /// (partial MD5) become the new file's.
+    ///
+    /// 🔴 The sync key changes with the bytes. A server that knows the file was edited (one that
+    /// keeps the old key as an alias of the new) hands back the same position under either key;
+    /// any other just has nothing under the new key yet, and the next saved position is pushed
+    /// there. Positions are exact when the chapters are unchanged (a new cover or title); a
+    /// revised text may land a highlight near, not on, its words.
+    func replaceFile(of book: Book, with url: URL) async throws -> ReplaceOutcome {
+        let incoming = booksDirectory.appending(path: "\(book.id.uuidString).incoming.epub")
+        defer { try? FileManager.default.removeItem(at: incoming) }
+        let staged = try await Task.detached(priority: .userInitiated) {
+            try LibraryStore.stage(url, to: incoming)
+        }.value
+        if staged.partialMD5 == book.partialMD5 {
+            log.info("update: \(book.title, privacy: .public) is unchanged")
+            return .unchanged
+        }
+        let key: String? = staged.partialMD5
+        let ownID = book.id
+        let fetch = FetchDescriptor<Book>(predicate: #Predicate { $0.partialMD5 == key && $0.id != ownID })
+        if let other = try context.fetch(fetch).first {
+            throw ReplaceError.alreadyInLibrary(title: other.title)
+        }
+
+        let file = fileURL(for: book)
+        if FileManager.default.fileExists(atPath: file.path(percentEncoded: false)) {
+            _ = try FileManager.default.replaceItemAt(file, withItemAt: incoming)
+        } else {
+            try FileManager.default.moveItem(at: incoming, to: file)
+        }
+        let previousKey = book.partialMD5
+        book.partialMD5 = staged.partialMD5
+        book.title = staged.title
+        book.author = staged.author
+        book.language = staged.language
+        book.fileSize = staged.fileSize
+        let cover = coverURL(for: book)
+        if let jpeg = staged.coverJPEG {
+            try? jpeg.write(to: cover, options: .atomic)
+            book.hasCover = true
+        } else {
+            try? FileManager.default.removeItem(at: cover)
+            book.hasCover = false
+        }
+        CoverCache.shared.forget(cover)
+        try context.save()
+        // The widget may show this book: its cover and title changed even if its progress didn't.
+        hasPublished = false
+        publishRecentBook()
+        log.info("update: \(book.title, privacy: .public) key \(previousKey ?? "-", privacy: .public) → \(staged.partialMD5, privacy: .public)")
+        return .replaced
+    }
+
     /// Imports any EPUBs dropped into the app's Documents folder (Files app, Finder, iTunes file
     /// sharing), then removes the originals so they aren't imported twice.
     func importFromDocuments() async {

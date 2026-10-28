@@ -212,7 +212,11 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     gives whole words either side. `BookSearchTests` pins hits against per-chapter counts Python
     made from the raw XHTML and against non-BMP/combining/ß cases.
   - `OPDS/` — Atom OPDS 1.2 parser (+ OpenSearch), `OPDSClient` (pre-emptive Basic auth, streaming
-    download). `KOSync/` — the vanilla KOReader sync protocol; `PartialMD5` is the document key
+    download), `CatalogCopy` (what the library keeps of a downloaded entry: its Atom id, link and
+    `updated`; `OPDSEntry.matches` finds the book by id, else link, else a `urn:uuid:` that is a whole
+    segment of both paths, so a file the server renamed is still the same book; `isNewer(than:)` is
+    the entry's `updated` past the copy's, or past `addedAt` for books from before; `CatalogShelf`
+    indexes the library for a feed page; `CatalogCopyTests`). `KOSync/` — the vanilla KOReader sync protocol; `PartialMD5` is the document key
     (offsets 0, 1 KiB, 4 KiB … 1 GiB; 🔴 the i = −1 read is at offset 0, not 256, matching KOReader's
     32-bit shift — pinned against an independent Python digest, `2d54ce2c…` for hub-fixture.epub).
 - `docs/` — the marketing site, plain HTML + one stylesheet, no JavaScript, no build step. GitHub
@@ -241,7 +245,11 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     `PaginatedChapter.bookmarks(_:onPage:)` puts one on whichever page's range holds it, so it
     survives text-size changes, `BookmarkTests`), `LibraryStore` (files in Application
     Support/Books/<uuid>.epub, covers in Covers/<uuid>.jpg, import = copy + parse + partial MD5 +
-    thumbnail, dedupe by partial MD5; `annotations(for:)`/`bookmarks(for:)`/`add`/`delete`), `LibraryView` (cover grid;
+    thumbnail, dedupe by partial MD5; `replaceFile(of:with:)` swaps a book's file IN PLACE (same
+    id, so position, highlights and bookmarks stay; title, author, cover and partial MD5 become the
+    new file's; refuses another book's bytes; `CatalogUpdateTests` with `alice-epub3-edited.epub`, a
+    new cover and title made by a server-side editor, chapters byte-identical); `remember(_:link:…)`
+    ties a book to its catalog entry; `annotations(for:)`/`bookmarks(for:)`/`add`/`delete`), `LibraryView` (cover grid;
     even column count when a fold is present, per the Duo HIG).
   - `Reader/` — `BookSession` (loads the EPUB and converts every chapter in a detached task; caches
     typeset+paginated chapters per style/page size; position ↔ progress ↔ xpointer ↔ TOC/href),
@@ -381,7 +389,13 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     pins the physics against numerical integration, and `PageFlipShadowTests` renders the real
     shader offscreen (leaf red, page beneath blue, so blue reads the shade) and pins the shadow.
   - `Catalog/` — OPDS browser (catalog list, add/edit, feed browser with pagination/search,
-    entry detail + download → `LibraryStore.importBook`).
+    entry detail + download → `LibraryStore.importBook`). When the entry's `updated` is newer than
+    the book's `sourceUpdated` the grid badge reads Update and the entry offers Update →
+    `LibraryStore.replaceFile`. 🔴 The partial MD5 changes with the file, so the kosync key does: a
+    server that keeps the old key as an alias of the new returns the same position under either;
+    any other starts the new key empty and gets the next saved position. `Book.sourceEntryID` /
+    `sourceUpdated` are optional (a lightweight SwiftData migration); books from before have neither
+    and are matched by link or UUID, measured from `addedAt`.
   - `Settings/` — `SettingsView` is a short grouped list (Reading → `AppearanceView(embedded: true)`,
     Library → storage stats, Sync & Accounts → the kosync account, About), each row pushing its
     own screen (`LibrarySettingsView`, `SyncSettingsView`, `AboutSettingsView`). `Sync/SyncService` — kosync

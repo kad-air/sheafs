@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import SheafsKit
 
 /// A book in the library. The EPUB file itself lives at `LibraryStore.fileURL(for:)`.
 @Model
@@ -32,6 +33,13 @@ final class Book {
     /// Where it came from, when downloaded from a catalog.
     var sourceURL: String?
     var catalogName: String?
+    /// The catalog entry's Atom `id`, so the book is found again after the server renames its file
+    /// (`CatalogCopy`). Nil for books from elsewhere or downloaded before Sheafs kept it.
+    var sourceEntryID: String?
+    /// The entry's `updated` when the file was downloaded or last updated from it: a later one in
+    /// the catalog means the server's file changed (a new cover, a fixed title), and the catalog
+    /// offers Update.
+    var sourceUpdated: Date?
 
     init(id: UUID = UUID(), title: String, author: String?, language: String?, fileSize: Int,
          partialMD5: String?, hasCover: Bool, sourceURL: String? = nil, catalogName: String? = nil) {
@@ -52,6 +60,11 @@ final class Book {
 
     var isFinished: Bool { finishedAt != nil }
     var percentLabel: String { progress.formatted(.percent.precision(.fractionLength(0))) }
+
+    /// What the catalog code needs to match this book to an entry (`OPDSEntry.matches`).
+    var catalogCopy: CatalogCopy {
+        CatalogCopy(entryID: sourceEntryID, sourceURL: sourceURL, updated: sourceUpdated, addedAt: addedAt)
+    }
 }
 
 /// A saved OPDS catalog. The password, if any, is in the keychain under `Keychain.catalogPassword(id)`.
