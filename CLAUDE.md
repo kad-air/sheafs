@@ -396,6 +396,14 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     any other starts the new key empty and gets the next saved position. `Book.sourceEntryID` /
     `sourceUpdated` are optional (a lightweight SwiftData migration); books from before have neither
     and are matched by link or UUID, measured from `addedAt`.
+    `BuiltInCatalog` (Standard Ebooks, Project Gutenberg): `seed(into:)` at launch adds each one
+    ONCE, keyed by id in `UserDefaults` (`SheafsSeededCatalogs`), after the user's own and never
+    beside a feed they already have (`isSameFeed`: host case and trailing slash ignored); a deleted
+    one stays deleted and comes back only from Add Catalog's Free Catalogs section. Once added it is
+    an ordinary `Catalog`. Standard Ebooks' OPDS feed is for Patrons Circle members (Basic auth,
+    their email as the username, password unchecked): on a 401 the browser shows `signInNote`.
+    Gutenberg's documented OPDS start is `search.opds/` (its XML OPDS is due to be replaced by
+    OPDS 2 JSON in 2027). `BuiltInCatalogTests`.
   - `Settings/` — `SettingsView` is a short grouped list (Reading → `AppearanceView(embedded: true)`,
     Library → storage stats, Sync & Accounts → the kosync account, About), each row pushing its
     own screen (`LibrarySettingsView`, `SyncSettingsView`, `AboutSettingsView`). `Sync/SyncService` — kosync

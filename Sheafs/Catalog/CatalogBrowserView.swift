@@ -17,6 +17,12 @@ struct CatalogBrowserView: View {
         self.model = CatalogFeedModel(url: url, connection: connection)
     }
 
+    /// How to sign in to a built-in catalog that answered 401 (Standard Ebooks, for non-members).
+    private var signInNote: String? {
+        guard case .failed = model.phase, model.needsSignIn else { return nil }
+        return BuiltInCatalog.owning(model.rootURL)?.signInNote
+    }
+
     private var navigationTitle: String {
         guard let feedTitle = model.browse?.feed.title, !feedTitle.isEmpty else { return title }
         return feedTitle
@@ -70,7 +76,11 @@ struct CatalogBrowserView: View {
             ContentUnavailableView {
                 Label("Can’t Load Catalog", systemImage: "exclamationmark.triangle")
             } description: {
-                Text(message)
+                if let note = signInNote {
+                    Text("\(message)\n\n\(note) Swipe the catalog’s row to Edit to sign in.")
+                } else {
+                    Text(message)
+                }
             } actions: {
                 Button("Try Again", systemImage: "arrow.clockwise") { model.retry() }
                     .buttonStyle(.borderedProminent)
