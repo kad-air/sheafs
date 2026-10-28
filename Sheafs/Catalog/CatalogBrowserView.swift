@@ -64,7 +64,7 @@ struct CatalogBrowserView: View {
                 empty
             } else {
                 CatalogListingView(listing: listing, model: model, connection: connection,
-                                   libraryURLs: Set(books.compactMap(\.sourceURL)))
+                                   shelf: CatalogShelf(books.map(\.catalogCopy)) { $0 })
             }
         } else if case .failed(let message) = model.phase {
             ContentUnavailableView {
@@ -119,7 +119,7 @@ private struct CatalogListingView: View {
     let listing: CatalogFeedModel.Listing
     let model: CatalogFeedModel
     let connection: CatalogConnection
-    let libraryURLs: Set<String>
+    let shelf: CatalogShelf<CatalogCopy>
 
     var body: some View {
         if listing.books.isEmpty {
@@ -161,7 +161,7 @@ private struct CatalogListingView: View {
                                 CatalogEntryView(entry: item.entry, connection: connection)
                             } label: {
                                 CatalogEntryCell(entry: item.entry, connection: connection,
-                                                 inLibrary: isInLibrary(item.entry))
+                                                 copy: libraryCopy(of: item.entry))
                             }
                             .buttonStyle(.plain)
                         }
@@ -180,9 +180,9 @@ private struct CatalogListingView: View {
         }
     }
 
-    private func isInLibrary(_ entry: OPDSEntry) -> Bool {
-        guard let href = entry.epubLink?.href.absoluteString else { return false }
-        return libraryURLs.contains(href)
+    private func libraryCopy(of entry: OPDSEntry) -> CopyState {
+        guard let copy = shelf.item(for: entry)?.copy else { return .notInLibrary }
+        return entry.isNewer(than: copy) ? .updateAvailable : .inLibrary
     }
 }
 
@@ -265,18 +265,28 @@ private struct CatalogRowLabel: View {
     }
 }
 
-/// A book in the grid: cover, title, author, and an "In Library" badge when it was downloaded.
+/// Whether a catalog book is in the library, and whether the catalog's file is newer.
+private enum CopyState {
+    case notInLibrary, inLibrary, updateAvailable
+}
+
+/// A book in the grid: cover, title, author, and an "In Library" badge when it was downloaded
+/// ("Update" when the catalog's file has changed since).
 private struct CatalogEntryCell: View {
     let entry: OPDSEntry
     let connection: CatalogConnection
-    let inLibrary: Bool
+    let copy: CopyState
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             CatalogCoverView(title: entry.title, author: entry.authors.first,
                              url: entry.thumbnailURL, connection: connection)
                 .overlay(alignment: .bottomLeading) {
-                    if inLibrary { InLibraryBadge().padding(6) }
+                    switch copy {
+                    case .notInLibrary: EmptyView()
+                    case .inLibrary: InLibraryBadge().padding(6)
+                    case .updateAvailable: InLibraryBadge(updateAvailable: true).padding(6)
+                    }
                 }
             VStack(alignment: .leading, spacing: 2) {
                 Text(entry.title)
@@ -293,6 +303,6 @@ private struct CatalogEntryCell: View {
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(entry.title), \(entry.authors.joined(separator: ", "))\(inLibrary ? ", in library" : "")")
+        .accessibilityLabel("\(entry.title), \(entry.authors.joined(separator: ", "))\(copy == .notInLibrary ? "" : copy == .inLibrary ? ", in library" : ", in library, update available")")
     }
 }

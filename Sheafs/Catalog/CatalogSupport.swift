@@ -98,8 +98,12 @@ struct CatalogCoverView: View {
 
 /// "In Library" marker laid over a cover.
 struct InLibraryBadge: View {
+    /// The catalog's file is newer than the library's copy (`OPDSEntry.isNewer(than:)`).
+    var updateAvailable = false
+
     var body: some View {
-        Label("In Library", systemImage: "checkmark")
+        Label(updateAvailable ? "Update" : "In Library",
+              systemImage: updateAvailable ? "arrow.triangle.2.circlepath" : "checkmark")
             .font(.caption2.weight(.semibold))
             .padding(.horizontal, 8)
             .padding(.vertical, 4)

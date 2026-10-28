@@ -20,7 +20,9 @@ struct BookCoverView: View {
         .aspectRatio(2 / 3, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         .shadow(color: .black.opacity(0.18), radius: 6, y: 3)
-        .task(id: url) {
+        // The file name is the book's id, so an updated cover (LibraryStore.replaceFile) is told
+        // apart by the sync key, which changes with the file.
+        .task(id: [url?.absoluteString, book.partialMD5]) {
             guard let url else { image = nil; return }
             image = await CoverCache.shared.image(at: url)
         }
@@ -64,5 +66,10 @@ final class CoverCache: Sendable {
         }.value
         if let loaded { cache.setObject(loaded, forKey: url as NSURL) }
         return loaded
+    }
+
+    /// Drops a cover that was rewritten in place, so the next request reads the new file.
+    func forget(_ url: URL) {
+        cache.removeObject(forKey: url as NSURL)
     }
 }

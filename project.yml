@@ -130,6 +130,8 @@ targets:
       - path: SheafsTests
       - path: Packages/SheafsKit/Tests/SheafsKitTests/Fixtures/alice-epub3.epub
         buildPhase: resources
+      - path: Packages/SheafsKit/Tests/SheafsKitTests/Fixtures/alice-epub3-edited.epub
+        buildPhase: resources
     dependencies:
       - target: Sheafs
     settings:
