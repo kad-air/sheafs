@@ -1,6 +1,7 @@
 import Foundation
 import PencilKit
 import SwiftData
+import Synchronization
 
 /// A marking drawn on the page with Apple Pencil (or a finger): PencilKit strokes, each control
 /// point anchored to a character of the chapter (`SketchAnchors`) so the marking follows its text
@@ -112,7 +113,7 @@ nonisolated struct StrokeAnchors: Codable, Equatable, Sendable {
 
 /// What a page needs to draw a sketch: a value, so the pager can tell "nothing changed" (by id and
 /// version; the strokes are decoded once per version).
-struct SketchMark: Hashable, @unchecked Sendable {
+nonisolated struct SketchMark: Hashable, @unchecked Sendable {
     var id: UUID
     var spineIndex: Int
     var version: Date
@@ -132,17 +133,19 @@ struct SketchMark: Hashable, @unchecked Sendable {
         return low ... high
     }
 
-    private static var cache: [UUID: SketchMark] = [:]
+    /// Decoded marks by id (a model's `mark` may be read off the main actor: SwiftData's models are
+    /// not isolated to it).
+    private static let cache = Mutex<[UUID: SketchMark]>([:])
 
     static func decoded(id: UUID, spineIndex: Int, version: Date, drawing: Data, anchors: Data) -> SketchMark? {
-        if let hit = cache[id], hit.version == version, hit.spineIndex == spineIndex { return hit }
+        if let hit = cache.withLock({ $0[id] }), hit.version == version, hit.spineIndex == spineIndex { return hit }
         guard let strokes = try? PKDrawing(data: drawing), let anchors = SketchAnchors.decode(anchors),
               anchors.strokes.count == strokes.strokes.count else { return nil }
         let mark = SketchMark(id: id, spineIndex: spineIndex, version: version, drawing: strokes, anchors: anchors)
-        cache[id] = mark
+        cache.withLock { $0[id] = mark }
         return mark
     }
 
     /// Seeds the cache with a mark the pager made itself, so the model's copy decodes to it.
-    static func remember(_ mark: SketchMark) { cache[mark.id] = mark }
+    static func remember(_ mark: SketchMark) { cache.withLock { $0[mark.id] = mark } }
 }

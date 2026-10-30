@@ -231,7 +231,7 @@ final class MarkupSession: NSObject, PKCanvasViewDelegate {
     private func save(_ mark: SketchMark, covers: [NSRange], thumbnail: Data?, isNew: Bool) -> SketchSave {
         let spine = mark.spineIndex
         let length = spine < session.chapters.count ? session.chapters[spine].textLength : 0
-        var range = covers.reduce(nil as NSRange?) { $0.map { NSUnionRange($0, $1) } ?? $1 }
+        var range = covers.reduce(nil as NSRange?) { union, range in union.map { NSUnionRange($0, range) } ?? range }
             ?? mark.anchoredRange.map { NSRange(location: $0.lowerBound, length: $0.count) }
             ?? NSRange(location: 0, length: 0)
         range.location = max(0, min(range.location, length))
