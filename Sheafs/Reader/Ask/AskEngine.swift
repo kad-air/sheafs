@@ -169,10 +169,12 @@ enum AskEngine {
         case other(String)
     }
 
+    /// iOS 27 throws `LanguageModelError` (the 26 `LanguageModelSession.GenerationError` is
+    /// deprecated there, and never thrown by the 27 framework).
     static func classify(_ error: Error) -> Failure {
-        if let error = error as? LanguageModelSession.GenerationError {
+        if let error = error as? LanguageModelError {
             switch error {
-            case .exceededContextWindowSize: return .contextTooLong
+            case .contextSizeExceeded: return .contextTooLong
             case .guardrailViolation, .refusal: return .declined
             default: return .other(error.localizedDescription)
             }
