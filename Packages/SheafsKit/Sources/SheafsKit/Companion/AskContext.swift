@@ -29,6 +29,46 @@ public struct AskContext: Sendable {
     public var recaps: [ChapterRecap]
     /// The excerpts and summaries in reading order, grouped by chapter.
     public var text: String
+
+    /// The excerpts `answer` draws on, best first, at most `count`: the passages the reader would
+    /// look at to check it. Each excerpt (found or recent) scores the answer's words it shares,
+    /// a word weighted by how few excerpts have it, and the question's own words at a quarter
+    /// (every matched passage has those, so they say little about what the answer used). An
+    /// excerpt needs two shared words that aren't the question's, and a third of the best score.
+    /// An answer that shares nothing ("I can't tell from what you've read") cites nothing.
+    public func citations(for answer: String, question: String, count: Int = 8) -> [Excerpt] {
+        let answerWords = Set(PassageIndex.words(answer))
+        let asked = Set(PassageIndex.words(question))
+        guard !answerWords.isEmpty, !excerpts.isEmpty else { return [] }
+        let excerptWords = excerpts.map { Set(PassageIndex.words($0.passage.text)) }
+        var holding: [String: Int] = [:]
+        for words in excerptWords {
+            for word in words where answerWords.contains(word) { holding[word, default: 0] += 1 }
+        }
+        let total = Double(excerpts.count)
+        var scored: [(index: Int, score: Double)] = []
+        for (i, words) in excerptWords.enumerated() {
+            let shared = words.intersection(answerWords)
+            guard shared.subtracting(asked).count >= 2 else { continue }
+            let score = shared.reduce(0.0) { sum, word in
+                let weight = log(1 + total / Double(holding[word] ?? 1))
+                return sum + (asked.contains(word) ? weight / 4 : weight)
+            }
+            scored.append((i, score))
+        }
+        guard let best = scored.map(\.score).max() else { return [] }
+        // Pieces of one long paragraph share its range (a jump lands on the paragraph): cite it once.
+        var seen = Set<Passage>()
+        var result: [Excerpt] = []
+        for entry in scored.filter({ $0.score >= best / 3 }).sorted(by: { $0.score > $1.score || ($0.score == $1.score && $0.index < $1.index) }) {
+            let passage = excerpts[entry.index].passage
+            let place = Passage(spineIndex: passage.spineIndex, range: passage.range, text: "")
+            guard seen.insert(place).inserted else { continue }
+            result.append(excerpts[entry.index])
+            if result.count == count { break }
+        }
+        return result
+    }
 }
 
 public enum AskContextBuilder {

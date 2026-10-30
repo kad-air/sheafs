@@ -166,6 +166,12 @@ final class AskModel {
         let earlierLength = earlier.map { $0.question.count + min(400, $0.answer.count) } ?? 0
         var budget = AskEngine.contextBudget(question: question, earlier: earlierLength)
 
+        func source(for excerpt: AskContext.Excerpt) -> Source {
+            Source(location: ReadingLocation(spineIndex: excerpt.passage.spineIndex, textOffset: excerpt.passage.range.lowerBound),
+                   chapter: labels[excerpt.passage.spineIndex] ?? "",
+                   snippet: String(excerpt.passage.text.prefix(160)))
+        }
+
         for attempt in 0 ..< 2 {
             let context = AskContextBuilder.build(index: index, terms: terms, recaps: summaries, limit: limit,
                                                   budget: budget, chapterLabel: { labels[$0] ?? "Chapter \($0 + 1)" })
@@ -173,11 +179,7 @@ final class AskModel {
                 $0.state = .answering
                 $0.answer = ""
                 $0.summaryCount = context.recaps.count
-                $0.sources = context.excerpts.filter { $0.kind == .found }.prefix(8).map { excerpt in
-                    Source(location: ReadingLocation(spineIndex: excerpt.passage.spineIndex, textOffset: excerpt.passage.range.lowerBound),
-                           chapter: labels[excerpt.passage.spineIndex] ?? "",
-                           snippet: String(excerpt.passage.text.prefix(160)))
-                }
+                $0.sources = context.excerpts.filter { $0.kind == .found }.prefix(8).map(source(for:))
             }
             if context.excerpts.isEmpty && context.recaps.isEmpty {
                 return update(id) { $0.state = .failed("There’s nothing read yet to answer from.") }
@@ -189,7 +191,13 @@ final class AskModel {
                     update(id) { $0.answer = partial }
                 }
                 if Task.isCancelled { return update(id) { $0.state = .failed("Stopped.") } }
-                update(id) { $0.state = .done }
+                update(id) { exchange in
+                    exchange.state = .done
+                    // Cite what the answer drew on (recent passages included), not every match; an
+                    // answer that shares nothing with them keeps the matches it was looked up in.
+                    let cited = context.citations(for: exchange.answer, question: question)
+                    if !cited.isEmpty { exchange.sources = cited.map(source(for:)) }
+                }
                 return saveHistory()
             } catch {
                 switch AskEngine.classify(error) {

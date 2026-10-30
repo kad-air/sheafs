@@ -410,7 +410,8 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     `.permissiveContentTransformations` (book text is violent). `AskPanel` floats over the bottom of
     the page like the quick appearance panel (left page over a vertical fold; a centre tap or ✕
     closes it; edge taps and the volume buttons still turn pages, and turning on moves the limit
-    on, never back: `AskModel.extendLimit`). It shows one answer with the passages it came from;
+    on, never back: `AskModel.extendLimit`). It shows one answer with the passages it came from (`AskContext.citations`: the context's
+    excerpts, recent ones included, scored by the answer's words they share);
     tapping one jumps there with the panel up, and the panel carries "Back to page N" (it can
     cover the folio's). Finished answers and their passages are saved per book as JSON in
     Application Support/Ask (`AskHistoryStore`, newest 200, deleted with the book; the panel's
