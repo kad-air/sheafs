@@ -138,6 +138,26 @@ struct CompanionTests {
         #expect(context.text.hasPrefix("## Chapter 1"))
     }
 
+    @Test("citations are the passages the answer draws on, recent ones included, best first")
+    func citations() throws {
+        let limit = ReadingLimit(spineIndex: 2, textOffset: 0)
+        let index = PassageIndex(passages: ReadSoFar.passages(chapters: Self.book, limit: limit, targetLength: 40))
+        let context = AskContextBuilder.build(index: index, terms: ["Strider"], recaps: [], limit: limit,
+                                              budget: 4000, chapterLabel: { "Chapter \($0 + 1)" })
+        // About who Strider is: the inn passage that names him, not the one where Frodo watches.
+        let who = context.citations(for: "Strider is a weather-beaten man the innkeeper says the Rangers know by that name.",
+                                    question: "Who is Strider?")
+        let first = try #require(who.first)
+        #expect(first.passage.text.contains("innkeeper"))
+        // About the last chapter: the recent passages, which no search word matched.
+        let last = context.citations(for: "They rode south under a dark sky and saw Minas Tirith, white and silent beyond the river.",
+                                     question: "What happened in the last chapter?")
+        #expect(last.contains { $0.kind == .recent && $0.passage.text.contains("white and silent") })
+        #expect(!last.contains { $0.passage.text.contains("innkeeper") })
+        // An answer that draws on nothing cites nothing.
+        #expect(context.citations(for: "I can’t tell from what you’ve read so far.", question: "Who is Sauron?").isEmpty)
+    }
+
     @Test("recap parts cover the chapter within the size limit")
     func recapParts() {
         let paragraphs = (1 ... 40).map { "Paragraph \($0) tells of the long road and the people met upon it." }
