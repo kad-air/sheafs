@@ -109,6 +109,10 @@ final class ReaderSettings {
     /// Volume down turns to the next page, up to the previous (`VolumeButtonPager`). Off by default:
     /// it takes the buttons away from the volume while a book is open.
     var volumeButtonsTurn: Bool { didSet { save() } }
+    /// The reader's Ask button: questions answered by the on-device model from the text read so
+    /// far (`AskModel`). Off by default: it needs Apple Intelligence and summarises chapters in
+    /// the background while a book is open.
+    var askEnabled: Bool { didSet { save() } }
 
     private static let key = "reader.settings.v1"
 
@@ -129,6 +133,7 @@ final class ReaderSettings {
         var volumeButtonsTurn: Bool?
         var lightTheme: ReaderTheme?
         var darkTheme: ReaderTheme?
+        var askEnabled: Bool?
     }
 
     init() {
@@ -149,6 +154,7 @@ final class ReaderSettings {
         highlightColor = stored.highlightColor ?? .yellow
         pageTurn = stored.pageTurn ?? .flip
         volumeButtonsTurn = stored.volumeButtonsTurn ?? false
+        askEnabled = stored.askEnabled ?? false
         print("[theme] settings loaded: theme \(theme), Automatic = \(lightTheme) in Light, \(darkTheme) in Dark")
     }
 
@@ -157,7 +163,7 @@ final class ReaderSettings {
                             justified: justified, hyphenate: hyphenate, paragraphStyle: paragraphStyle,
                             keepScreenAwake: keepScreenAwake, tapToTurn: tapToTurn, highlightColor: highlightColor,
                             pageTurn: pageTurn, volumeButtonsTurn: volumeButtonsTurn,
-                            lightTheme: lightTheme, darkTheme: darkTheme)
+                            lightTheme: lightTheme, darkTheme: darkTheme, askEnabled: askEnabled)
         if let data = try? JSONEncoder().encode(stored) {
             UserDefaults.standard.set(data, forKey: Self.key)
         }

@@ -71,6 +71,10 @@ struct ReaderView: View {
     @State private var isScrubbing = false
     @State private var trail = ReturnTrail()
     @State private var showSearch = false
+    @State private var showAsk = false
+    /// Ask about the book (`AskModel`), made when the book is ready and Ask is on; kept for the
+    /// reader's life so the conversation survives the sheet closing.
+    @State private var ask: AskModel?
     /// Find-in-book, made the first time the search opens; kept so reopening shows the last results.
     @State private var search: BookSearchModel?
     /// The contents sheet's Search button: the search opens once that sheet is gone.
@@ -172,6 +176,7 @@ struct ReaderView: View {
                 }
             }
         }
+        .sheet(isPresented: $showAsk) { askSheet }
         .sheet(item: $editingAnnotation) { annotation in
             if let session {
                 AnnotationEditorView(annotation: annotation, session: session) { location in
@@ -210,7 +215,11 @@ struct ReaderView: View {
         .onChange(of: volumeButtonsArmed, initial: true) { _, armed in
             armVolumeButtons(armed)
         }
+        .onChange(of: askRunning, initial: true) { _, running in
+            runAsk(running)
+        }
         .onDisappear {
+            ask?.recaps.stop()
             volumeButtons.stop()
             UIApplication.shared.isIdleTimerDisabled = false
             flush()
@@ -368,6 +377,12 @@ struct ReaderView: View {
         ToolbarItem(placement: .primaryAction) {
             Button("Search", systemImage: "magnifyingglass") { openSearch() }
         }
+        if settings.askEnabled {
+            ToolbarItem(placement: .primaryAction) {
+                Button("Ask About the Book", systemImage: "bubble.left.and.text.bubble.right") { openAsk() }
+                    .disabled(session?.isReady != true)
+            }
+        }
         ToolbarItem(placement: .primaryAction) {
             Button("Appearance", systemImage: "textformat.size") { openQuickAppearance() }
         }
@@ -454,7 +469,7 @@ struct ReaderView: View {
     /// the foreground stops them, so Control Center's volume works and they re-arm on return.
     private var volumeButtonsArmed: Bool {
         (settings.volumeButtonsTurn || volumeProbeRequested) && scenePhase == .active && session?.isReady == true && regions != nil
-            && !showContents && !showAppearance && !showSearch && footnote == nil && editingAnnotation == nil && !pagerSheet
+            && !showContents && !showAppearance && !showSearch && !showAsk && footnote == nil && editingAnnotation == nil && !pagerSheet
             && viewedImage == nil
     }
 
@@ -466,7 +481,7 @@ struct ReaderView: View {
     private func armVolumeButtons(_ armed: Bool) {
         VolumeLog.shared.note("armed=\(armed): setting=\(settings.volumeButtonsTurn) scene=\(scenePhase) "
             + "ready=\(session?.isReady == true) regions=\(regions != nil) contents=\(showContents) "
-            + "appearance=\(showAppearance) search=\(showSearch) footnote=\(footnote != nil) note=\(editingAnnotation != nil) "
+            + "appearance=\(showAppearance) search=\(showSearch) ask=\(showAsk) footnote=\(footnote != nil) note=\(editingAnnotation != nil) "
             + "systemSheet=\(pagerSheet) image=\(viewedImage != nil)")
         guard armed else {
             volumeButtons.stop()
@@ -703,6 +718,57 @@ struct ReaderView: View {
         }
     }
 
+    // MARK: Ask
+
+    /// Ask runs (summarising finished chapters in the background) while it is on, the book is
+    /// ready and the app is in front.
+    private var askRunning: Bool {
+        settings.askEnabled && scenePhase == .active && session?.isReady == true
+    }
+
+    private func runAsk(_ running: Bool) {
+        guard running, let session else {
+            ask?.recaps.stop()
+            return
+        }
+        if ask == nil { ask = AskModel(session: session, bookID: book.id) }
+        ask?.readerMoved(to: session.location.spineIndex)
+    }
+
+    @ViewBuilder
+    private var askSheet: some View {
+        if let ask {
+            AskView(model: ask) { location in
+                showAsk = false
+                guard let session else { return }
+                jump(to: session.pageStart(showing: location.textOffset, inSpine: location.spineIndex))
+            }
+            .presentationDetents([.medium, .large])
+        }
+    }
+
+    private func openAsk() {
+        guard let session, session.isReady else { return }
+        if ask == nil { ask = AskModel(session: session, bookID: book.id) }
+        ask?.limit = readingLimit(session)
+        withAnimation(.snappy) {
+            chromeVisible = false
+            showQuickAppearance = false
+        }
+        showAsk = true
+    }
+
+    /// 🔴 The end of what the reader can see: the end of the page holding the position (the right
+    /// page of a spread), else the position itself. Ask never reads past it.
+    private func readingLimit(_ session: BookSession) -> ReadingLimit {
+        let location = session.location
+        if let chapter = session.laidOutChapter(location.spineIndex) {
+            let page = chapter.range(ofPage: chapter.pageIndex(containing: location.textOffset))
+            return ReadingLimit(spineIndex: location.spineIndex, textOffset: page.location + page.length)
+        }
+        return ReadingLimit(spineIndex: location.spineIndex, textOffset: location.textOffset)
+    }
+
     private func openSearch() {
         guard let session, session.isReady else { return }
         if search == nil { search = BookSearchModel(session: session) }
@@ -756,6 +822,7 @@ struct ReaderView: View {
         library.save()
         library.publishRecentBook()
         schedulePush()
+        ask?.readerMoved(to: location.spineIndex)
     }
 
     private func schedulePush() {
@@ -799,6 +866,7 @@ struct ReaderView: View {
         goToFromLaunchArgument(session: fresh)
         openAppearanceFromLaunchArgument()
         searchFromLaunchArgument()
+        askFromLaunchArgument()
         bookmarkFromLaunchArgument(session: fresh)
         openImageFromLaunchArgument(session: fresh)
         if let remote = await sync.pull(for: book) {
@@ -973,6 +1041,35 @@ struct ReaderView: View {
     }
 
     private static var searchArgumentConsumed = false
+
+    /// `-SheafsAsk <question>` opens Ask once the book is ready and asks it (whatever the setting
+    /// says), printing the availability, the answer and its sources as `[ask]` lines, so a
+    /// simulator or device run can be checked without typing.
+    private func askFromLaunchArgument() {
+        guard !Self.askArgumentConsumed else { return }
+        Self.askArgumentConsumed = true
+        guard let question = UserDefaults.standard.string(forKey: "SheafsAsk"), !question.isEmpty else { return }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2))
+            openAsk()
+            guard let ask else { return }
+            print("[ask] availability: \(ask.availability) limit: \(ask.limit.spineIndex):\(ask.limit.textOffset)")
+            ask.ask(question)
+            var waited = 0
+            while ask.isBusy, waited < 1200 {
+                try? await Task.sleep(for: .milliseconds(100))
+                waited += 1
+            }
+            guard let last = ask.exchanges.last else { return print("[ask] no exchange") }
+            print("[ask] state: \(last.state)")
+            print("[ask] answer: \(last.answer)")
+            for source in last.sources {
+                print("[ask] source \(source.location.spineIndex):\(source.location.textOffset) \(source.chapter): \(source.snippet.prefix(80))")
+            }
+        }
+    }
+
+    private static var askArgumentConsumed = false
 
     /// `-SheafsOpenImage <n>` moves to the book's nth picture (1-based, reading order) and, once its
     /// page is up, first SINGLE-taps its middle through `PagerController.tap(at:)` (the single-tap

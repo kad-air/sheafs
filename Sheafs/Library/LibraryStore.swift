@@ -250,6 +250,7 @@ final class LibraryStore {
         for annotation in annotations(for: book) { context.delete(annotation) }
         for bookmark in bookmarks(for: book) { context.delete(bookmark) }
         for sketch in sketches(for: book) { context.delete(sketch) }
+        RecapStore.delete(bookID: book.id)
         context.delete(book)
         try? context.save()
         publishRecentBook()
