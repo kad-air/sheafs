@@ -23,6 +23,17 @@ struct SettingsView: View {
                     Text("Theme, font, text size, spacing and page-turn options for the reader.")
                 }
 
+                Section {
+                    NavigationLink {
+                        AskSettingsView()
+                    } label: {
+                        row("Ask About the Book", systemImage: "bubble.left.and.text.bubble.right",
+                            value: settings.askEnabled ? "On" : "Off")
+                    }
+                } footer: {
+                    Text("Spoiler-free answers about plot and characters from Apple’s on-device model.")
+                }
+
                 Section("Library") {
                     NavigationLink {
                         LibrarySettingsView()

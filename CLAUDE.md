@@ -203,6 +203,16 @@ regions (see Duo behaviour below), so check layout changes on the phone.
   - `Text/XPointer` — `/body/DocFragment[N]/body/…/p[K]/text()[k].off` parse/serialize (N 1-based
     over the FULL spine). We always serialize with indices (CrossPoint style); parsing tolerates
     missing `[1]`.
+  - `Companion/` — the reading companion's lookup (Ask, below), no model in it: `ReadSoFar` is 🔴 the
+    spoiler wall: the text before a `ReadingLimit` cut into `Passage`s (paragraphs gathered to ~700
+    UTF-16 units, headings start one, long paragraphs split at sentences, a block over the limit cut
+    to the last whole word before it); `PassageIndex` (BM25 over folded words, plus proper names
+    found mid-sentence, one- and two-word; `presentTerms` keeps only search words the read text has;
+    first/last mentions); `AskContextBuilder` fills a character budget (a fifth for the passages just
+    before the limit, then each term's first and last mention and the best matches, then chapter
+    summaries latest first, then more matches) and ignores summaries at or past the limit's chapter;
+    `RecapPlan` cuts a chapter into parts for summarising and keys a summary to the chapter's text.
+    `CompanionTests`.
   - `Text/BookSearch` — find-in-book. `BookSearchIndex(chapters:)` folds each chapter's text ONCE
     (case, diacritics, width, NFKC, curly → straight quotes, whitespace runs → one space, soft
     hyphens and other default-ignorables dropped; one character at a time, the query the same way)
@@ -384,6 +394,22 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     really installed (a missing one falls back to the system font without a word) and records
     which have small caps. Blockquotes are NOT italicised by the typesetter (letters and epigraphs
     are blockquotes; the book's markup and stylesheet say what in them is italic).
+  - `Reader/Ask/` — Ask About the Book (setting `askEnabled`, off by default; Settings → Ask About
+    the Book): questions on plot and characters answered by Apple's on-device model (Foundation
+    Models, Apple Intelligence devices only; `AskEngine.availability`) from the text up to the END
+    OF THE PAGE holding the position (`ReaderView.readingLimit`), never further. The context is
+    4096 tokens for prompt and answer together (`SystemLanguageModel.contextSize`, TN3193), so
+    `AskModel` asks the model for search words (names, the other names the same people go by,
+    picked from the read text's names; cut to `presentTerms`), builds the context with
+    `AskContextBuilder` (budget at 3 characters a token; a context-too-long error retries at 3/5),
+    and streams the answer; the model is never told the title or author and is told to use only
+    the excerpts. `RecapBuilder` summarises FINISHED chapters (wholly before the reader's) in the
+    background while the reader is up and Ask is on, latest first, chunk-and-carry (each part
+    rewrites the running summary), pausing while a question is answered; stored per book as JSON
+    in Application Support/Recaps (`RecapStore`, deleted with the book). Guardrails are
+    `.permissiveContentTransformations` (book text is violent). The sheet lists the passages each
+    answer came from; tapping one jumps there. `-SheafsAsk <question>` (with `-SheafsOpen`) asks
+    once and prints `[ask]` lines. Not on the tabletop deck.
   - `Reader/VolumeButtons` — `VolumeButtonPager` (setting `volumeButtonsTurn`, off by default):
     up = next page, down = previous (`Press.turnsForward`, the owner's choice). iOS has no public
     volume-button event outside a camera session (`AVCaptureEventInteraction` reaches only apps
