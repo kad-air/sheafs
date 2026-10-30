@@ -20,6 +20,10 @@ struct AskPanel: View {
     @State private var contentHeight: CGFloat = 0
     @FocusState private var fieldFocused: Bool
 
+    /// What the panel adds around the answer: the header and input bar rows (40 each), the
+    /// spacing between the three rows, the padding inside the glass and the gap under it.
+    static let chromeHeight: CGFloat = 40 + 40 + 2 * 10 + 2 * 12 + 6
+
     private static let suggestions = [
         "What has happened so far?",
         "What happened in the last chapter?",

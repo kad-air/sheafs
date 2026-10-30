@@ -761,11 +761,11 @@ struct ReaderView: View {
         }
     }
 
-    /// The tallest the panel's answer may grow before it scrolls: under half the screen, so the
-    /// page stays in view.
+    /// The tallest the panel's answer may grow before it scrolls: the whole panel, header and
+    /// input bar included, stays under half the screen, so the page stays in view.
     private var askPanelHeight: CGFloat {
         let height = geometry.reading?.size.height ?? 700
-        return max(140, height * 0.4)
+        return max(140, height * 0.5 - AskPanel.chromeHeight)
     }
 
     private func openAsk() {
