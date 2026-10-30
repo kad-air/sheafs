@@ -80,8 +80,17 @@ nonisolated struct StrokeAnchors: Codable, Equatable, Sendable {
         case text
         /// A tall stroke beside lines (a bracket, a bar in the margin): every point keeps to its
         /// own line, so the stroke grows or shrinks with the lines it spans; its distance from the
-        /// column edge stays as drawn.
+        /// column edge stays as drawn. Markings drawn before `.block` existed; new ones are blocks.
         case span
+        /// A stroke the size of a passage (a bracket beside a paragraph, a circle around one, a
+        /// scribble through it): the whole stroke keeps to the run of lines it spans, from the line
+        /// holding `characters` (every point's: the passage's first character) to the line holding
+        /// `lineStarts` (its last), and is stretched to wherever those lines are now, across a page
+        /// break too. `dy` is the point's place down the run: 0…1 from the first line's letters to
+        /// the last's (by lines, so it stays between the same two lines), below 0 ems above the
+        /// first, above 1 ems below the last (1 + ems). `dx` is its place across the column: 0…1 of
+        /// the column's width, below 0 points left of it, above 1 points right of it (1 + points).
+        case block
         /// Anything else (handwriting, an arrow, a doodle in the margin): the stroke keeps its
         /// shape and size, all of it placed from one character of the marking.
         case free
@@ -105,10 +114,14 @@ nonisolated struct StrokeAnchors: Codable, Equatable, Sendable {
     var dx: [Float]
     var dy: [Float]
     /// … and the first character of the anchor's line when drawn: two neighbouring points that
-    /// shared a line and no longer do are not joined (an underline wraps with its words).
+    /// shared a line and no longer do are not joined (an underline wraps with its words). For a
+    /// `.block`, the passage's last character.
     var lineStarts: [Int]
 
     var count: Int { characters.count }
+
+    /// The characters the stroke holds onto.
+    var held: [Int] { kind == .block ? characters + lineStarts : characters }
 }
 
 /// What a page needs to draw a sketch: a value, so the pager can tell "nothing changed" (by id and
@@ -128,7 +141,7 @@ nonisolated struct SketchMark: Hashable, @unchecked Sendable {
 
     /// The character range the anchors cover.
     var anchoredRange: ClosedRange<Int>? {
-        let all = anchors.strokes.flatMap(\.characters)
+        let all = anchors.strokes.flatMap(\.held)
         guard let low = all.min(), let high = all.max() else { return nil }
         return low ... high
     }

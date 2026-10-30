@@ -13,8 +13,15 @@ import PencilKit
 ///   line the stroke is cut there and carries on under them; a point over a gap, or grazing a
 ///   word at either end that holds almost none of the stroke, keeps to the nearest letter of a
 ///   word the stroke is over (a circle's clearance around its word is not the words beside it);
-/// - a tall, thin stroke beside the text (a bracket or bar in the margin): each point keeps to its
-///   line, so the bracket still spans the same lines; its distance from the column edge is kept;
+/// - a stroke the size of a passage, two lines tall or more and either thin (a bracket or bar
+///   beside it) or across half the column or more (a circle around a paragraph, a scribble through
+///   it): the whole stroke keeps to the run of lines it spans, from the first character of the
+///   first to the last of the last, and is stretched to wherever that run is now (by lines, so a
+///   point between two lines stays between them; across a page break the stroke is cut there and
+///   carries on over the rest of the run on the next page); its overshoot above and below the run
+///   in ems, its x as a fraction of the column, or points out in the margin, so a bracket keeps its
+///   distance from the column and a circle stays around it. Per point anchoring tore these apart:
+///   each line's first character is mid-line after a reflow;
 /// - anything else (a note written in the margin, an arrow, a doodle, or a cluster of small
 ///   strokes that reads as handwriting anywhere): rigid, as drawn, placed from one character of the
 ///   marking and from the column edge on its side, kept on the page.
@@ -242,12 +249,17 @@ enum SketchLayout {
         let em = text.typicalEm
         let diagonals = bounds.map { hypot($0.width, $0.height) }.sorted()
         let handwriting = strokes.count >= 4 && diagonals[diagonals.count / 2] < em * 1.2
-        enum Role { case text, span, free }
+        enum Role { case text, block, span, free }
         let roles: [Role] = strokes.indices.map { index in
             if handwriting { return .free }
-            if text.overlap(points[index]) >= 0.5 { return .text }
             let box = bounds[index]
-            if box.height >= text.typicalLineHeight * 1.8 && box.height >= 2.5 * max(box.width, 1) { return .span }
+            let tall = box.height >= text.typicalLineHeight * 1.8
+            let thin = box.height >= 2.5 * max(box.width, 1)
+            // Over or beside two lines or more, and either thin (a bracket, a bar) or across most of
+            // the column (a circle around a paragraph, a scribble through it): it marks the passage.
+            if tall, thin || box.width >= text.width * 0.5, text.homeLines(for: box).count >= 2 { return .block }
+            if text.overlap(points[index]) >= 0.5 { return .text }
+            if tall && thin { return .span }
             return .free
         }
 
@@ -280,6 +292,22 @@ enum SketchLayout {
             if let low = a.characters.min(), let high = a.characters.max() {
                 covered.append(NSRange(location: low, length: high - low + 1))
             }
+        }
+        for index in strokes.indices where roles[index] == .block {
+            let home = text.homeLines(for: bounds[index])
+            guard let top = home.first, let bottom = home.last else { continue }
+            let first = text.characters(of: top).first?.index ?? text.lines[top].characters.location
+            let last = text.characters(of: bottom).last?.index ?? max(first, NSMaxRange(text.lines[bottom].characters) - 1)
+            let run = home.map { BlockLine(page: page, centre: text.centre($0), em: text.ems[$0], height: text.lines[$0].rect.height) }
+            var a = StrokeAnchors(kind: .block, edge: .glyph, characters: [], dx: [], dy: [], lineStarts: [])
+            for point in points[index] {
+                a.characters.append(first)
+                a.lineStarts.append(last)
+                a.dx.append(Float(Self.across(point.x, width: text.width)))
+                a.dy.append(Float(Self.down(point.y, lines: run)))
+            }
+            anchors[index] = a
+            covered.append(NSRange(location: first, length: last - first + 1))
         }
         for index in strokes.indices where roles[index] == .span {
             let home = text.homeLines(for: bounds[index])
@@ -329,6 +357,61 @@ enum SketchLayout {
         return (strokes, anchors.map { $0! }, covers.map { wordAligned($0, in: chapter) })
     }
 
+    /// A line of the run a `.block` stroke spans: its page, the middle of its letters (see
+    /// `PageText.centre`), its font size and its height.
+    struct BlockLine {
+        var page: Int
+        var centre: CGFloat
+        var em: CGFloat
+        var height: CGFloat
+    }
+
+    /// A `.block` point's x as stored: its fraction of the column's width, points past either edge
+    /// outside it (a bracket stays as far out in the margin; a circle around a paragraph stays
+    /// around the column, however wide it is now).
+    static func across(_ x: CGFloat, width: CGFloat) -> CGFloat {
+        if x < 0 { return x }
+        if x > width { return 1 + (x - width) }
+        return width > 0 ? x / width : 0
+    }
+
+    static func x(across u: CGFloat, width: CGFloat) -> CGFloat {
+        if u < 0 { return u }
+        if u > 1 { return width + (u - 1) }
+        return u * width
+    }
+
+    /// A `.block` point's y as stored: its place down the run of lines (0 at the first line's
+    /// letters, 1 at the last's, by lines: halfway between the second and third of five lines is
+    /// 0.375), ems above the first line below 0, ems below the last line above 1.
+    static func down(_ y: CGFloat, lines: [BlockLine]) -> CGFloat {
+        guard let first = lines.first, let last = lines.last else { return 0 }
+        if y < first.centre { return (y - first.centre) / first.em }
+        if y > last.centre { return 1 + (y - last.centre) / last.em }
+        guard lines.count > 1 else { return 0 }
+        var k = 0
+        while k < lines.count - 2 && y > lines[k + 1].centre { k += 1 }
+        let gap = lines[k + 1].centre - lines[k].centre
+        let fraction = gap > 0 ? (y - lines[k].centre) / gap : 0
+        return (CGFloat(k) + fraction) / CGFloat(lines.count - 1)
+    }
+
+    /// Where a stored `.block` y lands on the run of lines as they are now: the line it belongs
+    /// with (its page decides where it is drawn) and the y on that line's page. Between two lines
+    /// a page break now separates, the nearer one's page, a line's height beyond it.
+    static func y(down s: CGFloat, lines: [BlockLine]) -> (line: BlockLine, y: CGFloat)? {
+        guard let first = lines.first, let last = lines.last else { return nil }
+        if s < 0 { return (first, first.centre + s * first.em) }
+        if s > 1 { return (last, last.centre + (s - 1) * last.em) }
+        let position = s * CGFloat(lines.count - 1)
+        let k = min(lines.count - 1, Int(position.rounded(.down)))
+        guard k < lines.count - 1 else { return (last, last.centre) }
+        let fraction = position - CGFloat(k)
+        let a = lines[k], b = lines[k + 1]
+        if a.page == b.page { return (a, a.centre + fraction * (b.centre - a.centre)) }
+        return fraction < 0.5 ? (a, a.centre + fraction * a.height) : (b, b.centre - (1 - fraction) * b.height)
+    }
+
     private static func rigid(_ stroke: PKStroke, character: Int, edge: StrokeAnchors.Edge, origin: CGFloat,
                               baseline: CGFloat, lineStart: Int) -> StrokeAnchors {
         let points = stroke.path.map(\.location)
@@ -351,7 +434,7 @@ enum SketchLayout {
     /// The range a marking's anchors cover when there is no page to measure it on (the parts of a
     /// marking kept as they were).
     static func covers(_ anchors: StrokeAnchors) -> NSRange? {
-        guard let low = anchors.characters.min(), let high = anchors.characters.max() else { return nil }
+        guard let low = anchors.held.min(), let high = anchors.held.max() else { return nil }
         return NSRange(location: low, length: high - low + 1)
     }
 
@@ -379,6 +462,24 @@ enum SketchLayout {
             return found
         }
         let width = chapter.pageSize.width
+        var pageLines: [Int: [TextLine]] = [:]
+        func textLines(onPage page: Int) -> [TextLine] {
+            if let known = pageLines[page] { return known }
+            let found = chapter.lines(onPage: page).filter { $0.characters.length > 0 }
+            pageLines[page] = found
+            return found
+        }
+        /// The lines from the one holding `first` to the one holding `last`, wherever they are now.
+        func passage(from first: Int, to last: Int) -> [BlockLine] {
+            guard let start = glyph(first), let end = glyph(last), start.page <= end.page,
+                  start.page <= page, page <= end.page else { return [] }
+            return (start.page ... end.page).flatMap { number in
+                textLines(onPage: number).filter { NSMaxRange($0.characters) > first && $0.characters.location <= last }.map { line in
+                    let em = glyph(line.characters.location)?.em ?? 17
+                    return BlockLine(page: number, centre: line.baseline - em * 0.35, em: em, height: line.rect.height)
+                }
+            }
+        }
         var result: [Placed] = []
         for mark in marks where mark.spineIndex == chapter.spineIndex {
             let strokes = mark.drawing.strokes
@@ -387,31 +488,52 @@ enum SketchLayout {
                 let stroke = strokes[strokeIndex]
                 let points = Array(stroke.path)
                 guard points.count == anchors.count else { continue }
+                // Each point where it is now, nil off this page; `cuts`: points that start a new piece.
+                var located: [CGPoint?] = Array(repeating: nil, count: points.count)
+                var cuts = Set<Int>()
+                if anchors.kind == .block {
+                    guard let first = anchors.characters.min(), let last = anchors.lineStarts.max() else { continue }
+                    let lines = passage(from: first, to: last)
+                    guard !lines.isEmpty else { continue }
+                    for index in points.indices {
+                        guard let landed = Self.y(down: CGFloat(anchors.dy[index]), lines: lines), landed.line.page == page else { continue }
+                        located[index] = CGPoint(x: Self.x(across: CGFloat(anchors.dx[index]), width: width), y: landed.y)
+                    }
+                } else {
+                    var previous: GlyphPlace?
+                    for index in points.indices {
+                        guard let at = glyph(anchors.characters[index]), at.page == page else {
+                            previous = nil
+                            continue
+                        }
+                        // Neighbours that shared a line when drawn and no longer do: the words wrapped.
+                        if anchors.kind == .text, let previous, index > 0,
+                           anchors.lineStarts[index] == anchors.lineStarts[index - 1], at.lineStart != previous.lineStart {
+                            cuts.insert(index)
+                        }
+                        let unit: CGFloat = anchors.kind == .text ? at.em : 1
+                        let x: CGFloat = switch anchors.edge {
+                        case .glyph: at.box.minX
+                        case .leading: 0
+                        case .trailing: width
+                        }
+                        located[index] = CGPoint(x: x + CGFloat(anchors.dx[index]) * unit,
+                                                 y: at.baseline + CGFloat(anchors.dy[index]) * unit)
+                        previous = at
+                    }
+                }
                 var run: [(index: Int, location: CGPoint)] = []
-                var previous: GlyphPlace?
                 var runs: [[(index: Int, location: CGPoint)]] = []
                 for index in points.indices {
-                    guard let at = glyph(anchors.characters[index]), at.page == page else {
+                    guard let location = located[index] else {
                         if !run.isEmpty { runs.append(run); run = [] }
-                        previous = nil
                         continue
                     }
-                    // Neighbours that shared a line when drawn and no longer do: the words wrapped.
-                    if anchors.kind == .text, let previous, index > 0,
-                       anchors.lineStarts[index] == anchors.lineStarts[index - 1], at.lineStart != previous.lineStart,
-                       !run.isEmpty {
+                    if cuts.contains(index), !run.isEmpty {
                         runs.append(run)
                         run = []
                     }
-                    let unit: CGFloat = anchors.kind == .text ? at.em : 1
-                    let x: CGFloat = switch anchors.edge {
-                    case .glyph: at.box.minX
-                    case .leading: 0
-                    case .trailing: width
-                    }
-                    run.append((index, CGPoint(x: x + CGFloat(anchors.dx[index]) * unit,
-                                               y: at.baseline + CGFloat(anchors.dy[index]) * unit)))
-                    previous = at
+                    run.append((index, location))
                 }
                 if !run.isEmpty { runs.append(run) }
                 for (number, run) in runs.enumerated() {

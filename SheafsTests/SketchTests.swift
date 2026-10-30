@@ -11,8 +11,9 @@ private final class BundleMarker {}
 /// Pencil markings: every control point is anchored to the chapter's text, so at the layout a
 /// marking was drawn in it comes back exactly, and after a text-size change a circle is still
 /// around its word, an underline under its words (cut where they now wrap), a margin note in its
-/// margin with its shape, and a bracket beside the same lines; markings persist, die with their
-/// book, list with the highlights in reading order and export with them.
+/// margin with its shape, and a bracket beside a passage or a circle around one stretched over
+/// wherever that passage now runs, larger or smaller; markings persist, die with their book, list
+/// with the highlights in reading order and export with them.
 @MainActor
 struct SketchTests {
     static let textSize = BookmarkTests.layout.textSize
@@ -191,24 +192,75 @@ struct SketchTests {
         let points = stride(from: top.rect.minY + 2, through: bottom.rect.maxY - 2, by: 3).map { CGPoint(x: -10, y: $0) }
         let captured = SketchLayout.capture([Self.stroke(points)], chapter: small, page: 1)
         let anchors = try #require(captured.anchors.first)
-        #expect(anchors.kind == .span)
-        #expect(anchors.edge == .leading)
+        #expect(anchors.kind == .block)
         let covers = try #require(captured.covers)
         #expect(NSLocationInRange(top.characters.location, covers))
-        #expect(NSLocationInRange(bottom.characters.location, covers))
+        #expect(NSLocationInRange(NSMaxRange(bottom.characters) - 2, covers))
+        let mark = Self.mark(captured, spine: 2)
+        Self.expectExact(points, SketchLayout.place([mark], chapter: small, page: 1, area: Self.area))
 
-        Self.resize(session, to: 27)
-        let large = try #require(session.paginatedChapter(2, anchor: top.characters.location))
-        let page = large.pageIndex(containing: top.characters.location)
-        let placed = SketchLayout.place([Self.mark(captured, spine: 2)], chapter: large, page: page, area: Self.area)
-        let all = placed.flatMap { $0.stroke.path.map(\.location) }
-        #expect(all.allSatisfy { abs($0.x + 10) < 0.01 })
-        let first = try #require(large.glyphPlace(at: anchors.characters[0]))
-        let last = try #require(large.glyphPlace(at: anchors.characters[anchors.count - 1]))
-        #expect(abs(Self.bounds(placed).minY - (first.baseline + CGFloat(anchors.dy[0]))) < 0.01)
-        #expect(abs(Self.bounds(placed).maxY - (last.baseline + CGFloat(anchors.dy[anchors.count - 1]))) < 0.01)
-        // Taller now: the lines it spans are.
-        #expect(Self.bounds(placed).height > (bottom.rect.maxY - top.rect.minY))
+        for size in [27.0, 14.0] {
+            Self.resize(session, to: size)
+            let chapter = try #require(session.paginatedChapter(2, anchor: top.characters.location))
+            let passage = try Self.passage(captured, in: chapter)
+            let placed = SketchLayout.place([mark], chapter: chapter, page: passage.page, area: Self.area)
+            let all = placed.flatMap { $0.stroke.path.map(\.location) }
+            // As far out in the margin, beside the same text, from its first line to its last.
+            #expect(!all.isEmpty)
+            #expect(all.allSatisfy { abs($0.x + 10) < 0.01 })
+            let box = Self.bounds(placed)
+            #expect(box.minY < passage.text.minY + 4 && box.minY > passage.text.minY - 12)
+            #expect(box.maxY > passage.text.maxY - 4 && box.maxY < passage.text.maxY + 12)
+        }
+    }
+
+    @Test func aCircleAroundAParagraphStaysAroundIt() async throws {
+        let session = try await Self.session()
+        let small = try #require(session.paginatedChapter(2))
+        let lines = small.lines(onPage: 1).filter { $0.characters.length >= 30 }
+        #expect(lines.count > 6)
+        let run = lines[2 ... 5]
+        let drawn = run.map(\.used).reduce(CGRect.null) { $0.union($1) }
+        let points = Self.ellipse(around: drawn.insetBy(dx: -6, dy: -4), count: 96)
+        let captured = SketchLayout.capture([Self.stroke(points)], chapter: small, page: 1)
+        #expect(captured.anchors.first?.kind == .block)
+        let mark = Self.mark(captured, spine: 2)
+        Self.expectExact(points, SketchLayout.place([mark], chapter: small, page: 1, area: Self.area))
+
+        for size in [27.0, 14.0] {
+            Self.resize(session, to: size)
+            let chapter = try #require(session.paginatedChapter(2, anchor: run.first!.characters.location))
+            let passage = try Self.passage(captured, in: chapter)
+            let placed = SketchLayout.place([mark], chapter: chapter, page: passage.page, area: Self.area)
+            // One closed loop around all of the passage's text, about as snug as it was drawn.
+            #expect(placed.count == 1)
+            let circle = Self.bounds(placed)
+            #expect(circle.contains(passage.text.insetBy(dx: 1, dy: 1)))
+            #expect(circle.height < passage.text.height + 3 * CGFloat(size))
+            #expect(circle.minX > -24 && circle.maxX < Self.textSize.width + 24)
+        }
+    }
+
+    /// Every point back where it was drawn.
+    static func expectExact(_ points: [CGPoint], _ placed: [SketchLayout.Placed]) {
+        #expect(placed.count == 1)
+        let back = placed.first.map { $0.stroke.path.map(\.location) } ?? []
+        #expect(back.count == points.count)
+        for (p, q) in zip(points, back) { #expect(hypot(p.x - q.x, p.y - q.y) < 0.01) }
+    }
+
+    /// The page a block marking's passage is on now (the test pages each start at it, so all of it
+    /// is), and the box of its glyphs there.
+    static func passage(_ captured: (strokes: [PKStroke], anchors: [StrokeAnchors], covers: NSRange?),
+                        in chapter: PaginatedChapter) throws -> (page: Int, text: CGRect) {
+        let anchors = try #require(captured.anchors.first)
+        let first = try #require(anchors.characters.first), last = try #require(anchors.lineStarts.first)
+        let page = chapter.pageIndex(containing: first)
+        #expect(chapter.pageIndex(containing: last) == page)
+        let range = NSRange(location: first, length: last - first + 1)
+        let text = chapter.rects(for: range, page: page).reduce(CGRect.null) { $0.union($1) }
+        #expect(!text.isNull)
+        return (page, text)
     }
 
     @Test func pagesDrawTheirMarkings() async throws {
