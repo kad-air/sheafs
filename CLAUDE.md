@@ -333,8 +333,14 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     the stroke's points on that line, keeps to the nearest letter of a word the stroke IS over:
     a circle's clearance grazes the words beside it, and anchoring there tore the circle apart
     when they wrapped away), and two points that shared a line and no longer do are not joined
-    (an underline is cut where its words now wrap); a tall thin stroke in a margin (a bracket) keeps each point to its
-    line, in points from the column edge, so it spans the same lines; anything else (margin
+    (an underline is cut where its words now wrap); a stroke the size of a passage (2+ lines tall
+    and thin, or across half the column or more: a bracket, a circle around a paragraph, a
+    scribble through it) is a `.block`: 🔴 it holds the passage as a whole (first character of its
+    first line in `characters`, last of its last in `lineStarts`) and each point's place down the
+    run of lines (0…1 by lines, ems beyond either end) and across the column (0…1, points out in
+    the margin), and is stretched over wherever that run is now, cut at a page break (anchoring
+    each point to its line's first character scattered brackets and paragraph circles: after a
+    reflow those characters are mid-line; old `.span` brackets still place that way); anything else (margin
     notes, arrows, 4+ small strokes = handwriting anywhere) is rigid, all of a marking's from one
     reference character (the first one its text strokes hold, else the nearest) and the column edge
     on its side, moved as one to stay on the page. At the layout it was drawn in a marking comes back
