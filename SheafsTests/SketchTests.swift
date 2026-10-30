@@ -198,6 +198,8 @@ struct SketchTests {
         #expect(NSLocationInRange(NSMaxRange(bottom.characters) - 2, covers))
         let mark = Self.mark(captured, spine: 2)
         Self.expectExact(points, SketchLayout.place([mark], chapter: small, page: 1, area: Self.area))
+        // How far the bracket stops short of its first line's top and its last line's bottom as drawn.
+        let above = points.first!.y - top.rect.minY, below = bottom.rect.maxY - points.last!.y
 
         for size in [27.0, 14.0] {
             Self.resize(session, to: size)
@@ -205,12 +207,13 @@ struct SketchTests {
             let passage = try Self.passage(captured, in: chapter)
             let placed = SketchLayout.place([mark], chapter: chapter, page: passage.page, area: Self.area)
             let all = placed.flatMap { $0.stroke.path.map(\.location) }
-            // As far out in the margin, beside the same text, from its first line to its last.
+            // As far out in the margin, beside the same text, from its first line to its last: its
+            // overshoot past either line is in ems, so it scales with the type.
             #expect(!all.isEmpty)
             #expect(all.allSatisfy { abs($0.x + 10) < 0.01 })
-            let box = Self.bounds(placed)
-            #expect(box.minY < passage.text.minY + 4 && box.minY > passage.text.minY - 12)
-            #expect(box.maxY > passage.text.maxY - 4 && box.maxY < passage.text.maxY + 12)
+            let box = Self.bounds(placed), scale = CGFloat(size / 19)
+            #expect(abs(box.minY - (passage.text.minY + above * scale)) < 0.5)
+            #expect(abs(box.maxY - (passage.text.maxY - below * scale)) < 0.5)
         }
     }
 
