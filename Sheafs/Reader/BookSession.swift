@@ -36,6 +36,8 @@ final class BookSession {
     var marks: [HighlightMark] = []
     /// The book's bookmarks, for the pages to draw their ribbons (same arrangement as `marks`).
     var bookmarks: [BookmarkMark] = []
+    /// The book's pencil markings (same arrangement as `marks`).
+    var sketches: [SketchMark] = []
 
     private(set) var style: TypesetStyle?
     private(set) var textSize: CGSize = .zero
@@ -145,6 +147,32 @@ final class BookSession {
             ) else { continue }
             log.info("reanchored bookmark \(bookmark.id, privacy: .public) \(bookmark.spineIndex):\(bookmark.textOffset) → \(offset)")
             bookmark.textOffset = offset
+            moved += 1
+        }
+        return moved
+    }
+
+    /// Moves pencil markings whose stored range no longer holds their quoted text to where their
+    /// pointers say (as `reanchor(_ annotations:)`), shifting every stroke's anchors by as much.
+    /// Returns how many moved.
+    @discardableResult
+    func reanchor(_ sketches: [Sketch]) -> Int {
+        var moved = 0
+        for sketch in sketches where sketch.spineIndex >= 0 && sketch.spineIndex < chapters.count && !sketch.text.isEmpty {
+            let stored = sketch.startOffset ..< max(sketch.startOffset, sketch.endOffset)
+            guard let range = chapters[sketch.spineIndex].reanchoredRange(
+                stored, text: sketch.text, startPointer: sketch.startPointer, endPointer: sketch.endPointer
+            ), var anchors = SketchAnchors.decode(sketch.anchors) else { continue }
+            let delta = range.lowerBound - stored.lowerBound
+            for index in anchors.strokes.indices {
+                anchors.strokes[index].characters = anchors.strokes[index].characters.map { $0 + delta }
+                anchors.strokes[index].lineStarts = anchors.strokes[index].lineStarts.map { $0 + delta }
+            }
+            log.info("reanchored sketch \(sketch.id, privacy: .public) \(sketch.spineIndex):\(stored.lowerBound) → \(range.lowerBound)")
+            sketch.anchors = anchors.encoded()
+            sketch.startOffset = range.lowerBound
+            sketch.endOffset = range.upperBound
+            sketch.modifiedAt = .now
             moved += 1
         }
         return moved

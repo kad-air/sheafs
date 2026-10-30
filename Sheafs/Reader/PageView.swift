@@ -1,13 +1,14 @@
 import UIKit
+import PencilKit
 import SheafsKit
 
 /// Draws one page of a paginated chapter with a running head (top, centered) and a folio
 /// (page number, bottom, centered), like a printed book.
 final class PageView: UIView {
-    var chapter: PaginatedChapter? { didSet { setNeedsDisplay() } }
-    var page: Int = 0 { didSet { setNeedsDisplay() } }
+    var chapter: PaginatedChapter? { didSet { placedSketches = nil; setNeedsDisplay() } }
+    var page: Int = 0 { didSet { placedSketches = nil; setNeedsDisplay() } }
     var palette: ReaderPalette = .paper { didSet { backgroundColor = palette.background; setNeedsDisplay() } }
-    var textInsets: UIEdgeInsets = .zero { didSet { setNeedsDisplay() } }
+    var textInsets: UIEdgeInsets = .zero { didSet { placedSketches = nil; setNeedsDisplay() } }
     /// The running head: the book title on a left page, the chapter title on a right or single page.
     var head = "" { didSet { setNeedsDisplay() } }
     /// The page number.
@@ -22,6 +23,12 @@ final class PageView: UIView {
     var marks: [HighlightMark] = [] { didSet { if marks != oldValue { setNeedsDisplay() } } }
     /// The live text selection, in chapter coordinates, drawn over the glyphs like iOS does.
     var selection: NSRange? { didSet { if selection != oldValue { setNeedsDisplay() } } }
+    /// Pencil markings of this page's chapter (any page; the view draws the strokes whose
+    /// characters are on its own, `SketchLayout.place`).
+    var sketches: [SketchMark] = [] { didSet { if sketches != oldValue { placedSketches = nil; setNeedsDisplay() } } }
+    /// While the page is marked up its strokes are on the canvas over it, not drawn by the page.
+    var hidesSketches = false { didSet { if hidesSketches != oldValue { setNeedsDisplay() } } }
+    private var placedSketches: [SketchLayout.Placed]?
     /// The page holds a bookmark: a ribbon hangs from its top edge.
     var isBookmarked = false { didSet { if isBookmarked != oldValue { setNeedsDisplay() } } }
     var marginFont = UIFont.preferredFont(forTextStyle: .footnote)
@@ -46,6 +53,7 @@ final class PageView: UIView {
         if curvesOverFold { drawFoldCurve(ctx) }
         drawMarks(ctx)
         chapter?.draw(page: page, at: textOrigin)
+        if !hidesSketches { drawSketches(ctx) }
         drawSelection(ctx)
         drawMargins()
         drawRibbon(ctx)
@@ -128,6 +136,37 @@ final class PageView: UIView {
     }
 
     static let foundColor = UIColor(red: 1.0, green: 0.62, blue: 0.1, alpha: 1)
+
+    /// The pencil strokes on this page, in this view's coordinates (placed once per layout).
+    func sketchStrokes() -> [SketchLayout.Placed] {
+        if let placedSketches { return placedSketches }
+        guard let chapter, !sketches.isEmpty else { return [] }
+        let area = bounds.offsetBy(dx: -textOrigin.x, dy: -textOrigin.y)
+        let shift = CGAffineTransform(translationX: textOrigin.x, y: textOrigin.y)
+        let placed = SketchLayout.place(sketches, chapter: chapter, page: page, area: area).map { placed in
+            var placed = placed
+            placed.stroke.transform = shift
+            placed.stroke = SketchLayout.normalized(placed.stroke)[0]
+            return placed
+        }
+        placedSketches = placed
+        return placed
+    }
+
+    /// Pencil markings go over the glyphs, like ink on paper, in the page's light or dark (PencilKit
+    /// lightens dark inks on a dark page, as its canvas does).
+    private func drawSketches(_ ctx: CGContext) {
+        let strokes = sketchStrokes()
+        guard !strokes.isEmpty else { return }
+        let drawing = PKDrawing(strokes: strokes.map(\.stroke))
+        let rect = drawing.bounds.intersection(bounds)
+        guard !rect.isNull, rect.width > 0, rect.height > 0 else { return }
+        var image: UIImage?
+        UITraitCollection(userInterfaceStyle: palette.isDark ? .dark : .light).performAsCurrent {
+            image = drawing.image(from: rect, scale: max(2, ctx.ctm.a.magnitude, contentScaleFactor))
+        }
+        image?.draw(in: rect)
+    }
 
     private func drawSelection(_ ctx: CGContext) {
         guard let selection else { return }

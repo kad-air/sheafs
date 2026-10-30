@@ -1,7 +1,7 @@
 # Sheafs
 
 Native EPUB reader for iPhone, iPad and the foldable iPhone Duo, iOS 27.0 and later. SwiftUI + TextKit + Foundation (plus
-Metal for the page flip, LinkPresentation for the share sheet's header) only; no web views, no third-party packages. Open source (MIT), so **no personal names, emails,
+Metal for the page flip, LinkPresentation for the share sheet's header, PencilKit for markup) only; no web views, no third-party packages. Open source (MIT), so **no personal names, emails,
 hostnames or secrets anywhere in the tree** — `scripts/check` greps for them and fails.
 
 ## Commands
@@ -313,7 +313,40 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     sheet and Look Up (`LookUpController`, which reports its dismissal) are UIKit sheets SwiftUI
     can't see, so the pager reports them (`onSystemSheet`) and `volumeButtonsArmed` disarms the
     volume buttons while one is up;
-    `QuoteShareTests`), `BookmarkViews` (`BookmarksListView`: the Bookmarks segment, between Contents and Notes; label,
+    `QuoteShareTests`), MARKUP (`Markup.swift`, `SketchLayout.swift`, `Library/Sketches.swift`): the
+    toolbar's Markup button hides the bars and `PagerController.beginMarkup()` puts a `PKCanvasView`
+    over each page of the spread with the system `PKToolPicker` (drawing policy `.default`, so the
+    system's "only Apple Pencil draws" setting holds); taps, selection, the flip pan and scrolling
+    are OFF until Done; `MarkupBar` (over the right page's running head; the tool picker takes the
+    bottom) turns pages (`markupTurn`: save, turn without animation, put the canvases up again) and
+    ends it; volume buttons and `show()` (a fold, rotation or style change) save first. A marking is
+    a SwiftData `Sketch` (`bookID`, chapter, the range of text it is on or beside with both
+    pointers and the quoted `text`, the strokes as `PKDrawing` data, `SketchAnchors`, a JPEG
+    thumbnail of the marking over its text cut from the page; keyed by book id, deleted with the
+    book). 🔴 Strokes are anchored to TEXT, never to the page: EVERY control point stores an anchor
+    character, an offset (x from that glyph or from the column edge, y from its baseline) and the
+    start of its line when drawn (`SketchLayout.capture`), and `SketchLayout.place` puts each point
+    back from where that character's glyph is NOW (`PaginatedChapter.glyphPlace`), on whichever
+    page holds it: a stroke over the text (≥ half its points over glyphs: circle, underline,
+    strike-through) keeps each point to the character under it in EMS, so it stretches with its
+    words, and two points that shared a line and no longer do are not joined (an underline is cut
+    where its words now wrap); a tall thin stroke in a margin (a bracket) keeps each point to its
+    line, in points from the column edge, so it spans the same lines; anything else (margin
+    notes, arrows, 4+ small strokes = handwriting anywhere) is rigid, all of a marking's from one
+    reference character (the first one its text strokes hold, else the nearest) and the column edge
+    on its side, moved as one to stay on the page. At the layout it was drawn in a marking comes back
+    to within float precision. Pages draw the placed strokes OVER the glyphs (`PageView.drawSketches`,
+    `PKDrawing.image` under the page's light/dark trait so PencilKit adapts dark inks like its
+    canvas; also on the flip's leaves) and hide them while their canvas is up. `MarkupSession.commit`
+    tells strokes apart by `randomSeed` (pieces of one stroke placed apart get derived seeds): a
+    marking with a stroke erased, moved, recoloured or with new strokes drawn against it is
+    captured again from the canvases, its points on no canvas kept as they were; other new strokes
+    form new markings, one per cluster (bounds within 0.8 em); the session's `sketches` are updated
+    at once and `ReaderView` writes the edits (`LibraryStore.apply(_:for:)`). Markings re-anchor
+    on open like highlights (`BookSession.reanchor(_ sketches:)` shifts every anchor). The notes
+    list shows them with the highlights in reading order (`NotesListView.entries`): thumbnail +
+    text, tap to go there, swipe to delete; the Markdown export quotes their text. Not synced.
+    `SketchTests`. `BookmarkViews` (`BookmarksListView`: the Bookmarks segment, between Contents and Notes; label,
     chapter, date; tap = `jump(to:)`, swipe to delete; the segment is kept between openings),
     `ReaderLayout`
     (`PageLayout.compute`: safe areas + reserved regions → page frames; see Duo below),
