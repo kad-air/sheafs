@@ -11,6 +11,29 @@ struct PageImage: Equatable {
     var rect: CGRect
 }
 
+/// One line of a page of a `PaginatedChapter`, in page coordinates (origin at the text's top-left).
+struct TextLine: Equatable {
+    /// Its characters, in chapter coordinates.
+    var characters: NSRange
+    /// The line fragment (with its line spacing) and the part the glyphs use.
+    var rect: CGRect
+    var used: CGRect
+    var baseline: CGFloat
+}
+
+/// Where one character's glyph is drawn: `PaginatedChapter.glyphPlace(at:)`.
+struct GlyphPlace: Equatable {
+    var page: Int
+    /// The glyph's box and its line's baseline, in that page's coordinates.
+    var box: CGRect
+    var baseline: CGFloat
+    /// The first character of its line (chapter coordinates): two characters share a line when
+    /// they share this.
+    var lineStart: Int
+    /// The point size of its font.
+    var em: CGFloat
+}
+
 /// A chapter laid out into fixed-size pages with TextKit (one tall container per part, cut at
 /// line boundaries). When an `anchor` offset is given, a page break is forced exactly there, so the
 /// text at the reading position is the first line of its page after a fold, a rotation or a font
@@ -122,6 +145,31 @@ final class PaginatedChapter {
         let onPage = NSIntersectionRange(range, self.range(ofPage: page))
         guard onPage.length > 0 else { return [] }
         return part.rects(for: NSRange(location: onPage.location - part.offset, length: onPage.length), page: local)
+    }
+
+    /// The lines of `page`, top to bottom, in page coordinates (origin at the text's top-left).
+    func lines(onPage page: Int) -> [TextLine] {
+        guard let (part, local) = part(forPage: page) else { return [] }
+        return part.lines(page: local).map { line in
+            var line = line
+            line.characters.location += part.offset
+            return line
+        }
+    }
+
+    /// Where the glyph of character `index` (chapter coordinates) sits, on whichever page holds it:
+    /// its box and its line's baseline in that page's coordinates, the first character of its
+    /// line, and the point size of its font. Nil when the index is outside the chapter.
+    func glyphPlace(at index: Int) -> GlyphPlace? {
+        guard index >= 0, index < textStorage.length else { return nil }
+        for part in parts where index >= part.offset && index < part.offset + part.textStorage.length {
+            guard var place = part.glyphPlace(at: index - part.offset) else { return nil }
+            place.page += part.firstPage
+            place.lineStart += part.offset
+            place.em = (textStorage.attribute(.font, at: index, effectiveRange: nil) as? UIFont)?.pointSize ?? 17
+            return place
+        }
+        return nil
     }
 
     /// The images drawn on `page`: each attachment's character (chapter coordinates), its `src` as
@@ -294,6 +342,37 @@ final class PaginatedChapter {
                 rects.append(rect.offsetBy(dx: 0, dy: -top))
             }
             return rects
+        }
+
+        func lines(page: Int) -> [TextLine] {
+            guard page >= 0, page < pageGlyphRanges.count, pageGlyphRanges[page].length > 0 else { return [] }
+            let top = pageTops[page]
+            var lines: [TextLine] = []
+            layoutManager.enumerateLineFragments(forGlyphRange: pageGlyphRanges[page]) { [layoutManager] rect, used, _, glyphs, _ in
+                let chars = layoutManager.characterRange(forGlyphRange: glyphs, actualGlyphRange: nil)
+                let baseline = rect.minY + layoutManager.location(forGlyphAt: glyphs.location).y
+                lines.append(TextLine(characters: chars, rect: rect.offsetBy(dx: 0, dy: -top),
+                                      used: used.offsetBy(dx: 0, dy: -top), baseline: baseline - top))
+            }
+            return lines
+        }
+
+        /// The glyph of character `index` (part coordinates): page (of this part), box, baseline
+        /// and line start (part coordinates); `em` is left for the chapter to fill in.
+        func glyphPlace(at index: Int) -> GlyphPlace? {
+            guard index >= 0, index < textStorage.length else { return nil }
+            let glyph = layoutManager.glyphIndexForCharacter(at: index)
+            guard let page = pageGlyphRanges.firstIndex(where: { NSLocationInRange(glyph, $0) }) else { return nil }
+            var lineGlyphs = NSRange()
+            let line = layoutManager.lineFragmentRect(forGlyphAt: glyph, effectiveRange: &lineGlyphs)
+            let top = pageTops[page]
+            let baseline = line.minY + layoutManager.location(forGlyphAt: glyph).y - top
+            var box = layoutManager.boundingRect(forGlyphRange: NSRange(location: glyph, length: 1), in: container)
+                .offsetBy(dx: 0, dy: -top)
+            // A line's closing newline has no width; it stands at the end of the line's glyphs.
+            if box.width <= 0 { box.size.width = 0 }
+            return GlyphPlace(page: page, box: box, baseline: baseline,
+                              lineStart: layoutManager.characterIndexForGlyph(at: lineGlyphs.location), em: 0)
         }
 
         /// Where the attachment at `index` (part coordinates) draws on `page`: its cell, standing on

@@ -103,35 +103,81 @@ struct AnnotationEditorView: View {
     }
 }
 
-/// Every highlight and note of the book, in reading order; tap to go there, swipe to delete.
+/// Every highlight, note and pencil marking of the book, in reading order; tap to go there,
+/// swipe to delete.
 struct NotesListView: View {
     let session: BookSession
     let annotations: [Annotation]
+    var sketches: [Sketch] = []
     var onSelect: (ReadingLocation) -> Void
     @Environment(LibraryStore.self) private var library
     @State private var editing: Annotation?
 
+    /// A row of the list: a highlight (or note) or a pencil marking.
+    enum Entry: Identifiable {
+        case annotation(Annotation)
+        case sketch(Sketch)
+
+        var id: UUID {
+            switch self {
+            case .annotation(let annotation): annotation.id
+            case .sketch(let sketch): sketch.id
+            }
+        }
+
+        var location: ReadingLocation {
+            switch self {
+            case .annotation(let annotation): ReadingLocation(spineIndex: annotation.spineIndex, textOffset: annotation.startOffset)
+            case .sketch(let sketch): sketch.location
+            }
+        }
+    }
+
+    /// Highlights and markings together in reading order (a highlight first where both start at one place).
+    static func entries(annotations: [Annotation], sketches: [Sketch]) -> [Entry] {
+        let all = annotations.map(Entry.annotation) + sketches.map(Entry.sketch)
+        return all.enumerated().sorted { a, b in
+            let x = a.element.location, y = b.element.location
+            if x.spineIndex != y.spineIndex { return x.spineIndex < y.spineIndex }
+            if x.textOffset != y.textOffset { return x.textOffset < y.textOffset }
+            return a.offset < b.offset
+        }.map(\.element)
+    }
+
     var body: some View {
         Group {
-            if annotations.isEmpty {
+            if annotations.isEmpty && sketches.isEmpty {
                 ContentUnavailableView("No Highlights Yet", systemImage: "highlighter",
-                                       description: Text("Press and hold a word on the page to select text, then choose Highlight or Note."))
+                                       description: Text("Press and hold a word on the page to select text, then choose Highlight or Note. To write or draw on the page, tap Markup."))
             } else {
-                List(annotations) { annotation in
+                List(Self.entries(annotations: annotations, sketches: sketches)) { entry in
                     Button {
-                        onSelect(ReadingLocation(spineIndex: annotation.spineIndex, textOffset: annotation.startOffset))
+                        onSelect(entry.location)
                     } label: {
-                        row(annotation)
+                        switch entry {
+                        case .annotation(let annotation): row(annotation)
+                        case .sketch(let sketch): row(sketch)
+                        }
                     }
                     .buttonStyle(.plain)
                     .swipeActions(edge: .trailing) {
-                        Button("Delete", systemImage: "trash", role: .destructive) { library.delete(annotation) }
-                        Button("Edit", systemImage: "pencil") { editing = annotation }
-                            .tint(.accentColor)
+                        switch entry {
+                        case .annotation(let annotation):
+                            Button("Delete", systemImage: "trash", role: .destructive) { library.delete(annotation) }
+                            Button("Edit", systemImage: "pencil") { editing = annotation }
+                                .tint(.accentColor)
+                        case .sketch(let sketch):
+                            Button("Delete", systemImage: "trash", role: .destructive) { library.delete(sketch) }
+                        }
                     }
                     .contextMenu {
-                        Button("Edit", systemImage: "pencil") { editing = annotation }
-                        Button("Delete", systemImage: "trash", role: .destructive) { library.delete(annotation) }
+                        switch entry {
+                        case .annotation(let annotation):
+                            Button("Edit", systemImage: "pencil") { editing = annotation }
+                            Button("Delete", systemImage: "trash", role: .destructive) { library.delete(annotation) }
+                        case .sketch(let sketch):
+                            Button("Delete", systemImage: "trash", role: .destructive) { library.delete(sketch) }
+                        }
                     }
                 }
                 .listStyle(.plain)
@@ -174,10 +220,69 @@ struct NotesListView: View {
         .contentShape(Rectangle())
     }
 
-    /// The highlights and notes, then the bookmarks, as Markdown, for the share sheet.
-    static func markdown(book: Book, session: BookSession, annotations: [Annotation], bookmarks: [Bookmark] = []) -> String {
-        AnnotationExport.markdown(title: book.title, author: book.author, annotations: annotations.map {
-            (session.chapterTitle(for: $0.spineIndex), $0.text, $0.note)
-        }, bookmarks: bookmarks.map { (session.chapterTitle(for: $0.spineIndex), $0.label) })
+    /// A pencil marking: the marking over its text as drawn, then the text it is on or beside.
+    private func row(_ sketch: Sketch) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            SketchThumbnail(data: sketch.thumbnail)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(sketch.text.isEmpty ? "Pencil marking" : sketch.text)
+                    .font(.system(.body, design: .serif))
+                    .lineLimit(3)
+                HStack {
+                    Label("Markup", systemImage: "pencil.tip")
+                        .labelStyle(.iconOnly)
+                    if let title = session.chapterTitle(for: sketch.spineIndex) { Text(title).lineLimit(1) }
+                    Spacer()
+                    Text(sketch.createdAt, format: .dateTime.day().month().year())
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text("Pencil marking: \(sketch.text)"))
+    }
+
+    /// What a pencil marking reads as in the Markdown export.
+    static let sketchNote = "(Marked with Apple Pencil)"
+
+    /// The highlights, notes and pencil markings, then the bookmarks, as Markdown, for the share sheet.
+    static func markdown(book: Book, session: BookSession, annotations: [Annotation], bookmarks: [Bookmark] = [],
+                         sketches: [Sketch] = []) -> String {
+        let items = entries(annotations: annotations, sketches: sketches).map { entry -> (chapter: String?, text: String, note: String) in
+            switch entry {
+            case .annotation(let annotation): (session.chapterTitle(for: annotation.spineIndex), annotation.text, annotation.note)
+            case .sketch(let sketch): (session.chapterTitle(for: sketch.spineIndex), sketch.text, sketchNote)
+            }
+        }
+        return AnnotationExport.markdown(title: book.title, author: book.author, annotations: items,
+                                         bookmarks: bookmarks.map { (session.chapterTitle(for: $0.spineIndex), $0.label) })
+    }
+}
+
+/// A pencil marking's picture in the notes list: the page as it looked with the marking on it.
+struct SketchThumbnail: View {
+    let data: Data?
+
+    var body: some View {
+        Group {
+            if let data, let image = UIImage(data: data) {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+            } else {
+                Image(systemName: "pencil.tip.crop.circle")
+                    .font(.title2)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .frame(width: 96, height: 72)
+        .background(.quaternary.opacity(0.4))
+        .clipShape(.rect(cornerRadius: 6))
+        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.quaternary))
+        .accessibilityHidden(true)
     }
 }

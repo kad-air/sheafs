@@ -49,6 +49,7 @@ struct ReaderPager: UIViewControllerRepresentable {
     let tapTurnsPages: Bool
     let marks: [HighlightMark]
     let bookmarks: [BookmarkMark]
+    let sketches: [SketchMark]
     let highlightColor: HighlightColor
     let pageTurn: PageTurnStyle
     let proxy: PagerProxy
@@ -57,6 +58,8 @@ struct ReaderPager: UIViewControllerRepresentable {
     var onSelectionAction: (SelectionAction) -> Void
     /// A UIKit sheet (share, Look Up) went up (true) or away (false).
     var onSystemSheet: (Bool) -> Void = { _ in }
+    /// Pencil markings saved or removed by a markup session.
+    var onSketchEdits: ([SketchEdit]) -> Void = { _ in }
 
     func makeUIViewController(context: Context) -> PagerController {
         let controller = PagerController(session: session)
@@ -74,12 +77,14 @@ struct ReaderPager: UIViewControllerRepresentable {
         controller.onTap = onTap
         controller.onSelectionAction = onSelectionAction
         controller.onSystemSheet = onSystemSheet
+        controller.onSketchEdits = onSketchEdits
         controller.tapTurnsPages = tapTurnsPages
         controller.highlightColor = highlightColor
         controller.pageTurn = pageTurn
         session.configure(style: style, textSize: layout.textSize)
         controller.apply(marks: marks)
         controller.apply(bookmarks: bookmarks)
+        controller.apply(sketches: sketches)
         controller.apply(layout: layout, palette: palette, location: location, animated: false)
     }
 }
@@ -97,6 +102,7 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
     var onTap: ((ReaderTap) -> Void)?
     var onSelectionAction: ((SelectionAction) -> Void)?
     var onSystemSheet: ((Bool) -> Void)?
+    var onSketchEdits: (([SketchEdit]) -> Void)?
     var tapTurnsPages = true
     var highlightColor = HighlightColor.yellow
     /// How pages turn: a flipping leaf (the default) or the page controller's slide. The flip
@@ -122,6 +128,12 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
     /// Double tap on a picture opens it. It only takes touches that land on a picture, so the
     /// single tap (which requires it to fail) waits for a possible second tap only there.
     private var imageDoubleTap: UITapGestureRecognizer?
+    private var singleTap: UITapGestureRecognizer?
+    private var selectPress: UILongPressGestureRecognizer?
+    /// Marking up with PencilKit (`beginMarkup`): canvases over the spread's pages; the page's own
+    /// gestures (taps, selection, turns) are off while it lasts.
+    private lazy var markup = MarkupSession(session: session)
+    private(set) var isMarkingUp = false
     private let log = Logger(subsystem: "io.sheafs.reader", category: "pager")
 
     init(session: BookSession) {
@@ -160,10 +172,12 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         view.addGestureRecognizer(doubleTap)
         tap.require(toFail: doubleTap)
         imageDoubleTap = doubleTap
+        singleTap = tap
         let press = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
         press.minimumPressDuration = 0.4
         press.delegate = self
         view.addGestureRecognizer(press)
+        selectPress = press
         view.addInteraction(editMenu)
         for handle in [startHandle, endHandle] {
             handle.isHidden = true
@@ -194,8 +208,8 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         guard isViewLoaded else { return }
         flip.finishNow()
         let flips = flipsPages
-        flipPan?.isEnabled = flips
-        pager.view.subviews.compactMap { $0 as? UIScrollView }.forEach { $0.isScrollEnabled = !flips }
+        flipPan?.isEnabled = flips && !isMarkingUp
+        pager.view.subviews.compactMap { $0 as? UIScrollView }.forEach { $0.isScrollEnabled = !flips && !isMarkingUp }
     }
 
     override func viewDidLayoutSubviews() {
@@ -233,7 +247,8 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
                     for pan in handle.gestureRecognizers ?? [] { scrollView.panGestureRecognizer.require(toFail: pan) }
                 }
             }
-            if scrollView.isScrollEnabled == flipsPages { scrollView.isScrollEnabled = !flipsPages }
+            let scrolls = !flipsPages && !isMarkingUp
+            if scrollView.isScrollEnabled != scrolls { scrollView.isScrollEnabled = scrolls }
         }
     }
 
@@ -299,9 +314,23 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         flip.invalidateTextures()
     }
 
+    /// The book's pencil markings; like the highlights.
+    func apply(sketches: [SketchMark]) {
+        guard sketches != session.sketches else { return }
+        session.sketches = sketches
+        currentSpread?.refreshMarks()
+        flip.invalidateTextures()
+    }
+
     /// Shows the spread starting at `location`. A chapter laid out for the first time at this size
     /// breaks its pages at the location, so that line is the first on its page.
     func show(location: ReadingLocation, animated: Bool, direction: UIPageViewController.NavigationDirection = .forward) {
+        // A new layout under the canvases: save what is on them, and mark up the new spread.
+        if markup.isActive {
+            commitMarkup(reattach: false)
+            markup.detach()
+        }
+        defer { if isMarkingUp { attachMarkup() } }
         guard let chapter = session.paginatedChapter(location.spineIndex, anchor: location.textOffset) else { return }
         clearSelection()
         flip.finishNow(announce: false)
@@ -347,6 +376,78 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
     func announce(location: ReadingLocation) {
         onLocationChange?(location)
         session.prefetch(around: location.spineIndex)
+    }
+
+    // MARK: Markup
+
+    /// Starts marking up the spread on screen with PencilKit: a canvas over each page and the
+    /// system tool picker; taps, selection and page turns are off until `endMarkup`.
+    func beginMarkup() {
+        guard !isMarkingUp else { return }
+        clearSelection()
+        flip.finishNow()
+        isMarkingUp = true
+        setPageGestures(enabled: false)
+        attachMarkup()
+    }
+
+    /// Saves the canvases and goes back to reading.
+    func endMarkup() {
+        guard isMarkingUp else { return }
+        commitMarkup(reattach: false)
+        markup.detach()
+        isMarkingUp = false
+        setPageGestures(enabled: true)
+        flip.invalidateTextures()
+    }
+
+    /// Saves what the canvases hold, staying in markup (the reader is closing or going to the
+    /// background): the canvases are put up again from what was saved, so the next save starts there.
+    func commitMarkup() {
+        commitMarkup(reattach: true)
+    }
+
+    private func commitMarkup(reattach: Bool) {
+        let edits = markup.commit()
+        guard !edits.isEmpty else { return }
+        currentSpread?.refreshMarks()
+        onSketchEdits?(edits)
+        flip.invalidateTextures()
+        if reattach, markup.isActive {
+            markup.detach()
+            attachMarkup()
+        }
+    }
+
+    /// The next or previous spread while marking up: saved, turned without an animation, marked up.
+    func markupTurn(forward: Bool) {
+        guard isMarkingUp else { return }
+        commitMarkup(reattach: false)
+        markup.detach()
+        guard let spread = adjacentSpread(forward: forward), let location = spread.location else {
+            attachMarkup()
+            return
+        }
+        displayedLocation = location
+        pager.setViewControllers([spread], direction: forward ? .forward : .reverse, animated: false)
+        view.layoutIfNeeded()
+        attachMarkup()
+        onLocationChange?(location)
+        session.prefetch(around: location.spineIndex)
+    }
+
+    private func attachMarkup() {
+        guard isMarkingUp, let spread = currentSpread else { return }
+        spread.view.layoutIfNeeded()
+        markup.attach(to: spread, palette: palette)
+    }
+
+    private func setPageGestures(enabled: Bool) {
+        singleTap?.isEnabled = enabled
+        imageDoubleTap?.isEnabled = enabled
+        selectPress?.isEnabled = enabled
+        flipPan?.isEnabled = enabled && flipsPages
+        scrollView?.isScrollEnabled = enabled && !flipsPages
     }
 
     // MARK: Slot arithmetic
@@ -524,6 +625,10 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
 
     /// Turns a page; `point` is where the finger was (a tap), so that corner leads the flip.
     func turnPage(forward: Bool, from point: CGPoint? = nil) {
+        if isMarkingUp {
+            markupTurn(forward: forward)
+            return
+        }
         clearSelection()
         if flipsPages {
             flip.turn(forward: forward, from: point)
@@ -891,6 +996,7 @@ final class SpreadViewController: UIViewController {
         for (index, pageView) in pageViews.enumerated() {
             guard index < slots.count, let slot = slots[index] else { continue }
             pageView.marks = session.marks.filter { $0.spineIndex == slot.spineIndex }
+            pageView.sketches = session.sketches.filter { $0.spineIndex == slot.spineIndex }
             pageView.isBookmarked = pageView.chapter.map { !$0.bookmarks(session.bookmarks, onPage: slot.page).isEmpty } ?? false
         }
     }

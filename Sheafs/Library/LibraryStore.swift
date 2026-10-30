@@ -21,7 +21,7 @@ final class LibraryStore {
     private var hasPublished = false
 
     init(inMemory: Bool = false) {
-        let schema = Schema([Book.self, Catalog.self, Annotation.self, Bookmark.self])
+        let schema = Schema([Book.self, Catalog.self, Annotation.self, Bookmark.self, Sketch.self])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
         do {
             container = try ModelContainer(for: schema, configurations: [config])
@@ -249,6 +249,7 @@ final class LibraryStore {
         try? FileManager.default.removeItem(at: coverURL(for: book))
         for annotation in annotations(for: book) { context.delete(annotation) }
         for bookmark in bookmarks(for: book) { context.delete(bookmark) }
+        for sketch in sketches(for: book) { context.delete(sketch) }
         context.delete(book)
         try? context.save()
         publishRecentBook()
@@ -332,6 +333,60 @@ final class LibraryStore {
 
     func delete(_ bookmark: Bookmark) {
         context.delete(bookmark)
+        save()
+    }
+
+    // MARK: Pencil markings
+
+    /// The book's pencil markings in reading order.
+    func sketches(for book: Book) -> [Sketch] {
+        let id = book.id
+        let fetch = FetchDescriptor<Sketch>(predicate: #Predicate { $0.bookID == id },
+                                            sortBy: [SortDescriptor(\.spineIndex), SortDescriptor(\.startOffset)])
+        return (try? context.fetch(fetch)) ?? []
+    }
+
+    func add(_ sketch: Sketch) {
+        context.insert(sketch)
+        save()
+    }
+
+    func delete(_ sketch: Sketch) {
+        context.delete(sketch)
+        save()
+    }
+
+    /// Writes what a markup session saved or removed for `book`.
+    func apply(_ edits: [SketchEdit], for book: Book) {
+        guard !edits.isEmpty else { return }
+        let existing = Dictionary(sketches(for: book).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        for edit in edits {
+            switch edit {
+            case .delete(let id):
+                if let sketch = existing[id] { context.delete(sketch) }
+            case .save(let save):
+                let mark = save.mark
+                let drawing = mark.drawing.dataRepresentation()
+                let anchors = mark.anchors.encoded()
+                if let sketch = existing[mark.id] {
+                    sketch.spineIndex = mark.spineIndex
+                    sketch.startOffset = save.range.location
+                    sketch.endOffset = NSMaxRange(save.range)
+                    sketch.startPointer = save.startPointer
+                    sketch.endPointer = save.endPointer
+                    sketch.text = save.text
+                    sketch.drawing = drawing
+                    sketch.anchors = anchors
+                    if let thumbnail = save.thumbnail { sketch.thumbnail = thumbnail }
+                    sketch.modifiedAt = mark.version
+                } else {
+                    context.insert(Sketch(id: mark.id, bookID: book.id, spineIndex: mark.spineIndex,
+                                          startOffset: save.range.location, endOffset: NSMaxRange(save.range),
+                                          startPointer: save.startPointer, endPointer: save.endPointer, text: save.text,
+                                          drawing: drawing, anchors: anchors, thumbnail: save.thumbnail, modifiedAt: mark.version))
+                }
+            }
+        }
         save()
     }
 

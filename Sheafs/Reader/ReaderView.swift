@@ -9,6 +9,9 @@ import os
 final class PagerProxy {
     weak var controller: PagerController?
     func turn(forward: Bool) { controller?.turnPage(forward: forward) }
+    func beginMarkup() { controller?.beginMarkup() }
+    func endMarkup() { controller?.endMarkup() }
+    func commitMarkup() { controller?.commitMarkup() }
     var hostView: UIView? { controller?.viewIfLoaded }
 }
 
@@ -17,6 +20,7 @@ struct ReaderView: View {
     let book: Book
     @Query private var annotations: [Annotation]
     @Query private var bookmarks: [Bookmark]
+    @Query private var sketches: [Sketch]
 
     init(book: Book) {
         self.book = book
@@ -25,6 +29,8 @@ struct ReaderView: View {
                              sort: [SortDescriptor(\Annotation.spineIndex), SortDescriptor(\Annotation.startOffset)])
         _bookmarks = Query(filter: #Predicate<Bookmark> { $0.bookID == id },
                            sort: [SortDescriptor(\Bookmark.spineIndex), SortDescriptor(\Bookmark.textOffset)])
+        _sketches = Query(filter: #Predicate<Sketch> { $0.bookID == id },
+                          sort: [SortDescriptor(\Sketch.spineIndex), SortDescriptor(\Sketch.startOffset)])
     }
 
     @Environment(\.dismiss) private var dismiss
@@ -73,6 +79,8 @@ struct ReaderView: View {
     @State private var foundMarks: [HighlightMark] = []
     /// The picture open full screen, if any.
     @State private var viewedImage: ViewedImage?
+    /// Marking up the pages with PencilKit (the toolbar's Markup button; Done ends it).
+    @State private var markingUp = false
 
     private let log = Logger(subsystem: "io.sheafs.reader", category: "reader")
 
@@ -146,7 +154,7 @@ struct ReaderView: View {
             }
         }) {
             if let session {
-                ContentsView(session: session, book: book, annotations: annotations, bookmarks: bookmarks,
+                ContentsView(session: session, book: book, annotations: annotations, bookmarks: bookmarks, sketches: sketches,
                              tab: $contentsTab, onSelect: { location in
                     showContents = false
                     jump(to: location)
@@ -253,7 +261,7 @@ struct ReaderView: View {
                 ZStack(alignment: .topLeading) {
                     ReaderPager(session: session, layout: layout, style: style, palette: palette,
                                 location: session.location, tapTurnsPages: settings.tapToTurn,
-                                marks: annotations.map(\.mark) + foundMarks, bookmarks: bookmarks.map(\.mark), highlightColor: settings.highlightColor, pageTurn: settings.pageTurn, proxy: pagerProxy,
+                                marks: annotations.map(\.mark) + foundMarks, bookmarks: bookmarks.map(\.mark), sketches: sketches.compactMap(\.mark), highlightColor: settings.highlightColor, pageTurn: settings.pageTurn, proxy: pagerProxy,
                                 onLocationChange: { location in
                                     if volumeButtons.isRunning {
                                         VolumeLog.shared.note("landed at spine=\(location.spineIndex) offset=\(location.textOffset)")
@@ -266,7 +274,8 @@ struct ReaderView: View {
                                 },
                                 onTap: handle(tap:),
                                 onSelectionAction: handle(selection:),
-                                onSystemSheet: { pagerSheet = $0 })
+                                onSystemSheet: { pagerSheet = $0 },
+                                onSketchEdits: { library.apply($0, for: book) })
                     if let deck = layout.deckFrame {
                         ReaderDeck(session: session, palette: palette, proxy: pagerProxy,
                                    showContents: $showContents, showAppearance: $showQuickAppearance,
@@ -278,7 +287,15 @@ struct ReaderView: View {
                         .offset(x: deck.minX, y: deck.minY)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
-                    if !chromeVisible, !showQuickAppearance, let page = layout.pageFrames.last {
+                    if markingUp, let page = layout.pageFrames.last {
+                        // Over the running head of the page that holds the position, clear of a
+                        // fold; the tool picker takes the bottom of the screen.
+                        MarkupBar(onPrevious: { pagerProxy.turn(forward: false) }, onDone: endMarkup,
+                                  onNext: { pagerProxy.turn(forward: true) })
+                            .position(x: page.midX, y: page.minY + max(24, layout.textInsets.top - 20))
+                            .transition(.opacity)
+                    }
+                    if !chromeVisible, !showQuickAppearance, !markingUp, let page = layout.pageFrames.last {
                         backButton(session)
                             // Over the folio of the page that holds the position (the right page of a spread).
                             .position(x: page.midX, y: page.maxY - PageLayout.footerHeight / 2 + 2)
@@ -353,6 +370,10 @@ struct ReaderView: View {
         }
         ToolbarItem(placement: .primaryAction) {
             Button("Appearance", systemImage: "textformat.size") { openQuickAppearance() }
+        }
+        ToolbarItem(placement: .primaryAction) {
+            Button("Markup", systemImage: "pencil.tip.crop.circle") { startMarkup() }
+                .disabled(session?.isReady != true)
         }
         ToolbarItem(placement: .primaryAction) {
             Button(bookmarkHere ? "Remove Bookmark" : "Add Bookmark", systemImage: bookmarkHere ? "bookmark.fill" : "bookmark") {
@@ -544,6 +565,24 @@ struct ReaderView: View {
         return annotation
     }
 
+    // MARK: Markup
+
+    /// Draws on the pages with PencilKit: the bars go, a canvas covers the spread and the tool
+    /// picker comes up; the markup bar turns pages and ends it.
+    private func startMarkup() {
+        withAnimation(.snappy) {
+            chromeVisible = false
+            showQuickAppearance = false
+            markingUp = true
+        }
+        pagerProxy.beginMarkup()
+    }
+
+    private func endMarkup() {
+        pagerProxy.endMarkup()
+        withAnimation(.snappy) { markingUp = false }
+    }
+
     // MARK: Bookmarks
 
     /// The page that holds the reading position (the right-hand page of a spread), from the layout
@@ -731,6 +770,7 @@ struct ReaderView: View {
 
     /// Saves and pushes right away (leaving the reader, going to the background).
     private func flush() {
+        pagerProxy.commitMarkup()
         pushTask?.cancel()
         pushTask = nil
         library.save()
@@ -752,7 +792,7 @@ struct ReaderView: View {
         session = fresh
         await fresh.load()
         guard fresh.isReady else { return }
-        if fresh.reanchor(annotations) + fresh.reanchor(bookmarks) > 0 { library.save() }
+        if fresh.reanchor(annotations) + fresh.reanchor(bookmarks) + fresh.reanchor(sketches) > 0 { library.save() }
         book.lastOpenedAt = .now
         library.save()
         library.publishRecentBook()
@@ -1014,6 +1054,7 @@ struct ContentsView: View {
     let book: Book
     let annotations: [Annotation]
     let bookmarks: [Bookmark]
+    var sketches: [Sketch] = []
     @Binding var tab: ContentsTab
     var onSelect: (ReadingLocation) -> Void
     var onSearch: (() -> Void)?
@@ -1033,7 +1074,7 @@ struct ContentsView: View {
         NavigationStack {
             Group {
                 if tab == .notes {
-                    NotesListView(session: session, annotations: annotations, onSelect: onSelect)
+                    NotesListView(session: session, annotations: annotations, sketches: sketches, onSelect: onSelect)
                 } else if tab == .bookmarks {
                     BookmarksListView(session: session, bookmarks: bookmarks, onSelect: onSelect)
                 } else if session.flatTOC.isEmpty {
@@ -1078,10 +1119,10 @@ struct ContentsView: View {
                         Button("Search", systemImage: "magnifyingglass", action: onSearch)
                     }
                 }
-                if tab != .contents, !annotations.isEmpty || !bookmarks.isEmpty {
+                if tab != .contents, !annotations.isEmpty || !bookmarks.isEmpty || !sketches.isEmpty {
                     ToolbarItem(placement: .topBarLeading) {
                         ShareLink(item: NotesListView.markdown(book: book, session: session, annotations: annotations,
-                                                               bookmarks: bookmarks),
+                                                               bookmarks: bookmarks, sketches: sketches),
                                   subject: Text("Notes from \(book.title)")) {
                             Label("Share Notes", systemImage: "square.and.arrow.up")
                         }
