@@ -49,13 +49,18 @@ ASC_READ_ONLY=1 asc screenshots download --version-localization <localization id
 
 ## How the new shots are made
 
-- **Ask** (`-SheafsAsk`): opens Jane Eyre at chapter X and asks "Why was Jane sent to Lowood?" (the Duo,
-  whose panel over the left page holds less, asks "Who is Miss Temple?", which gets shorter answers). The answer is
-  whatever the on-device model says on that run; `scripts/screenshots` fails unless the model is available,
-  the answer finished, is more than a few words and cites passages, and asks again (up to 4 times) when an
-  answer is too long for the panel to show whole. Answers differ between runs, so read the `.ask.txt`
-  before uploading and re-run that device if one is wrong. "Who is Mr. Rochester?" at chapter XVIII was
-  tried first and dropped: the model kept getting details wrong (he "visits frequently", "employs Adèle").
+- **Ask** (`-SheafsAsk`): the iPhone and iPad open Jane Eyre at chapter X and ask "Why was Jane sent to
+  Lowood?". The Duo's panel, over the left page, shows only about 340 characters whole, so it asks "Where
+  is Jane being sent?" at chapter V. The answer is whatever the on-device model says on that run;
+  `scripts/screenshots` fails unless the model is available, the answer finished, is more than a few words
+  and cites passages, and asks again (up to 4 times) when an answer is too long for the panel.
+  **Answers differ between runs and the model gets details wrong often**, so read each `.ask.txt` against
+  the book before uploading and re-take that shot if anything is off:
+  `ONLY=inner-landscape-9-ask OUT=/tmp/sheafs-duo-ask /tmp/sheafs-sim/with-sim scripts/screenshots duo`,
+  then copy the PNG and `.ask.txt` into `raw/duo-inner/`. Of about 40 questions tried, most failed:
+  "Who is Mr. Rochester?" (he "visits frequently"), "Who is Miss Temple?" (called a teacher, she is the
+  superintendent), "Who is Bessie?" (put at Lowood, past the reading position), "Who was Mr. Reed?" (made
+  Jane's father).
 - **Highlights and Pencil markup** (`-SheafsHighlightDemo`, `-SheafsMarkupDemo`, DEBUG builds only): the
   simulator has no Pencil and cannot long-press, so these hooks find phrases in the book, make highlights
   through the same path as the selection menu, and draw strokes onto the real markup canvases, which are

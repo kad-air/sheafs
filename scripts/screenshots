@@ -26,6 +26,8 @@
 #   OUT=/tmp/sheafs-screenshots (simctl cannot write screenshots to some external volumes)
 #   DERIVED_DATA=/tmp/sheafs-derived (builds there, incrementally)
 #   NO_BUILD=1 reuses the last build in DERIVED_DATA
+#   ONLY=<regex> takes only the shots (and preps and checks) whose name matches it, and leaves the rest of
+#           OUT alone: ONLY=inner-landscape-9-ask re-takes the Duo's Ask shot (still a fresh install)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 fail() { echo "SCREENSHOTS FAILED: $*" >&2; exit 1; }
@@ -246,6 +248,7 @@ app_store_size() {  # macOS ships bash 3.2: no associative arrays
 #                  without one: an Ask answer (`[ask] state:`), a markup demo (`[demo] markup: done`)
 #   SETTLE=<s>     then wait this long before the screenshot (default 5; 6 without a layout)
 shot() {
+  skipped "$1" && return 0
   launch "$@"
   local file=$1 display=$2
   local display_flag="" png=$OUT/$file   # the iPhone and iPad have one display: no flag
@@ -267,18 +270,24 @@ shot() {
 # prep <name> <display> <orientation|-> <hinge°|-> <layout|-> [launch arguments…]: a launch that only
 # changes the library (the highlight and markup demos), no screenshot; UNTIL and SETTLE as for `shot`.
 prep() {
+  skipped "$1" && return 0
   launch "$@"
   xcrun simctl terminate "$UDID" io.sheafs.reader >/dev/null 2>&1 || true
 }
 
+# skipped <name>: true when ONLY is set and the name doesn't match it.
+skipped() { [[ -n ${ONLY:-} && ! $1 =~ $ONLY ]]; }
+
 # require <name> <regex> <what>: fails unless the last launch's console has a line matching regex.
 require() {
+  skipped "$1" && return 0
   grep -aEq "$2" "$WORK/console.log" || fail "$1: $3; the app said: $(grep -a '^\[' "$WORK/console.log" | grep -v '^\[layout\]' | tail -8)"
 }
 
 # ask_check <file>: the Ask shot shows a real answer from the on-device model: available, finished,
 # not empty, with passages. The transcript goes beside the shot (<file>.ask.txt) as the record.
 ask_check() {
+  skipped "$1" && return 0
   require "$1" '^\[ask\] availability: available' "the on-device model is not available (Apple Intelligence on this Mac?)"
   require "$1" '^\[ask\] state: done' "the answer did not finish"
   require "$1" '^\[ask\] answer: .{40,}' "the answer is empty or a few words"
@@ -291,6 +300,7 @@ ask_check() {
 # the shot once the answer is in, checked by ask_check. With ASK_MAX (characters) an answer longer than
 # the panel shows whole is asked again, up to 4 times; the answers are all the model's own, the last is kept.
 ask_shot() {
+  skipped "$1" && return 0
   local file=$1 tries=0 length
   while :; do
     tries=$((tries + 1))
@@ -402,10 +412,14 @@ shots_duo() {
   shot duo-cover/cover-portrait-4-flip.png       cover portrait          0 "$COVER"   -SheafsOpen Pride -SheafsGoTo 0.05 \
     -SheafsFlipAuto forward -SheafsFlipFreeze 0.5 -SheafsFlipGrab 0.9
   shot duo-cover/cover-portrait-5-appearance.png cover portrait          0 "$COVER"   -SheafsOpen Gatsby -SheafsGoTo II -SheafsAppearance quick
-  # Ask over the spread: the panel keeps to the left page, which holds about 360 characters of answer
-  # with the passages line still showing. The Lowood answers ran 370-530, so the Duo asks a question
-  # whose answers are shorter (also right every time it was tried).
-  ASK_QUESTION=${DUO_ASK_QUESTION:-"Who is Miss Temple?"} ASK_MAX=370 \
+  # Ask over the spread: the panel keeps to the left page, which holds about 340 characters of answer
+  # with the passages line still showing. The Lowood answers ran 370-530, so the Duo asks something
+  # narrower, early (chapter V: Jane about to leave for Lowood). Of about 40 questions and places tried
+  # on the Duo and the iPhone (2026-10-30), this was one of the few both short and right; the rest got
+  # details wrong ("Who is Miss Temple?" called her a teacher, not the superintendent; Bessie was put
+  # at Lowood past the reading position; Mr. Reed became Jane's father; Mr. Lloyd visited "after her
+  # fall"). Answers vary between runs: READ <shot>.ask.txt against the text before uploading.
+  ASK_AT=${DUO_ASK_AT:-V} ASK_QUESTION=${DUO_ASK_QUESTION:-"Where is Jane being sent?"} ASK_MAX=340 \
   ask_shot duo-inner/inner-landscape-9-ask.png   inner portrait        180 "$SPREAD"
   # Markup on the spread, then the same marks on the cover display, where the passage reflows.
   UNTIL=$MARKED SETTLE=2 \
@@ -514,10 +528,10 @@ run_device() {
   sleep 3   # covers render
 
   if [[ $DEVICE == duo ]]; then
-    rm -rf "$OUT/duo-inner" "$OUT/duo-cover"
+    [[ -n ${ONLY:-} ]] || rm -rf "$OUT/duo-inner" "$OUT/duo-cover"
     shots_duo
   else
-    rm -rf "${OUT:?}/$DEVICE"
+    [[ -n ${ONLY:-} ]] || rm -rf "${OUT:?}/$DEVICE"
     shots_single_display "$DEVICE"
   fi
 
