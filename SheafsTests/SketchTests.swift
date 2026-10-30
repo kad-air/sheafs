@@ -126,7 +126,8 @@ struct SketchTests {
     @Test func anUnderlineWrapsWithItsWords() async throws {
         let session = try await Self.session()
         let small = try #require(session.paginatedChapter(2))
-        let line = try Self.line(in: small, minimum: 40)
+        // A full line (the page is 312 pt wide: 33–39 characters at 19 pt), which 30 pt breaks in two.
+        let line = try Self.line(in: small, minimum: 34)
         let y = line.baseline + 3
         let points = stride(from: line.used.minX + 1, through: line.used.maxX - 1, by: 4).map { CGPoint(x: $0, y: y) }
         let mark = Self.mark(SketchLayout.capture([Self.stroke(points)], chapter: small, page: 1), spine: 2)

@@ -327,10 +327,13 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     character, an offset (x from that glyph or from the column edge, y from its baseline) and the
     start of its line when drawn (`SketchLayout.capture`), and `SketchLayout.place` puts each point
     back from where that character's glyph is NOW (`PaginatedChapter.glyphPlace`), on whichever
-    page holds it: a stroke over the text (≥ half its points over glyphs: circle, underline,
-    strike-through) keeps each point to the character under it in EMS, so it stretches with its
-    words, and two points that shared a line and no longer do are not joined (an underline is cut
-    where its words now wrap); a tall thin stroke in a margin (a bracket) keeps each point to its
+    page holds it: a stroke over the text (≥ half its points over glyphs, inside the column: circle,
+    underline, strike-through) keeps each point to the character under it in EMS, so it stretches
+    with its words (🔴 a point over a gap, or over a word at either end holding under a tenth of
+    the stroke's points on that line, keeps to the nearest letter of a word the stroke IS over:
+    a circle's clearance grazes the words beside it, and anchoring there tore the circle apart
+    when they wrapped away), and two points that shared a line and no longer do are not joined
+    (an underline is cut where its words now wrap); a tall thin stroke in a margin (a bracket) keeps each point to its
     line, in points from the column edge, so it spans the same lines; anything else (margin
     notes, arrows, 4+ small strokes = handwriting anywhere) is rigid, all of a marking's from one
     reference character (the first one its text strokes hold, else the nearest) and the column edge

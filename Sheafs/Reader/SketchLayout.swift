@@ -10,7 +10,9 @@ import PencilKit
 /// - on the text (most of it lies over glyphs: a circle, an underline, a strike-through): each
 ///   point keeps to the character under it on the stroke's own line(s), at its offset from that
 ///   glyph in ems, so the mark stretches with its words, and where they now wrap onto the next
-///   line the stroke is cut there and carries on under them;
+///   line the stroke is cut there and carries on under them; a point over a gap, or grazing a
+///   word at either end that holds almost none of the stroke, keeps to the nearest letter of a
+///   word the stroke is over (a circle's clearance around its word is not the words beside it);
 /// - a tall, thin stroke beside the text (a bracket or bar in the margin): each point keeps to its
 ///   line, so the bracket still spans the same lines; its distance from the column edge is kept;
 /// - anything else (a note written in the margin, an arrow, a doodle, or a cluster of small
@@ -129,17 +131,70 @@ enum SketchLayout {
             return best
         }
 
-        /// How much of a stroke lies over a line's glyphs (0…1).
+        /// How much of a stroke lies over a line's glyphs (0…1). A little past a line's ends still
+        /// counts (an underline overshoots), but never outside the column: a point in the margin
+        /// is over no glyph.
         func overlap(_ points: [CGPoint]) -> CGFloat {
             guard !points.isEmpty, !lines.isEmpty else { return 0 }
             let over = points.filter { point in
                 lines.indices.contains { line in
                     let em = ems[line], used = lines[line].used, baseline = lines[line].baseline
                     return point.y >= baseline - em * 1.2 && point.y <= baseline + em * 0.6
-                        && point.x >= used.minX - em * 0.4 && point.x <= used.maxX + em * 0.4
+                        && point.x >= max(0, used.minX - em * 0.4) && point.x <= min(width, used.maxX + em * 0.4)
                 }
             }
             return CGFloat(over.count) / CGFloat(points.count)
+        }
+
+        private var words: [Int: NSRange] = [:]
+
+        /// The word character `index` is part of; nil over a space or punctuation.
+        func word(at index: Int) -> NSRange? {
+            let range: NSRange
+            if let known = words[index] {
+                range = known
+            } else {
+                range = chapter.wordRange(at: index)
+                words[index] = range
+            }
+            return NSLocationInRange(index, range) ? range : nil
+        }
+
+        /// The characters of a text stroke's points on one line: each point keeps to the glyph
+        /// under it, but a point over a space (or punctuation), and a point over a word at either
+        /// end of the stroke that holds under a tenth of its points there (a circle's edge grazing
+        /// the word before, an underline overshooting into the next), keeps to the nearest letter
+        /// of a word the stroke is really over, so a circle around a word stays with that word
+        /// when its neighbours wrap away.
+        func anchors(on line: Int, at xs: [CGFloat]) -> [(index: Int, box: CGRect)] {
+            let hits = xs.map { character(on: line, nearestTo: $0) }
+            var counts: [Int: Int] = [:]
+            for hit in hits {
+                if let word = word(at: hit.index) { counts[word.location, default: 0] += 1 }
+            }
+            let order = counts.keys.sorted()
+            guard !order.isEmpty else { return hits }
+            let threshold = max(1, xs.count / 10)
+            var strong = Set(order.filter { counts[$0]! >= threshold })
+            if strong.isEmpty { strong = Set(order) }
+            // Only the ends can be grazed: a short word in the middle of a strike-through is struck.
+            for key in order where !strong.contains(key) && key != order.first && key != order.last {
+                strong.insert(key)
+            }
+            let chars = characters(of: line)
+            let letters = chars.filter { char in word(at: char.index).map { strong.contains($0.location) } ?? false }
+            guard !letters.isEmpty else { return hits }
+            return zip(hits, xs).map { hit, x in
+                if let word = word(at: hit.index), strong.contains(word.location) { return hit }
+                return letters.min { a, b in
+                    distance(from: x, to: a.box) < distance(from: x, to: b.box)
+                } ?? hit
+            }
+        }
+
+        private func distance(from x: CGFloat, to box: CGRect) -> CGFloat {
+            if box.minX <= x && x <= box.maxX { return 0 }
+            return min(abs(box.minX - x), abs(box.maxX - x))
         }
 
         func edge(for x: CGFloat) -> StrokeAnchors.Edge {
@@ -201,9 +256,18 @@ enum SketchLayout {
         for index in strokes.indices where roles[index] == .text {
             let home = text.homeLines(for: bounds[index])
             var a = StrokeAnchors(kind: .text, edge: .glyph, characters: [], dx: [], dy: [], lineStarts: [])
-            for point in points[index] {
-                let line = text.nearestLine(to: point.y, among: home) ?? 0
-                let char = text.character(on: line, nearestTo: point.x)
+            let lines = points[index].map { text.nearestLine(to: $0.y, among: home) ?? 0 }
+            // Each line's points are anchored together: which words the stroke is over decides
+            // where a point over a gap keeps to.
+            var chars: [(index: Int, box: CGRect)?] = Array(repeating: nil, count: points[index].count)
+            for line in Set(lines) {
+                let members = points[index].indices.filter { lines[$0] == line }
+                let anchored = text.anchors(on: line, at: members.map { points[index][$0].x })
+                for (member, char) in zip(members, anchored) { chars[member] = char }
+            }
+            for (number, point) in points[index].enumerated() {
+                let line = lines[number]
+                let char = chars[number] ?? text.character(on: line, nearestTo: point.x)
                 // The character's own baseline and size (a superscript sits above the line's).
                 let place = chapter.glyphPlace(at: char.index)
                 let size = place?.em ?? text.ems[line]
@@ -261,7 +325,7 @@ enum SketchLayout {
                 covered.append(chapter.wordRange(at: reference.index))
             }
         }
-        let covers = covered.reduce(nil as NSRange?) { $0.map { NSUnionRange($0, $1) } ?? $1 }
+        let covers = covered.reduce(nil as NSRange?) { union, range in union.map { NSUnionRange($0, range) } ?? range }
         return (strokes, anchors.map { $0! }, covers.map { wordAligned($0, in: chapter) })
     }
 
