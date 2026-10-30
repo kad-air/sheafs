@@ -12,6 +12,9 @@ final class PagerProxy {
     func beginMarkup() { controller?.beginMarkup() }
     func endMarkup() { controller?.endMarkup() }
     func commitMarkup() { controller?.commitMarkup() }
+#if DEBUG
+    func drawMarkupDemo(_ spec: String) -> Int { controller?.drawMarkupDemo(spec) ?? 0 }
+#endif
     var hostView: UIView? { controller?.viewIfLoaded }
 }
 
@@ -897,6 +900,9 @@ struct ReaderView: View {
         askFromLaunchArgument()
         bookmarkFromLaunchArgument(session: fresh)
         openImageFromLaunchArgument(session: fresh)
+#if DEBUG
+        demoFromLaunchArguments(session: fresh)
+#endif
         if let remote = await sync.pull(for: book) {
             offer(remote, session: fresh, force: false)
         }
@@ -1114,6 +1120,71 @@ struct ReaderView: View {
     }
 
     private static var askArgumentConsumed = false
+
+#if DEBUG
+    /// Debug, for App Store screenshots (the simulator has no Pencil and can't long-press):
+    /// `-SheafsHighlightDemo "<phrase>|<phrase>…"` highlights the first place in the book each
+    /// phrase occurs, through the highlight colours in turn (`-SheafsHighlightNote <text>` puts a
+    /// note on the first); `-SheafsMarkupDemo "page=<phrase>|underline=<phrase>|circle=<phrase>|bracket=<phrase>|note=<text>"`
+    /// turns to the first phrase (the page starts there), starts markup, draws `ScreenshotDemo`'s strokes on
+    /// the canvases and ends it 1.5 s later as Done would (saving them as markings), unless
+    /// `-SheafsMarkupStay YES` leaves markup up. Once per launch; prints `[demo]` lines.
+    private func demoFromLaunchArguments(session: BookSession) {
+        guard !Self.demoArgumentConsumed else { return }
+        Self.demoArgumentConsumed = true
+        let defaults = UserDefaults.standard
+        if let list = defaults.string(forKey: "SheafsHighlightDemo") {
+            let existing = library.annotations(for: book)
+            let colours = HighlightColor.allCases
+            for (number, phrase) in list.split(separator: "|").map(String.init).enumerated() {
+                guard let hit = ScreenshotDemo.find(phrase, in: session.chapters) else {
+                    print("[demo] highlight: \"\(phrase)\" is not in the book")
+                    continue
+                }
+                guard !existing.contains(where: { $0.spineIndex == hit.spineIndex && $0.startOffset == hit.range.location }) else {
+                    print("[demo] highlight: \"\(phrase)\" is highlighted already")
+                    continue
+                }
+                let text = session.chapters[hit.spineIndex].displayText(in: hit.range.location ..< NSMaxRange(hit.range))
+                let annotation = add(TextSelection(spineIndex: hit.spineIndex, range: hit.range), text: text,
+                                     color: colours[number % colours.count])
+                if number == 0, let note = defaults.string(forKey: "SheafsHighlightNote") { annotation.note = note }
+                print("[demo] highlight \(hit.spineIndex):\(hit.range.location)+\(hit.range.length) \(annotation.color.rawValue)")
+            }
+            library.save()
+        }
+        guard let spec = defaults.string(forKey: "SheafsMarkupDemo"),
+              let first = ScreenshotDemo.parse(spec).first(where: { $0.kind != "note" }) else { return }
+        guard let hit = ScreenshotDemo.find(first.value, in: session.chapters) else {
+            print("[demo] markup: \"\(first.value)\" is not in the book")
+            return
+        }
+        // The first phrase starts the (right-hand) page: the first layout breaks the page at the
+        // position, so the passage after it is on screen whatever the page size.
+        session.location = session.clamp(ReadingLocation(spineIndex: hit.spineIndex, textOffset: hit.range.location))
+        persist(session.location)
+        print("[demo] markup: page of \(hit.spineIndex):\(hit.range.location) → \(session.location.spineIndex):\(session.location.textOffset)")
+        Task {
+            var waited = 0
+            while pagerProxy.controller == nil || session.laidOutChapter(session.location.spineIndex) == nil, waited < 150 {
+                try? await Task.sleep(for: .milliseconds(100))
+                waited += 1
+            }
+            try? await Task.sleep(for: .seconds(1.5))
+            startMarkup()
+            try? await Task.sleep(for: .seconds(1))
+            let drawn = pagerProxy.drawMarkupDemo(spec)
+            print("[demo] markup: drew \(drawn) strokes")
+            guard !defaults.bool(forKey: "SheafsMarkupStay") else { return }
+            try? await Task.sleep(for: .seconds(1.5))
+            endMarkup()
+            try? await Task.sleep(for: .seconds(1))
+            print("[demo] markup: done, \(library.sketches(for: book).count) markings saved")
+        }
+    }
+
+    private static var demoArgumentConsumed = false
+#endif
 
     /// `-SheafsOpenImage <n>` moves to the book's nth picture (1-based, reading order) and, once its
     /// page is up, first SINGLE-taps its middle through `PagerController.tap(at:)` (the single-tap

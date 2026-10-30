@@ -38,7 +38,10 @@ scripts/screenshots [duo|iphone|ipad]  # App Store screenshots: every Duo pose o
                                   #   screenshots/{duo-inner,duo-cover,iphone,ipad}/; fresh install, Standard
                                   #   Ebooks books (CC0, cached); fails unless each shot is App Store Connect's
                                   #   size for its display, the hinge reads back, the `[layout]` line shows the
-                                  #   pose and the frame has ink. NO_BUILD=1 reuses the last build. iPhone/iPad
+                                  #   pose and the frame has ink. Ask shots (Jane Eyre) need Apple Intelligence
+                                  #   on this Mac and fail unless the model answered with passages (answer kept
+                                  #   as <shot>.ask.txt); markup/highlights/catalog shots use the DEBUG hooks
+                                  #   below. NO_BUILD=1 reuses the last build. iPhone/iPad
                                   #   need `scripts/screenshots prepare` (the iOS 27.0 runtime, 8 GB on the SSD,
                                   #   refused under 12 GB free) and an app whose minimum is 27.0;
                                   #   `scripts/screenshots teardown` deletes those simulators and that runtime
@@ -46,7 +49,13 @@ scripts/marketing                 # App Store marketing tiles from those shots: 
                                   #   voices, tiles per device) × marketing/styles/*.css, rendered by headless
                                   #   Chrome at the exact App Store sizes → OUT=/tmp/sheafs-marketing (index.html,
                                   #   sheet-<device>.png). Fails on a wrong size, an alpha channel, copy that
-                                  #   overflows or is covered; missing shots use a STANDIN- tile; --final refuses them
+                                  #   overflows or is covered, or a screenshot that fails to load (cyan frame:
+                                  #   RAW/OUT are made absolute, a relative file:// URL once left every device
+                                  #   an empty frame and passed; --selftest proves it fails); missing shots use
+                                  #   a STANDIN- tile; --final refuses them. A tile's "width" shrinks its device.
+                                  #   --export DIR (one --style, one --voice) writes tiles.json's `sets` in upload
+                                  #   order as DIR/<ASC display type>/NN-<tile>.png; the committed upload set
+                                  #   is marketing/screenshots/ (final/, raw/, README.md says how to remake it)
 cd Packages/SheafsKit && swift test            # the core package, on the Mac, ~1 s
 xcodebuild -project Sheafs.xcodeproj -scheme Sheafs -destination 'platform=iOS Simulator,name=iPhone Duo' build
 scripts/release                   # fallback only (Xcode Cloud ships, below): archive + upload with an API key
@@ -104,6 +113,14 @@ mid-air (the next tap lands it).
 `-SheafsSelect <0…1>` (with `-SheafsOpen`) selects the sentence at that fraction of the reading
 position's page 1 s after the book is up and opens the selection menu, as a long press would (simctl
 cannot long-press); `-SheafsSelectThen share` then taps Share, so the share sheet can be screenshotted.
+DEBUG builds only, for the App Store shots (`Reader/ScreenshotDemo.swift`): `-SheafsHighlightDemo
+"<phrase>|<phrase>…"` (with `-SheafsOpen`) highlights the first place in the book each phrase occurs,
+through the highlight colours, via the menu's own `add` (`-SheafsHighlightNote <text>` notes the first);
+`-SheafsMarkupDemo "page=<phrase>|underline=<phrase>|circle=<phrase>|bracket=<phrase>|note=yes!"` puts
+the first phrase at the top of the (right-hand) page, starts markup, draws hand-like strokes made from
+the text's geometry onto the REAL canvases and ends markup like Done, so `MarkupSession.commit` anchors
+and saves them as any drawing (`-SheafsMarkupStay YES` leaves markup up; `[demo] …` lines; the hand
+only writes y, e, s, !); `-SheafsBrowse <catalog name>` opens the Catalogs tab on that catalog.
 `xcrun simctl openurl <udid> "sheafs://open?book=<uuid>"` is the widget's tap (the simulator asks
 "Open in Sheafs?" first; a real widget tap doesn't). `simctl get_app_container <udid>
 io.sheafs.reader group.io.sheafs.reader` is the folder the widget reads.

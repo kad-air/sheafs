@@ -48,6 +48,10 @@ struct RootView: View {
                 library.save()
             }
         }
+#if DEBUG
+        // `-SheafsBrowse <catalog name>` (screenshots): the Catalogs tab, which then opens that catalog.
+        if defaults.string(forKey: "SheafsBrowse") != nil { navigation.selectedTab = .catalogs }
+#endif
         guard let wanted = defaults.string(forKey: "SheafsOpen"), !wanted.isEmpty else { return }
         // Give a Documents import a moment to land first.
         try? await Task.sleep(for: .milliseconds(800))

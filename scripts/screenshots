@@ -241,8 +241,75 @@ app_store_size() {  # macOS ships bash 3.2: no associative arrays
 # shot <file> <cover|inner|iphone|ipad> <device orientation|-> <hinge°|-> <expected layout|-> [launch arguments…]
 # The file is relative to OUT and contains the shot's kind (inner-landscape, iphone-portrait…). Orientation
 # and hinge are the Duo's (`-` for the iPhone and iPad). The expected layout is a regex the reader's last
-# `[layout]` line must match ("-" for the library).
+# `[layout]` line must match ("-" for the library and the catalogs).
+#   UNTIL=<regex>  also wait (up to UNTIL_LIMIT s, default 120) for a console line matching it, and fail
+#                  without one: an Ask answer (`[ask] state:`), a markup demo (`[demo] markup: done`)
+#   SETTLE=<s>     then wait this long before the screenshot (default 5; 6 without a layout)
 shot() {
+  launch "$@"
+  local file=$1 display=$2
+  local display_flag="" png=$OUT/$file   # the iPhone and iPad have one display: no flag
+  [[ $display == cover ]] && display_flag=--display=primary
+  [[ $display == inner ]] && display_flag=--display=primary-1
+  mkdir -p "$(dirname "$png")"
+  xcrun simctl io "$UDID" screenshot $display_flag "$png" >/dev/null 2>&1 || fail "$file: screenshot"
+  local w h ink kind
+  read -r w h ink <<<"$(inspect "$png")"
+  if ((w > h)); then kind=$display-landscape; else kind=$display-portrait; fi
+  [[ "$w $h" == "$(app_store_size "$kind")" ]] \
+    || fail "$file: ${w}×${h} is not App Store Connect's $kind size $(app_store_size "$kind")"
+  [[ $file == *$kind* ]] || fail "$file: came out $kind (the orientation did not take?)"
+  ((ink >= 5)) || fail "$file: looks blank (ink on $ink‰ of it)"
+  echo "  ok: ${w}×${h} $kind, ink on $ink‰"
+  SHOTS=$((SHOTS + 1))
+}
+
+# prep <name> <display> <orientation|-> <hinge°|-> <layout|-> [launch arguments…]: a launch that only
+# changes the library (the highlight and markup demos), no screenshot; UNTIL and SETTLE as for `shot`.
+prep() {
+  launch "$@"
+  xcrun simctl terminate "$UDID" io.sheafs.reader >/dev/null 2>&1 || true
+}
+
+# require <name> <regex> <what>: fails unless the last launch's console has a line matching regex.
+require() {
+  grep -aEq "$2" "$WORK/console.log" || fail "$1: $3; the app said: $(grep -a '^\[' "$WORK/console.log" | grep -v '^\[layout\]' | tail -8)"
+}
+
+# ask_check <file>: the Ask shot shows a real answer from the on-device model: available, finished,
+# not empty, with passages. The transcript goes beside the shot (<file>.ask.txt) as the record.
+ask_check() {
+  require "$1" '^\[ask\] availability: available' "the on-device model is not available (Apple Intelligence on this Mac?)"
+  require "$1" '^\[ask\] state: done' "the answer did not finish"
+  require "$1" '^\[ask\] answer: .{40,}' "the answer is empty or a few words"
+  require "$1" '^\[ask\] source ' "the answer lists no passages"
+  grep -a '^\[ask\]' "$WORK/console.log" | grep -v '^\[ask\] saved' >"$OUT/${1%.png}.ask.txt"
+  echo "  answer: $(grep -a '^\[ask\] answer:' "$WORK/console.log" | head -1 | cut -c15-)"
+}
+
+# ask_shot <file> <display> <orientation|-> <hinge°|-> <layout>: Jane Eyre at ASK_AT, ASK_QUESTION asked,
+# the shot once the answer is in, checked by ask_check. With ASK_MAX (characters) an answer longer than
+# the panel shows whole is asked again, up to 4 times; the answers are all the model's own, the last is kept.
+ask_shot() {
+  local file=$1 tries=0 length
+  while :; do
+    tries=$((tries + 1))
+    UNTIL=$ASKED UNTIL_LIMIT=240 SETTLE=3 \
+    shot "$@" -SheafsOpen Jane -SheafsGoTo "$ASK_AT" -SheafsAsk "$ASK_QUESTION"
+    ask_check "$file"
+    length=$(grep -a '^\[ask\] answer:' "$WORK/console.log" | head -1 | cut -c15- | tr -d '\r' | wc -m | tr -d ' ')
+    if [[ -z ${ASK_MAX:-} ]] || ((length <= ASK_MAX)); then break; fi
+    if ((tries >= 4)); then
+      echo "  warning: the answer is $length characters, over $ASK_MAX: the panel cuts it off; kept anyway"
+      break
+    fi
+    echo "  the answer is $length characters, over $ASK_MAX for this panel: asking again"
+    SHOTS=$((SHOTS - 1))
+  done
+}
+
+# The launch part of `shot` and `prep`: the pose, the app with its arguments, the waits and checks.
+launch() {
   local file=$1 display=$2 orient=$3 angle=$4 layout=$5
   shift 5
   echo "• $file"
@@ -267,37 +334,54 @@ shot() {
   : >"$WORK/console.log"
   xcrun simctl launch --console-pty "$UDID" io.sheafs.reader "$@" >"$WORK/console.log" 2>&1 &
   CONSOLE_PID=$!
-  if [[ $layout == - ]]; then
-    sleep 6
-  else
+  if [[ $layout != - ]]; then
     for _ in $(seq 1 30); do grep -a -q '^\[layout\]' "$WORK/console.log" && break; sleep 1; done
+  fi
+  if [[ -n ${UNTIL:-} ]]; then
+    local waited=0
+    until grep -aEq "$UNTIL" "$WORK/console.log"; do
+      ((waited < ${UNTIL_LIMIT:-120})) || fail "$file: no console line /$UNTIL/ after ${waited}s; the app said: $(grep -a '^\[' "$WORK/console.log" | grep -v '^\[layout\]' | tail -8)"
+      sleep 1; waited=$((waited + 1))
+    done
+  fi
+  if [[ $layout == - ]]; then
+    sleep "${SETTLE:-6}"
+  else
     sleep "${SETTLE:-5}"
     grep -aq 'nothing in the contents matches' "$WORK/console.log" && fail "$file: $(grep -a '\[goto\]' "$WORK/console.log")"
+    grep -aq 'is not in the book' "$WORK/console.log" && fail "$file: $(grep -a 'is not in the book' "$WORK/console.log")"
     local line
     line=$(grep -a '^\[layout\]' "$WORK/console.log" | tail -1)
     [[ -n $line ]] || fail "$file: the reader logged no [layout] line (did the book open?)"
     [[ $line =~ $layout ]] || fail "$file: layout is not /$layout/: $line"
   fi
-  local display_flag="" png=$OUT/$file   # the iPhone and iPad have one display: no flag
-  [[ $display == cover ]] && display_flag=--display=primary
-  [[ $display == inner ]] && display_flag=--display=primary-1
-  mkdir -p "$(dirname "$png")"
-  xcrun simctl io "$UDID" screenshot $display_flag "$png" >/dev/null 2>&1 || fail "$file: screenshot"
-  local w h ink kind
-  read -r w h ink <<<"$(inspect "$png")"
-  if ((w > h)); then kind=$display-landscape; else kind=$display-portrait; fi
-  [[ "$w $h" == "$(app_store_size "$kind")" ]] \
-    || fail "$file: ${w}×${h} is not App Store Connect's $kind size $(app_store_size "$kind")"
-  [[ $file == *$kind* ]] || fail "$file: came out $kind (the orientation did not take?)"
-  ((ink >= 5)) || fail "$file: looks blank (ink on $ink‰ of it)"
-  echo "  ok: ${w}×${h} $kind, ink on $ink‰"
-  SHOTS=$((SHOTS + 1))
 }
 
 SPREAD='pages=\[\([^)]*\), \([^)]*\)\]'             # two pages side by side
 TABLETOP='division=Optional\(\(0\.0, [0-9.]+, [0-9.]+, 40\.0\)\) active=true .*pages=\[\([^)]*\)\]'
 SINGLE='pages=\[\([^)]*\)\]'
 COVER='camera=Optional.*pages=\[\([^)]*\)\]'        # the cover display: one page below the camera
+
+# Ask, highlights and Pencil markup, in Jane Eyre. Ask's answer is the on-device model's own (Apple
+# Intelligence on the Mac running the simulator), recorded beside the shot; the simulator has no Pencil
+# and can't long-press, so the DEBUG-only `-SheafsHighlightDemo` / `-SheafsMarkupDemo` hooks make the
+# highlights and draw the strokes, which are then saved by the same commit as a real drawing.
+# Asked at chapter X, as Jane leaves Lowood. "Who is Mr. Rochester?" at XVIII was tried first (2026-10-30):
+# over seven runs the model said he visits "frequently" (the book: rarely), that he employs Adèle, that
+# he "carries a horse"; this question came back right every time.
+ASK_AT=${ASK_AT:-X}
+ASK_QUESTION=${ASK_QUESTION:-"Why was Jane sent to Lowood?"}
+HIGHLIGHTS="There was no possibility of taking a walk that day|I resisted all the way|If all the world hated you, and believed you wicked|I am glad you are no relation of mine"
+HIGHLIGHT_NOTE="The first line, and she is already shut in."
+PASSAGE="It is in vain to say"     # chapter XII: “women feel just as men feel”
+MARKS="page=$PASSAGE|circle=tranquillity|underline=women feel just as men feel|note=yes!"
+BRACKET="page=$PASSAGE|bracket=$PASSAGE"
+# The Duo's inner page is shorter: the same paragraph from a later sentence, so it ends on the page and
+# the note sits after its last line (anchored there, it reflows with it onto the cover).
+DUO_PASSAGE="Women are supposed to be very calm"
+DUO_MARKS="page=$DUO_PASSAGE|bracket=$DUO_PASSAGE|underline=women feel just as men feel|circle=puddings|note=yes!"
+ASKED='^\[ask\] state: '
+MARKED='^\[demo\] markup: done'
 
 # Every Duo pose. Libraries first: opening a book reorders them.
 shots_duo() {
@@ -318,6 +402,16 @@ shots_duo() {
   shot duo-cover/cover-portrait-4-flip.png       cover portrait          0 "$COVER"   -SheafsOpen Pride -SheafsGoTo 0.05 \
     -SheafsFlipAuto forward -SheafsFlipFreeze 0.5 -SheafsFlipGrab 0.9
   shot duo-cover/cover-portrait-5-appearance.png cover portrait          0 "$COVER"   -SheafsOpen Gatsby -SheafsGoTo II -SheafsAppearance quick
+  # Ask over the spread: the panel keeps to the left page, which holds about 360 characters of answer
+  # with the passages line still showing. The Lowood answers ran 370-530, so the Duo asks a question
+  # whose answers are shorter (also right every time it was tried).
+  ASK_QUESTION=${DUO_ASK_QUESTION:-"Who is Miss Temple?"} ASK_MAX=370 \
+  ask_shot duo-inner/inner-landscape-9-ask.png   inner portrait        180 "$SPREAD"
+  # Markup on the spread, then the same marks on the cover display, where the passage reflows.
+  UNTIL=$MARKED SETTLE=2 \
+  shot duo-inner/inner-landscape-10-markup.png   inner portrait        180 "$SPREAD"  -SheafsOpen Jane -SheafsMarkupDemo "$DUO_MARKS"
+  require duo-inner/inner-landscape-10-markup.png '^\[demo\] markup: drew [5-9] ' "the markup demo drew too few strokes"
+  shot duo-cover/cover-portrait-7-markup.png     cover portrait          0 "$COVER"   -SheafsOpen Jane
   # Night last: the theme is a saved setting.
   SETTLE=9 \
   shot duo-inner/inner-landscape-7-night.png     inner portrait        180 "$SPREAD"  -SheafsOpen Dracula -SheafsGoTo 0.05 \
@@ -331,7 +425,7 @@ shots_duo() {
 shots_single_display() {
   local d=$1
   shot "$d/$d-portrait-1-library.png"    "$d" - - -
-  shot "$d/$d-portrait-2-reader.png"     "$d" - - "$SINGLE" -SheafsOpen Moby -SheafsGoTo Loomings
+  shot "$d/$d-portrait-2-reader.png"     "$d" - - "$SINGLE" -SheafsOpen Jane -SheafsGoTo I
   # A single page is narrow: an early frame with the corner leading reads as a page turn.
   SETTLE=8 \
   shot "$d/$d-portrait-3-flip.png"       "$d" - - "$SINGLE" -SheafsOpen Pride -SheafsGoTo 0.05 \
@@ -341,11 +435,33 @@ shots_single_display() {
   if [[ $d == ipad ]]; then
     # iPad landscape: no fold, but wide enough for a two-page spread (`PageLayout.compute`); the
     # turn is a book's, the leaf's back landing on the left.
-    shot "$d/$d-landscape-7-spread.png"  "$d" landscape-left - "$SPREAD" -SheafsOpen Pride -SheafsGoTo 0.05
+    shot "$d/$d-landscape-7-spread.png"  "$d" landscape-left - "$SPREAD" -SheafsOpen Jane -SheafsGoTo 0.12
     SETTLE=8 \
     shot "$d/$d-landscape-8-flip.png"    "$d" landscape-left - "$SPREAD" -SheafsOpen Pride -SheafsGoTo 0.05 \
       -SheafsFlipAuto forward -SheafsFlipFreeze 0.5 -SheafsFlipGrab 0.9
   fi
+  # Ask, a real answer from the on-device model; the panel shows about 460 characters of it whole.
+  ASK_MAX=460 \
+  ask_shot "$d/$d-portrait-9-ask.png"    "$d" - - "$SINGLE"
+  # Highlights (one with a note) and three pen markings, then the notes list; the bracket is drawn
+  # after it (its thumbnail is a sliver), so the markup shot shows all four markings.
+  UNTIL='^\[demo\] highlight ' SETTLE=2 \
+  prep "$d: highlights"                  "$d" - - "$SINGLE" -SheafsOpen Jane -SheafsHighlightDemo "$HIGHLIGHTS" \
+    -SheafsHighlightNote "$HIGHLIGHT_NOTE"
+  require "$d: highlights" '^\[demo\] highlight .* pink' "the highlight demo did not make all four highlights"
+  UNTIL=$MARKED \
+  prep "$d: markings"                    "$d" - - "$SINGLE" -SheafsOpen Jane -SheafsMarkupDemo "$MARKS"
+  require "$d: markings" '^\[demo\] markup: drew [4-9] ' "the markup demo drew too few strokes"
+  shot "$d/$d-portrait-10-notes.png"     "$d" - - "$SINGLE" -SheafsOpen Jane -SheafsContents notes
+  UNTIL=$MARKED SETTLE=2 \
+  shot "$d/$d-portrait-11-markup.png"    "$d" - - "$SINGLE" -SheafsOpen Jane -SheafsMarkupDemo "$BRACKET"
+  # Four markings, or three where the bracket touches a marking it then joins (the iPad's underline
+  # starts its line, right beside the bracket).
+  require "$d/$d-portrait-11-markup.png" '^\[demo\] markup: done, [34] markings' "the book does not hold the markings"
+  # The built-in catalogs: Project Gutenberg's most downloaded (needs the network).
+  SETTLE=10 \
+  shot "$d/$d-portrait-12-catalogs.png"  "$d" - - - -SheafsBrowse Gutenberg
+  require "$d/$d-portrait-12-catalogs.png" '^\[catalog\] browse "Gutenberg" → Project Gutenberg' "the Gutenberg catalog did not open"
   # Night last: the theme is a saved setting.
   SETTLE=9 \
   shot "$d/$d-portrait-6-night.png"      "$d" - - "$SINGLE" -SheafsOpen Dracula -SheafsGoTo 0.05 -SheafsThemeSwitch night

@@ -92,6 +92,22 @@ final class MarkupSession: NSObject, PKCanvasViewDelegate {
         pages = []
     }
 
+#if DEBUG
+    /// Debug (`-SheafsMarkupDemo`, screenshots): adds `ScreenshotDemo`'s strokes for `spec` to the
+    /// canvases, as if drawn there; `commit` then saves them like any drawing. Returns how many.
+    func drawDemo(_ spec: String) -> Int {
+        var count = 0
+        for page in pages {
+            let strokes = ScreenshotDemo.strokes(spec: spec, chapter: page.chapter, page: page.page,
+                                                 origin: page.pageView.textOrigin, margin: page.pageView.textInsets.left)
+            guard !strokes.isEmpty else { continue }
+            page.canvas.drawing = PKDrawing(strokes: page.canvas.drawing.strokes + strokes)
+            count += strokes.count
+        }
+        return count
+    }
+#endif
+
     /// What changed on the canvases since they were put up, as edits; the session's sketches are
     /// brought up to date at once, so a page laid out next (a turn) already shows them.
     func commit() -> [SketchEdit] {

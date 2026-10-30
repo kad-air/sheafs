@@ -200,20 +200,57 @@
         "title": "Turn it sideways.",
         "sub": "In landscape you get two pages at once, like a book lying open on the table."
       },
+      "ask": {
+        "kicker": "Ask about the book",
+        "title": "Ask without spoilers.",
+        "sub": "Answers come only from the pages you’ve read, worked out on device, with the passages they came from."
+      },
+      "markup": {
+        "kicker": "Apple Pencil",
+        "title": "Mark it up with Apple Pencil.",
+        "sub": "Underline, circle, scribble in the margin. Your marks stay put when the text reflows."
+      },
+      "markup-touch": {
+        "kicker": "Markup",
+        "title": "Mark up the page.",
+        "sub": "Underline, circle, scribble in the margin. Your marks stay put when the text reflows."
+      },
+      "markup-reflow": {
+        "kicker": "Apple Pencil",
+        "title": "Mark it up with Apple Pencil.",
+        "sub": "Fold it shut and the page reflows for the cover. Your marks move right along with the words."
+      },
+      "notes": {
+        "kicker": "Notes",
+        "title": "Your notes, in reading order.",
+        "sub": "Highlights, notes and pen marks, all in one list. Share the lot as Markdown."
+      },
+      "catalogs": {
+        "kicker": "Catalogs",
+        "title": "Thousands of free classics.",
+        "sub": "Browse Project Gutenberg right in the app, or hook up your own OPDS server."
+      },
       "features": {
         "kicker": "Sheafs",
-        "title": "All the good stuff, too.",
+        "title": "Native, open source, yours.",
         "sub": "",
         "list": [
-          "EPUB 2 and 3",
+          "Ask about the book, on device",
+          "Markup that follows the text",
           "Highlights and notes, shared as Markdown",
-          "KOReader sync",
+          "KOReader progress sync",
           "OPDS catalogs",
-          "A Continue Reading widget",
-          "Open source, no ads, no tracking"
+          "No ads, no tracking"
         ]
       }
     }
+  },
+  "sets": {
+    "_comment": "App Store Connect screenshot sets, in upload order: <device>/<copy> picks one tile, a bare <device> all of its tiles. scripts/marketing --export writes them as <dir>/<display type>/NN-<copy>.png.",
+    "APP_IPHONE_DUO": ["duo-inner/spread", "duo-inner/ask", "duo-inner/markup-reflow", "duo-inner/both", "duo-cover/reader",
+                       "duo-inner/flip", "duo-inner/tabletop", "duo-inner/appearance", "duo-inner/night", "duo-inner/library"],
+    "APP_IPHONE_67": ["iphone"],
+    "APP_IPAD_PRO_3GEN_129": ["ipad"]
   },
   "tiles": {
     "duo-inner": [
@@ -222,6 +259,19 @@
         "shot": "duo-inner/inner-landscape-2-spread.png",
         "layout": "book",
         "tint": "pride"
+      },
+      {
+        "copy": "ask",
+        "shot": "duo-inner/inner-landscape-9-ask.png",
+        "layout": "side",
+        "tint": "jane"
+      },
+      {
+        "copy": "markup-reflow",
+        "shot": "duo-inner/inner-landscape-10-markup.png",
+        "layout": "pair",
+        "tint": "jane",
+        "second": "duo-cover/cover-portrait-7-markup.png"
       },
       {
         "copy": "flip",
@@ -302,7 +352,39 @@
         "copy": "reader",
         "shot": "iphone/iphone-portrait-2-reader.png",
         "layout": "top",
-        "tint": "moby",
+        "tint": "jane",
+        "stand_in": "duo-cover/cover-portrait-2-reader.png"
+      },
+      {
+        "copy": "ask",
+        "shot": "iphone/iphone-portrait-9-ask.png",
+        "layout": "top",
+        "width": 0.71,
+        "tint": "jane"
+      },
+      {
+        "copy": "markup-touch",
+        "shot": "iphone/iphone-portrait-11-markup.png",
+        "layout": "top",
+        "tint": "jane"
+      },
+      {
+        "copy": "notes",
+        "shot": "iphone/iphone-portrait-10-notes.png",
+        "layout": "top",
+        "tint": "jane"
+      },
+      {
+        "copy": "catalogs",
+        "shot": "iphone/iphone-portrait-12-catalogs.png",
+        "layout": "top",
+        "tint": "frankenstein"
+      },
+      {
+        "copy": "appearance",
+        "shot": "iphone/iphone-portrait-4-appearance.png",
+        "layout": "top",
+        "tint": "gatsby",
         "stand_in": "duo-cover/cover-portrait-2-reader.png"
       },
       {
@@ -310,13 +392,6 @@
         "shot": "iphone/iphone-portrait-3-flip.png",
         "layout": "tilt",
         "tint": "pride",
-        "stand_in": "duo-cover/cover-portrait-2-reader.png"
-      },
-      {
-        "copy": "appearance",
-        "shot": "iphone/iphone-portrait-4-appearance.png",
-        "layout": "top",
-        "tint": "gatsby",
         "stand_in": "duo-cover/cover-portrait-2-reader.png"
       },
       {
@@ -346,15 +421,40 @@
         "copy": "reader",
         "shot": "ipad/ipad-portrait-2-reader.png",
         "layout": "top",
-        "tint": "moby",
+        "tint": "jane",
         "stand_in": "duo-cover/cover-portrait-2-reader.png"
+      },
+      {
+        "copy": "ask",
+        "shot": "ipad/ipad-portrait-9-ask.png",
+        "layout": "top",
+        "width": 0.66,
+        "tint": "jane"
+      },
+      {
+        "copy": "markup",
+        "shot": "ipad/ipad-portrait-11-markup.png",
+        "layout": "top",
+        "tint": "jane"
       },
       {
         "copy": "ipad-spread",
         "shot": "ipad/ipad-landscape-7-spread.png",
         "layout": "wide",
-        "tint": "pride",
+        "tint": "jane",
         "orientation": "landscape"
+      },
+      {
+        "copy": "notes",
+        "shot": "ipad/ipad-portrait-10-notes.png",
+        "layout": "top",
+        "tint": "jane"
+      },
+      {
+        "copy": "catalogs",
+        "shot": "ipad/ipad-portrait-12-catalogs.png",
+        "layout": "top",
+        "tint": "frankenstein"
       },
       {
         "copy": "flip",
@@ -368,13 +468,6 @@
         "shot": "ipad/ipad-portrait-4-appearance.png",
         "layout": "top",
         "tint": "gatsby",
-        "stand_in": "duo-cover/cover-portrait-2-reader.png"
-      },
-      {
-        "copy": "night",
-        "shot": "ipad/ipad-portrait-6-night.png",
-        "layout": "top",
-        "tint": "dracula",
         "stand_in": "duo-cover/cover-portrait-2-reader.png"
       },
       {

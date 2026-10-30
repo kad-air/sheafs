@@ -1,0 +1,7 @@
+[ask] availability: available limit: 14:690 saved: 0
+[ask] state: done
+[ask] answer: Miss Temple is a teacher at the school where Jane Eyre is placed, described as having a white forehead, shining curls, and beaming dark eyes. She is kind and supportive, offering Jane comfort and protection after Jane is wrongly accused. She helps Jane when she is cleared of the charges and shares quiet moments with both Jane and Helen Burns.
+[ask] source 12:7982 VIII: I had finished: Miss Temple regarded me a few minutes in silence; she then said﻿
+[ask] source 12:14356 VIII: About a week subsequently to the incidents above narrated, Miss Temple, who had 
+[ask] source 12:5399 VIII: “I came on purpose to find you, Jane Eyre,” said she; “I want you in my room; an
+[ask] source 12:13053 VIII: “God bless you, my children!”

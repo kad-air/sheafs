@@ -93,3 +93,5 @@ body.layout-pair .device.closed { right: 22.5vw; top: 50%; transform: translateY
 .standin-badge { position: absolute; z-index: 9; top: 0; right: 0; padding: 0.6em 1.1em; font: 600 max(1.6vmin, 18px)/1 Menlo, monospace;
   color: #fff; background: #c2185b; letter-spacing: 0.04em; }
 body.overflow { outline: 2.4vmin solid #ff00ff; outline-offset: -2.4vmin; }
+/* A screenshot that did not load (scripts/marketing fails on it); after .overflow, so it wins. */
+body.missing { outline: 2.4vmin solid #00ffff; outline-offset: -2.4vmin; }

@@ -34,8 +34,27 @@ struct CatalogsView: View {
             }
             .sheet(isPresented: $showAdd) { AddCatalogView() }
             .sheet(item: $editing) { AddCatalogView(catalog: $0) }
+#if DEBUG
+            .navigationDestination(item: $launchBrowse) { catalog in
+                if let url = catalog.url {
+                    CatalogBrowserView(url: url, title: catalog.name, connection: CatalogConnection(catalog))
+                }
+            }
+            .task {
+                // `-SheafsBrowse <name fragment>` (screenshots): opens the first matching catalog once.
+                guard !Self.browseArgumentConsumed, let wanted = UserDefaults.standard.string(forKey: "SheafsBrowse") else { return }
+                Self.browseArgumentConsumed = true
+                launchBrowse = catalogs.first { $0.name.localizedCaseInsensitiveContains(wanted) }
+                print("[catalog] browse \"\(wanted)\" → \(launchBrowse?.name ?? "nothing"); catalogs: \(catalogs.map(\.name))")
+            }
+#endif
         }
     }
+
+#if DEBUG
+    @State private var launchBrowse: Catalog?
+    private static var browseArgumentConsumed = false
+#endif
 
     private var list: some View {
         List {
