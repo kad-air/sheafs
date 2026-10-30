@@ -41,8 +41,9 @@ public enum ReadSoFar {
     /// reached, a heading starting a new passage, a paragraph longer than twice the target split at
     /// sentence ends. Pictures and rules carry no text and are skipped; a table reads as its rows.
     public static func passages(chapters: [Chapter], limit: ReadingLimit, targetLength: Int = 700) -> [Passage] {
+        guard !chapters.isEmpty, limit.spineIndex >= 0 else { return [] }
         var result: [Passage] = []
-        for spine in 0 ... min(limit.spineIndex, chapters.count - 1) where spine >= 0 {
+        for spine in 0 ... min(limit.spineIndex, chapters.count - 1) {
             result += passages(of: chapters[spine], spineIndex: spine, limit: limit, targetLength: targetLength)
         }
         return result

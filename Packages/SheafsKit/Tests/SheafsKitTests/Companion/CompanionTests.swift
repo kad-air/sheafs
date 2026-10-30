@@ -72,6 +72,12 @@ struct CompanionTests {
         }
     }
 
+    @Test("an empty book gives no passages (a closed range with upper < lower would trap)")
+    func emptyBook() {
+        #expect(ReadSoFar.passages(chapters: [], limit: ReadingLimit(spineIndex: 0, textOffset: 0)).isEmpty)
+        #expect(ReadSoFar.passages(chapters: Self.book, limit: ReadingLimit(spineIndex: -1, textOffset: 0)).isEmpty)
+    }
+
     @Test("passages keep near the target length and long paragraphs split at sentences")
     func passageLengths() {
         let long = Array(repeating: "Sam carried the Ring up the mountain.", count: 60).joined(separator: " ")
