@@ -71,9 +71,10 @@ struct ReaderView: View {
     @State private var isScrubbing = false
     @State private var trail = ReturnTrail()
     @State private var showSearch = false
+    /// The Ask panel over the bottom of the page (`AskPanel`).
     @State private var showAsk = false
     /// Ask about the book (`AskModel`), made when the book is ready and Ask is on; kept for the
-    /// reader's life so the conversation survives the sheet closing.
+    /// reader's life so the passage index survives the panel closing.
     @State private var ask: AskModel?
     /// Find-in-book, made the first time the search opens; kept so reopening shows the last results.
     @State private var search: BookSearchModel?
@@ -136,6 +137,10 @@ struct ReaderView: View {
                 })
                 .frame(maxWidth: quickPanelWidth ?? .infinity)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else if showAsk {
+                askPanel
+                    .frame(maxWidth: quickPanelWidth ?? .infinity)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .overlay {
@@ -176,7 +181,6 @@ struct ReaderView: View {
                 }
             }
         }
-        .sheet(isPresented: $showAsk) { askSheet }
         .sheet(item: $editingAnnotation) { annotation in
             if let session {
                 AnnotationEditorView(annotation: annotation, session: session) { location in
@@ -304,7 +308,8 @@ struct ReaderView: View {
                             .position(x: page.midX, y: page.minY + max(24, layout.textInsets.top - 20))
                             .transition(.opacity)
                     }
-                    if !chromeVisible, !showQuickAppearance, !markingUp, let page = layout.pageFrames.last {
+                    // The Ask panel carries its own "Back to page N" (it may cover the folio).
+                    if !chromeVisible, !showQuickAppearance, !showAsk, !markingUp, let page = layout.pageFrames.last {
                         backButton(session)
                             // Over the folio of the page that holds the position (the right page of a spread).
                             .position(x: page.midX, y: page.maxY - PageLayout.footerHeight / 2 + 2)
@@ -465,11 +470,12 @@ struct ReaderView: View {
     // MARK: Actions
 
     /// The volume buttons turn pages only while the book is on screen and the app is active; with a
-    /// sheet up (contents, appearance, a note, a footnote) they change the volume again. Leaving
+    /// sheet up (contents, appearance, a note, a footnote) they change the volume again. The
+    /// floating panels (quick appearance, Ask) leave them turning pages, as the edge taps do. Leaving
     /// the foreground stops them, so Control Center's volume works and they re-arm on return.
     private var volumeButtonsArmed: Bool {
         (settings.volumeButtonsTurn || volumeProbeRequested) && scenePhase == .active && session?.isReady == true && regions != nil
-            && !showContents && !showAppearance && !showSearch && !showAsk && footnote == nil && editingAnnotation == nil && !pagerSheet
+            && !showContents && !showAppearance && !showSearch && footnote == nil && editingAnnotation == nil && !pagerSheet
             && viewedImage == nil
     }
 
@@ -519,6 +525,8 @@ struct ReaderView: View {
         case .center:
             if showQuickAppearance {
                 withAnimation(.snappy) { showQuickAppearance = false }
+            } else if showAsk {
+                closeAsk()
             } else {
                 withAnimation(.snappy) { chromeVisible.toggle() }
             }
@@ -546,6 +554,7 @@ struct ReaderView: View {
             withAnimation(.snappy) {
                 chromeVisible = false
                 showQuickAppearance = false
+                showAsk = false
                 viewedImage = ViewedImage(image: image, alt: alt, source: tap.source, pageFrame: tap.pageFrame)
             }
         }
@@ -588,6 +597,7 @@ struct ReaderView: View {
         withAnimation(.snappy) {
             chromeVisible = false
             showQuickAppearance = false
+            showAsk = false
             markingUp = true
         }
         pagerProxy.beginMarkup()
@@ -666,6 +676,7 @@ struct ReaderView: View {
     private func openQuickAppearance() {
         withAnimation(.snappy) {
             chromeVisible = false
+            showAsk = false
             showQuickAppearance = true
         }
     }
@@ -735,16 +746,26 @@ struct ReaderView: View {
         ask?.readerMoved(to: session.location.spineIndex)
     }
 
+    /// A passage tapped in the panel turns to its page with the panel still up; the panel's own
+    /// "Back to page N" returns.
     @ViewBuilder
-    private var askSheet: some View {
-        if let ask {
-            AskView(model: ask) { location in
-                showAsk = false
-                guard let session else { return }
-                jump(to: session.pageStart(showing: location.textOffset, inSpine: location.spineIndex))
-            }
-            .presentationDetents([.medium, .large])
+    private var askPanel: some View {
+        if let ask, let session {
+            AskPanel(model: ask, maxHeight: askPanelHeight,
+                     backLabel: trail.isEmpty ? nil : trail.lastPage.map { "Back to page \($0)" } ?? "Back",
+                     onBack: goBack,
+                     onGo: { location in
+                         jump(to: session.pageStart(showing: location.textOffset, inSpine: location.spineIndex))
+                     },
+                     onClose: closeAsk)
         }
+    }
+
+    /// The tallest the panel's answer may grow before it scrolls: under half the screen, so the
+    /// page stays in view.
+    private var askPanelHeight: CGFloat {
+        let height = geometry.reading?.size.height ?? 700
+        return max(140, height * 0.4)
     }
 
     private func openAsk() {
@@ -754,8 +775,12 @@ struct ReaderView: View {
         withAnimation(.snappy) {
             chromeVisible = false
             showQuickAppearance = false
+            showAsk = true
         }
-        showAsk = true
+    }
+
+    private func closeAsk() {
+        withAnimation(.snappy) { showAsk = false }
     }
 
     /// 🔴 The end of what the reader can see: the end of the page holding the position (the right
@@ -775,6 +800,7 @@ struct ReaderView: View {
         withAnimation(.snappy) {
             chromeVisible = false
             showQuickAppearance = false
+            showAsk = false
         }
         showSearch = true
     }
@@ -823,6 +849,8 @@ struct ReaderView: View {
         library.publishRecentBook()
         schedulePush()
         ask?.readerMoved(to: location.spineIndex)
+        // Turning on with the panel up reads further: the next question may use the new page.
+        if showAsk, let ask { ask.extendLimit(to: readingLimit(session)) }
     }
 
     private func schedulePush() {
@@ -1042,29 +1070,45 @@ struct ReaderView: View {
 
     private static var searchArgumentConsumed = false
 
-    /// `-SheafsAsk <question>` opens Ask once the book is ready and asks it (whatever the setting
-    /// says), printing the availability, the answer and its sources as `[ask]` lines, so a
-    /// simulator or device run can be checked without typing.
+    /// `-SheafsAsk <question>` opens the Ask panel once the book is ready and asks it (whatever the
+    /// setting says), printing the availability, the answer and its sources as `[ask]` lines, so a
+    /// simulator or device run can be checked without typing. `-SheafsAskOpen 1` only opens the
+    /// panel and prints how many saved questions it holds; `-SheafsAskSource <n>` then turns to the
+    /// answer's nth passage (1-based), the panel staying up.
     private func askFromLaunchArgument() {
         guard !Self.askArgumentConsumed else { return }
         Self.askArgumentConsumed = true
-        guard let question = UserDefaults.standard.string(forKey: "SheafsAsk"), !question.isEmpty else { return }
+        let defaults = UserDefaults.standard
+        let question = defaults.string(forKey: "SheafsAsk") ?? ""
+        guard !question.isEmpty || defaults.string(forKey: "SheafsAskOpen") != nil else { return }
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(2))
             openAsk()
             guard let ask else { return }
-            print("[ask] availability: \(ask.availability) limit: \(ask.limit.spineIndex):\(ask.limit.textOffset)")
-            ask.ask(question)
-            var waited = 0
-            while ask.isBusy, waited < 1200 {
-                try? await Task.sleep(for: .milliseconds(100))
-                waited += 1
+            print("[ask] availability: \(ask.availability) limit: \(ask.limit.spineIndex):\(ask.limit.textOffset) "
+                + "saved: \(ask.exchanges.count)")
+            for exchange in ask.exchanges {
+                print("[ask] saved: \(exchange.question) (\(exchange.caption), \(exchange.sources.count) sources)")
+            }
+            if !question.isEmpty {
+                ask.ask(question)
+                var waited = 0
+                while ask.isBusy, waited < 1200 {
+                    try? await Task.sleep(for: .milliseconds(100))
+                    waited += 1
+                }
             }
             guard let last = ask.exchanges.last else { return print("[ask] no exchange") }
             print("[ask] state: \(last.state)")
             print("[ask] answer: \(last.answer)")
             for source in last.sources {
                 print("[ask] source \(source.location.spineIndex):\(source.location.textOffset) \(source.chapter): \(source.snippet.prefix(80))")
+            }
+            let pick = defaults.integer(forKey: "SheafsAskSource")
+            if pick > 0, pick <= last.sources.count, let session {
+                let location = last.sources[pick - 1].location
+                jump(to: session.pageStart(showing: location.textOffset, inSpine: location.spineIndex))
+                print("[ask] opened source \(pick); panel shown: \(showAsk) trail: \(trail.stops.count)")
             }
         }
     }

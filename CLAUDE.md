@@ -407,9 +407,18 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     background while the reader is up and Ask is on, latest first, chunk-and-carry (each part
     rewrites the running summary), pausing while a question is answered; stored per book as JSON
     in Application Support/Recaps (`RecapStore`, deleted with the book). Guardrails are
-    `.permissiveContentTransformations` (book text is violent). The sheet lists the passages each
-    answer came from; tapping one jumps there. `-SheafsAsk <question>` (with `-SheafsOpen`) asks
-    once and prints `[ask]` lines. Not on the tabletop deck.
+    `.permissiveContentTransformations` (book text is violent). `AskPanel` floats over the bottom of
+    the page like the quick appearance panel (left page over a vertical fold; a centre tap or ✕
+    closes it; edge taps and the volume buttons still turn pages, and turning on moves the limit
+    on, never back: `AskModel.extendLimit`). It shows one answer with the passages it came from;
+    tapping one jumps there with the panel up, and the panel carries "Back to page N" (it can
+    cover the folio's). Finished answers and their passages are saved per book as JSON in
+    Application Support/Ask (`AskHistoryStore`, newest 200, deleted with the book; the panel's
+    history and Settings delete them too) and listed under the panel's clock button. A follow-up
+    question carries the previous answer only from this opening and within the current limit.
+    `-SheafsAsk <question>` (with `-SheafsOpen`) asks once and prints `[ask]` lines;
+    `-SheafsAskOpen 1` opens the panel and prints the saved questions; `-SheafsAskSource <n>`
+    then opens the answer's nth passage. Not on the tabletop deck.
   - `Reader/VolumeButtons` — `VolumeButtonPager` (setting `volumeButtonsTurn`, off by default):
     up = next page, down = previous (`Press.turnsForward`, the owner's choice). iOS has no public
     volume-button event outside a camera session (`AVCaptureEventInteraction` reaches only apps
