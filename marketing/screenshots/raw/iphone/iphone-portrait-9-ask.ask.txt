@@ -1,0 +1,6 @@
+[ask] availability: available limit: 14:1007 saved: 0
+[ask] state: done
+[ask] answer: Jane was sent to Lowood because Mrs. Reed, her benefactor, expressed concern about her character and disposition, specifically noting a tendency to deceit. She asked Mr. Brocklehurst to admit Jane into the school with strict supervision to ensure she was made humble and useful. Mr. Brocklehurst agreed, stating that the school’s system of plain fare, simple attire, and unsophisticated habits was fitting for a child like Jane.
+[ask] source 8:19017 IV: “This is the state of things I quite approve,” returned Mrs. Reed; “had I sought
+[ask] source 8:15924 IV: “Psalms are not interesting,” I remarked.
+[ask] source 8:17561 IV: “Nothing, indeed,” thought I, as I struggled to repress a sob, and hastily wiped

@@ -1,0 +1,6 @@
+[ask] availability: available limit: 9:719 saved: 3
+[ask] state: done
+[ask] answer: Jane is being sent to Lowood school. She is told by Mr. Brocklehurst and her benefactor, Mrs. Reed, that she will be trained there. The school is described as having plain fare, simple attire, and unsophisticated accommodations. Jane is to spend the vacations there as well.
+[ask] source 8:19017 IV: “This is the state of things I quite approve,” returned Mrs. Reed; “had I sought
+[ask] source 8:17561 IV: “Nothing, indeed,” thought I, as I struggled to repress a sob, and hastily wiped
+[ask] source 8:24597 IV: Ere I had finished this reply, my soul began to expand, to exult, with the stran

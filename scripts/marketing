@@ -14,7 +14,12 @@ mistake. Fails loudly when a tile is not the App Store size for its device, has 
 magenta frame, read back here), or a screenshot is missing with no stand-in. --final also refuses
 stand-ins.
 
-  scripts/marketing [--final] [--device D]... [--style S]... [--voice V]...
+--export DIR (one style, one voice; implies --final) then writes the upload sets of tiles.json's
+`sets`, in order, as DIR/<display type>/NN-<tile>.png (the iPhone Duo set mixes inner and cover
+tiles), refusing a set over App Store Connect's 10 and reading every file back for its size and alpha.
+Voices that lack copy for a tile are skipped unless asked for by name.
+
+  scripts/marketing [--final] [--device D]... [--style S]... [--voice V]... [--export DIR]
   RAW=/tmp/sheafs-screenshots (scripts/screenshots' OUT)  OUT=/tmp/sheafs-marketing
   CHROME=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome
 """
@@ -22,8 +27,9 @@ import argparse, html, json, os, shutil, struct, subprocess, sys, tempfile, zlib
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MARKETING = os.path.join(ROOT, "marketing")
-RAW = os.environ.get("RAW", "/tmp/sheafs-screenshots")
-OUT = os.environ.get("OUT", "/tmp/sheafs-marketing")
+# Absolute: the tiles load screenshots as file:// URLs, and a relative path makes an URL Chrome can't open.
+RAW = os.path.abspath(os.environ.get("RAW", "/tmp/sheafs-screenshots"))
+OUT = os.path.abspath(os.environ.get("OUT", "/tmp/sheafs-marketing"))
 CHROME = os.environ.get("CHROME", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
 
 # Frames, in fractions of the device's width: bezel, outer corner radius, screen corner radius.
@@ -123,17 +129,30 @@ document.fonts.ready.then(() => {
   });
   if (tooBig() || covered) b.classList.add('overflow');
 });
+// Every screenshot on the tile must load (an <img> or a .page's background); one that doesn't
+// leaves an empty frame, so mark the tile (a cyan frame, read back by the script).
+const shots = [...document.querySelectorAll('img')].map(i => i.src).concat(
+  [...document.querySelectorAll('.page')].map(p => (getComputedStyle(p).backgroundImage.match(/url\\("?(.*?)"?\\)/) || [])[1]));
+Promise.all(shots.map(u => new Promise(done => {
+  if (!u) return done(false);
+  const im = new Image();
+  im.onload = () => done(im.naturalWidth > 0);
+  im.onerror = () => done(false);
+  im.src = u;
+}))).then(ok => { if (!shots.length || ok.includes(false)) document.body.classList.add('missing'); });
 </script>"""
 
 
-def device_html(frame, shot, tile_w, layout, native_aspect, stand_in, fill, extra_class="", follow=True):
-    """One framed screen. `shot` is a file path; `native_aspect` the real screen's width/height."""
+def device_html(frame, shot, tile_w, layout, native_aspect, stand_in, fill, extra_class="", follow=True, width=None):
+    """One framed screen. `shot` is a file path; `native_aspect` the real screen's width/height.
+    `width` (a tile's own, as a fraction of the tile's width) overrides the layout's: smaller, so the
+    whole device shows when what matters is at the bottom of the screen (the Ask panel)."""
     bezel_f, radius_f, screen_f = FRAMES[frame]
-    dw = WIDTH[(layout, frame)] * tile_w
+    dw = (width or WIDTH[(layout, frame)]) * tile_w
     sw = dw * (1 - 2 * bezel_f)
     style = (f"--dw:{dw:.1f}px;--bezel:{dw * bezel_f:.1f}px;--radius:{dw * radius_f:.1f}px;"
              f"--screen-radius:{dw * screen_f:.1f}px;--sw:{sw:.1f}px;--screen-aspect:{native_aspect:.5f};--fill:{fill}")
-    url = "file://" + shot
+    url = ("file:///nonexistent" if BREAK_URLS else "file://") + shot
     if layout in ("book", "tabletop"):
         kind = "book" if layout == "book" else "tabletop"
         halves = ("left", "right") if kind == "book" else ("upper", "lower")
@@ -196,7 +215,7 @@ def render_tile(spec, device_key, device, style, voice, index, tile, out_dir, fi
     elif layout == "tabletop":
         devices = device_html("duo-open", shot, W, "tabletop", sw / sh, stand_in, fill)
     else:
-        devices = device_html(frame, shot, W, layout, native, stand_in, fill)
+        devices = device_html(frame, shot, W, layout, native, stand_in, fill, width=tile.get("width"))
 
     kicker = f'<p class="kicker">{html.escape(copy["kicker"])}</p>' if copy.get("kicker") else ""
     sub = f'<p class="sub">{html.escape(copy["sub"])}</p>' if copy.get("sub") else ""
@@ -228,7 +247,10 @@ def render_tile(spec, device_key, device, style, voice, index, tile, out_dir, fi
         fail(f"{out}: {width}×{height}, App Store Connect wants {W}×{H} for {device['name']} ({orientation})")
     if colour != 2:
         fail(f"{out}: has an alpha channel (PNG colour type {colour}); App Store Connect refuses those")
-    if png_pixel(out, 4, 4) == (255, 0, 255):
+    corner = png_pixel(out, 4, 4)
+    if corner == (0, 255, 255):
+        fail(f"{out}: a screenshot did not load ({shot}; cyan frame), so the device is an empty frame")
+    if corner == (255, 0, 255):
         fail(f"{out}: the copy does not fit or the device covers it (magenta frame)")
     return name, stand_in
 
@@ -266,13 +288,27 @@ def main():
     parser.add_argument("--device", action="append")
     parser.add_argument("--style", action="append")
     parser.add_argument("--voice", action="append")
+    parser.add_argument("--export", metavar="DIR", help="write the App Store upload sets (one style, one voice)")
+    parser.add_argument("--selftest", action="store_true", help="prove a tile whose screenshot can't load fails")
     args = parser.parse_args()
+    if args.selftest:
+        return selftest()
     if not os.path.exists(CHROME):
         fail(f"no Chrome at {CHROME} (set CHROME)")
     spec = json.load(open(os.path.join(MARKETING, "tiles.json")))
     styles = args.style or sorted(f[:-4] for f in os.listdir(os.path.join(MARKETING, "styles")) if f.endswith(".css"))
-    voices = args.voice or list(spec["voices"])
+    copies = {tile["copy"] for tiles in spec["tiles"].values() for tile in tiles}
+    complete = [v for v, copy in spec["voices"].items() if copies <= set(copy)]
+    for voice in args.voice or []:
+        missing = sorted(copies - set(spec["voices"].get(voice, {})))
+        if missing:
+            fail(f"voice {voice} has no copy for {', '.join(missing)}")
+    voices = args.voice or complete
     devices = args.device or list(spec["devices"])
+    if args.export:
+        if len(styles) != 1 or len(voices) != 1:
+            fail("--export takes exactly one --style and one --voice")
+        args.final = True
     os.makedirs(OUT, exist_ok=True)
     gallery, standins = [], 0
     for device_key in devices:
@@ -318,7 +354,70 @@ device's screenshot until that device's capture runs; they are not for upload.</
                 line = copy.get("sub") or " · ".join(copy.get("list", []))
                 f.write(f"| {key} | {copy.get('kicker', '')} | {copy['title']} | {line} |\n")
             f.write("\n")
+    if args.export:
+        export(spec, devices, styles[0], voices[0], args.export)
     print(f"MARKETING OK: {OUT}/index.html" + (f" ({standins} stand-in tiles)" if standins else ""))
+
+
+BREAK_URLS = False  # --selftest only
+
+
+def selftest():
+    """The first iPhone tile, its screenshot URL made unreachable (as a relative RAW once made every
+    URL): the render must fail with "did not load", not pass with empty device frames."""
+    global BREAK_URLS
+    spec = json.load(open(os.path.join(MARKETING, "tiles.json")))
+    tile = spec["tiles"]["iphone"][0]
+    with tempfile.TemporaryDirectory() as out_dir:
+        BREAK_URLS = True
+        try:
+            render_tile(spec, "iphone", spec["devices"]["iphone"], "folio", "casual", 1, tile, out_dir, False)
+        except SystemExit as error:
+            if "did not load" in str(error):
+                print("SELFTEST OK: a tile whose screenshot can't load fails")
+                return
+            fail(f"selftest: failed for another reason: {error}")
+        fail("selftest: a tile whose screenshot can't load rendered without failing")
+
+
+def export(spec, devices, style, voice, target):
+    """The upload sets of tiles.json's `sets`, in order, as target/<display type>/NN-<tile>.png."""
+    for display, entries in spec["sets"].items():
+        if display.startswith("_"):
+            continue
+        picked = []  # (device, index in its tiles, copy)
+        for entry in entries:
+            device_key, _, copy = entry.partition("/")
+            if device_key not in spec["tiles"]:
+                fail(f"sets.{display}: no device {device_key}")
+            tiles = spec["tiles"][device_key]
+            for index, tile in enumerate(tiles, 1):
+                if not copy or tile["copy"] == copy:
+                    picked.append((device_key, index, tile["copy"]))
+            if copy and not any(t["copy"] == copy for t in tiles):
+                fail(f"sets.{display}: {device_key} has no tile {copy}")
+        skipped = sorted({d for d, _, _ in picked} - set(devices))
+        if skipped:
+            print(f"export: {display} skipped ({', '.join(skipped)} not rendered in this run)")
+            continue
+        if len(picked) > 10:
+            fail(f"sets.{display}: {len(picked)} screenshots; App Store Connect takes at most 10")
+        out_dir = os.path.join(target, display)
+        shutil.rmtree(out_dir, ignore_errors=True)
+        os.makedirs(out_dir)
+        for number, (device_key, index, copy) in enumerate(picked, 1):
+            source = os.path.join(OUT, device_key, f"{style}-{voice}", f"{index:02d}-{copy}.png")
+            if not os.path.exists(source):
+                fail(f"export {display}: {source} was not rendered (a stand-in?)")
+            name = f"{number:02d}-{copy}.png"
+            shutil.copyfile(source, os.path.join(out_dir, name))
+            width, height, colour = png_size(os.path.join(out_dir, name))
+            W, H = spec["devices"][device_key]["size"]
+            if {width, height} != {W, H}:
+                fail(f"export {display}/{name}: {width}×{height}, not {W}×{H} either way round")
+            if colour != 2:
+                fail(f"export {display}/{name}: has an alpha channel (PNG colour type {colour})")
+        print(f"export: {display}: {len(picked)} screenshots in {out_dir}")
 
 
 if __name__ == "__main__":

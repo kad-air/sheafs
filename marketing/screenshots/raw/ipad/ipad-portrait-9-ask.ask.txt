@@ -1,0 +1,9 @@
+[ask] availability: available limit: 14:2995 saved: 0
+[ask] state: done
+[ask] answer: Jane was sent to Lowood because Mrs. Reed, her former guardian, expressed concern about her character and mentioned a tendency to deceit, asking Mr. Brocklehurst to keep a strict eye on her. Mrs. Reed also stated that she wished Jane be made useful and kept humble, and that she would allow Jane to spend vacations at Lowood. Mr. Brocklehurst, the superintendent, agreed to accept Jane as a pupil under these conditions.
+[ask] source 8:17561 IV: “Nothing, indeed,” thought I, as I struggled to repress a sob, and hastily wiped
+[ask] source 8:15924 IV: “Psalms are not interesting,” I remarked.
+[ask] source 8:0 IV: IV
+[ask] source 6:2448 II: “And you ought not to think yourself on an equality with the Misses Reed and Mas
+[ask] source 14:0 X: X
+[ask] source 14:1096 X: Several wealthy and benevolent individuals in the county subscribed largely for 

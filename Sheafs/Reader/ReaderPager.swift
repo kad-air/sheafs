@@ -407,6 +407,14 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         commitMarkup(reattach: true)
     }
 
+#if DEBUG
+    /// Debug (`-SheafsMarkupDemo`): draws the demo strokes on the canvases of the spread in markup.
+    func drawMarkupDemo(_ spec: String) -> Int {
+        guard isMarkingUp else { return 0 }
+        return markup.drawDemo(spec)
+    }
+#endif
+
     private func commitMarkup(reattach: Bool) {
         let edits = markup.commit()
         guard !edits.isEmpty else { return }

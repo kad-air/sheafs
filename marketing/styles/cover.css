@@ -6,6 +6,7 @@ body.tint-pride        { --bg: #c25b48; --ink: #fff7ee; --accent: #2a1a12; }
 body.tint-gatsby       { --bg: #12406c; --ink: #f6efdc; --accent: #f2c14e; }
 body.tint-dracula      { --bg: #141213; --ink: #f3ede4; --accent: #c8352a; }
 body.tint-frankenstein { --bg: #e4b23c; --ink: #1d140c; --accent: #8a2f1d; }
+body.tint-jane         { --bg: #4b2d43; --ink: #f7efe6; --accent: #e8a87c; }
 body { --muted: color-mix(in srgb, var(--ink) 78%, transparent);
   background:
     radial-gradient(circle at var(--disc-x, 78%) var(--disc-y, 72%), color-mix(in srgb, var(--accent) 34%, transparent) 0 30vmin, transparent 30.2vmin),
