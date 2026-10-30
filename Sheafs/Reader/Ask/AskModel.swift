@@ -119,7 +119,8 @@ final class AskModel {
             if context.excerpts.isEmpty && context.recaps.isEmpty {
                 return update(id) { $0.state = .failed("There’s nothing read yet to answer from.") }
             }
-            let prompt = AskEngine.answerPrompt(question: question, context: context.text, earlier: earlier)
+            let prompt = AskEngine.answerPrompt(question: question, context: context.text, names: index.topNames(15),
+                                                earlier: earlier)
             do {
                 for try await partial in AskEngine.answer(prompt: prompt) {
                     update(id) { $0.answer = partial }
@@ -146,7 +147,11 @@ final class AskModel {
         if let indexed, indexed.limit == limit { return indexed.index }
         let chapters = session.chapters
         let index = await Task.detached(priority: .userInitiated) {
-            PassageIndex(passages: ReadSoFar.passages(chapters: chapters, limit: limit))
+            // Title pages and half-titles (a line or two) match every question about the hero named
+            // in the title and tell the model nothing; leave such short chapters out.
+            let passages = ReadSoFar.passages(chapters: chapters, limit: limit)
+                .filter { chapters[$0.spineIndex].textLength >= 400 }
+            return PassageIndex(passages: passages)
         }.value
         indexed = (limit, index)
         return index

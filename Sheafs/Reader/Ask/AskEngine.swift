@@ -95,8 +95,12 @@ enum AskEngine {
         five plain sentences. Say who people are by how the text describes them.
         """
 
-    static func answerPrompt(question: String, context: String, earlier: (question: String, answer: String)?) -> String {
+    /// `names`: the names the read text uses most, most first, so a broad question ("who are the
+    /// main characters?") has more to go on than the passages that matched it.
+    static func answerPrompt(question: String, context: String, names: [String],
+                             earlier: (question: String, answer: String)?) -> String {
         var prompt = "From the book, up to where the reader is:\n\n\(context)\n\n"
+        if !names.isEmpty { prompt += "Names mentioned most so far, most first: \(names.joined(separator: ", "))\n\n" }
         if let earlier {
             prompt += "They asked before: \(earlier.question)\nYou answered: \(earlier.answer.prefix(400))\n\n"
         }
@@ -125,7 +129,7 @@ enum AskEngine {
 
     /// How many UTF-16 units of book text fit beside the instructions, the question and the answer.
     static func contextBudget(question: String, earlier: Int) -> Int {
-        let fixed = Double(answerInstructions.count + question.count + earlier + 200) / charactersPerToken
+        let fixed = Double(answerInstructions.count + question.count + earlier + 400) / charactersPerToken
         let tokens = Double(contextTokens - responseTokens) - fixed - 150
         return max(1500, Int(tokens * charactersPerToken))
     }
