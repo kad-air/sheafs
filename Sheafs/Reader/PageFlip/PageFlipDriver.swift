@@ -10,7 +10,10 @@ final class PageFlipDriver: NSObject {
     private unowned let host: PagerController
     private var flipView: PageFlipView?
     private var textures: [PageSlot: MTLTexture] = [:]
-    private var baseTexture: (signature: TabletopBaseView.Signature, texture: MTLTexture?)?
+    /// The tabletop surface with a block of so many sheets, the few a turn needs.
+    private var baseTextures: [(signature: TabletopBaseView.Signature, texture: MTLTexture?)] = []
+    /// Draws the surface with another block than the one on screen (the page a turn lands on).
+    private lazy var blockRenderer = TabletopBaseView()
     private var turn: Turn?
     private var displayLink: CADisplayLink?
     /// Debug: launch with `-SheafsFlipFreeze 0.4` to hold every tap turn at that amount (for
@@ -54,7 +57,7 @@ final class PageFlipDriver: NSObject {
     /// Page textures are keyed by slot; a new layout, palette or style makes new pages.
     func invalidateTextures() {
         textures.removeAll()
-        baseTexture = nil
+        baseTextures.removeAll()
     }
 
     /// How far down the window the leaf reaches. 🔴 In tabletop it stops at the page's bottom
@@ -233,16 +236,39 @@ final class PageFlipDriver: NSObject {
         }
         let base = host.baseView
         if !base.isHidden, base.bounds.height > 0 {
-            if baseTexture?.signature != base.signature {
-                baseTexture = (base.signature, flipView.makeTexture(for: base))
+            // The block of pages still to read under the leaf's page (the destination's, falling
+            // back onto the stack, when reversed), and the one it leaves (or lands on): the
+            // shader swaps one for the other where the leaf has lifted, so the block changes with
+            // the turn and the line under the new page is the next sheet's.
+            func sheets(_ location: ReadingLocation) -> Int {
+                TabletopBaseView.sheets(progress: host.session.progress(for: location))
             }
-            scene.base = (base.frame.minY, baseTexture?.texture)
+            let leaf = reversed ? location : originLocation, other = reversed ? originLocation : location
+            scene.base = (base.frame.minY, baseTexture(like: base, sheets: sheets(leaf), in: flipView),
+                          baseTexture(like: base, sheets: sheets(other), in: flipView))
+            log.debug("tabletop block \(sheets(leaf)) → \(sheets(other)) sheets")
         }
         let ms = (CFAbsoluteTimeGetCurrent() - started) * 1000
         log.debug("prepared \(forward ? "forward" : "backward") turn in \(ms, format: .fixed(precision: 1)) ms")
         return Turn(origin: current, originLocation: originLocation, destination: destination, location: location,
                     forward: forward, reversed: reversed, scene: scene, amount: reversed ? 1 : 0,
                     grabY: grabY ?? scene.leafFrame.midY)
+    }
+
+    /// The tabletop surface as `base` draws it, with a block of `sheets`.
+    private func baseTexture(like base: TabletopBaseView, sheets: Int, in flipView: PageFlipView) -> MTLTexture? {
+        var signature = base.signature
+        signature.sheets = sheets
+        if let cached = baseTextures.first(where: { $0.signature == signature }) { return cached.texture }
+        let renderer = blockRenderer
+        renderer.frame = CGRect(origin: .zero, size: base.bounds.size)
+        renderer.contentScaleFactor = base.contentScaleFactor
+        renderer.palette = base.palette
+        renderer.sheets = sheets
+        let texture = flipView.makeTexture(for: renderer)
+        if baseTextures.count >= 3 { baseTextures.removeFirst() }
+        baseTextures.append((signature, texture))
+        return texture
     }
 
     /// The finger carries the free edge: it is wherever it rested plus the finger's travel.

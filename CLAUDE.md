@@ -554,13 +554,25 @@ display and inner-landscape), `toolbarVisibility(_:for: .statusBar)`, `ToolbarOv
 - tabletop/laptop (active horizontal division) → the page on the upper half, `ReaderDeck` (progress,
   prev/next, contents, text size, appearance) on the lower half. The page STANDS on a surface
   (`Reader/TabletopBase.swift`): `TabletopBaseView` (in `PagerController`, above the pages, below the
-  flip view) runs from the page's bottom edge down in `ReaderPalette.surface` (a shade under the
-  paper; the deck uses it too), with a block of sheet edges under the page (7 sheets at the start of
-  the book, 1 at the end) and a contact shadow; the page's last 22 pt shade a little as if curving
-  over the fold (`PageView.curvesOverFold`). A turn draws the surface as a fifth texture, the leaf
-  stops at the page's edge (`PageFlipDriver.leafHeight`) and its shadow spills onto the surface,
-  fading with the distance from the edge (`TabletopEdgeTests`; `TEST_RUNNER_SHEAFS_TABLETOP_RENDERS=1`
-  writes renders of it to the simulator's tmp/sheafs-tabletop);
+  flip view) runs from the page's bottom edge to the bottom of the window in `ReaderPalette.surface`
+  (a shade under the paper; the deck has NO background of its own, it sits on this view), with the
+  BOOK STILL TO READ under the page: a block of sheet edges, 1.25 pt each, `maxSheets` (48, 60 pt,
+  a paperback's proportions) at the start thinning with progress to `minSheets` (3) near the end
+  (`TabletopBaseView.sheets(progress:)`), running on into the deck's empty top, and a contact
+  shadow. A sheet draws by its place from the top (tone, hairline weight from `grain`), so the
+  next page's block is this one less a sheet at the bottom or the same. Only the page on the upper
+  half shows, so there is no read pile: the leaf turns over the page's left edge, off screen. The
+  page's last 22 pt shade a little as if curving over the fold (`PageView.curvesOverFold`). A turn
+  draws the surface as textures 4 and 5: the block the leaf's page lies on, and the block it leaves
+  (`PageFlipDriver.baseTexture(like:sheets:in:)`, from each page's progress); 🔴 the shader shows
+  the first under the part of the leaf still lying flat and the second past the axis, so the block
+  changes WITH the turn, and the top sheet's edge is the leaf's own (`FlipUniforms.edge`, the leaf
+  reaches that far below its page and samples texture 4 there), carried off the block when a bend
+  lifts it above the surface, so the line under the new page is the next sheet, there all along
+  (before, the line appeared from nowhere as the leaf lifted). The leaf's page stops at the page's
+  edge (`PageFlipDriver.leafHeight`) and its shadow spills onto the surface, fading with the
+  distance from the edge (`TabletopEdgeTests`; `TEST_RUNNER_SHEAFS_TABLETOP_RENDERS=1` writes renders
+  of it to the simulator's tmp/sheafs-tabletop);
 - the cover display's camera hole (`CoverCamera`, a known spot, not read from the system) pushes the
   text below it (or the folio band up, if the interface turns it to the bottom).
 Both pages of a spread share one text size, so one pagination serves both. The reading position is

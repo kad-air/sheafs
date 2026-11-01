@@ -16,8 +16,9 @@ struct FlipUniforms {
     var paperR: Float = 1, paperG: Float = 1, paperB: Float = 1, isDark: Float = 0
     var pageTop: Float = 0, pageHeight: Float = 1
     var baseY: Float = 0, baseOn: Float = 0
+    var edge: Float = 0
 
-    static let floatCount = 33
+    static let floatCount = 34
 }
 
 /// Everything one turn draws with: the leaf's frame and hinge, the textures, and the page(s)
@@ -40,8 +41,10 @@ struct FlipScene {
     var ghostBack: Bool
     var under: [(frame: CGRect, texture: MTLTexture?)]
     /// Tabletop: the surface below the page (`TabletopBaseView`), from `top` to the bottom of the
-    /// view, full width. The leaf ends where it starts and throws its shadow onto it.
-    var base: (top: CGFloat, texture: MTLTexture?)? = nil
+    /// view, full width. The leaf ends where it starts and throws its shadow onto it. `texture`
+    /// has the block the leaf's page lies on (its top sheet the leaf's own edge, which the leaf
+    /// carries off), `beneath` the block once the leaf has gone over.
+    var base: (top: CGFloat, texture: MTLTexture?, beneath: MTLTexture?)? = nil
     var palette: ReaderPalette
 }
 
@@ -148,6 +151,7 @@ final class PageFlipView: MTKView {
         if let base = scene.base, base.texture != nil {
             uniforms.baseY = Float(base.top)
             uniforms.baseOn = 1
+            uniforms.edge = Float(TabletopBaseView.sheetPitch)
         }
 
         encoder.setRenderPipelineState(pipeline)
@@ -157,6 +161,7 @@ final class PageFlipView: MTKView {
         encoder.setFragmentTexture(scene.under.first?.texture ?? blank, index: 2)
         encoder.setFragmentTexture(scene.under.count > 1 ? scene.under[1].texture ?? blank : blank, index: 3)
         encoder.setFragmentTexture(scene.base?.texture ?? blank, index: 4)
+        encoder.setFragmentTexture(scene.base?.beneath ?? scene.base?.texture ?? blank, index: 5)
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         encoder.endEncoding()
         buffer.present(drawable)
