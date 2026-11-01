@@ -250,6 +250,9 @@ final class PageFlipDriver: NSObject {
         }
         let ms = (CFAbsoluteTimeGetCurrent() - started) * 1000
         log.debug("prepared \(forward ? "forward" : "backward") turn in \(ms, format: .fixed(precision: 1)) ms")
+        // The folios either side of the turn (the right page of a spread): `scripts/check-tabletop`
+        // holds a turn to counting on by one.
+        print("[flip] turn \(forward ? "forward" : "back") folio \(current.pageViews.last?.folio ?? "?") → \(destination.pageViews.last?.folio ?? "?")")
         return Turn(origin: current, originLocation: originLocation, destination: destination, location: location,
                     forward: forward, reversed: reversed, scene: scene, amount: reversed ? 1 : 0,
                     grabY: grabY ?? scene.leafFrame.midY)

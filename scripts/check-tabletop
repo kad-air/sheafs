@@ -1,0 +1,169 @@
+#!/usr/bin/env bash
+# End-to-end check of a page turn in the tabletop pose on the iPhone Duo simulator (the phone turned
+# so the inner display is portrait, half folded: the page on the upper half, standing on the block
+# of pages still to read). Opens Pride and Prejudice halfway (the fixture, imported if missing) twice:
+# once as it lies, once with a forward turn frozen just after it starts (`-SheafsFlipAuto forward
+# -SheafsFlipFreeze 0.1`), and fails loudly unless
+#   - the row where the page meets the block reads the same with the page lying and under the turn
+#     (a column the leaf still lies flat over, so it is the same page): 🔴 the live view drew a dark
+#     line there that the flip's textures don't have (the block's view began at the fold's half
+#     pixel), so the line vanished at every turn and came back when the leaf landed;
+#   - that row has the page's edge line in both (darker than the paper above it);
+#   - the turn counts on by one: the folio of the page the leaf lands on is the turning page's plus
+#     one (`[flip] turn … folio X → Y`). 🔴 It was summed afresh from estimates that moved when
+#     the neighbouring chapters were laid out: 531 → 518 on the phone.
+#   SIM="iPhone Duo" (default), DERIVED_DATA=/tmp/sheafs-derived (builds there, incrementally),
+#   NO_BUILD=1 (installs the last build), OUT=/tmp/sheafs-tabletop-check (screenshots, kept)
+set -euo pipefail
+cd "$(dirname "$0")/.."
+fail() { echo "TABLETOP CHECK FAILED: $*" >&2; exit 1; }
+SIM=${SIM:-iPhone Duo}
+DD=${DERIVED_DATA:-/tmp/sheafs-derived}
+OUT=${OUT:-/tmp/sheafs-tabletop-check}
+HINGE=scripts/hinge/hinge
+EPUB=Packages/SheafsKit/Tests/SheafsKitTests/Fixtures/pride-epub2.epub
+WORK=$(mktemp -d)
+CONSOLE_PID=""
+mkdir -p "$OUT"
+
+UDID=$(xcrun simctl list devices available -j | python3 -I -c '
+import json, sys
+name = sys.argv[1]
+for runtime in json.load(sys.stdin)["devices"].values():
+    for d in runtime:
+        if d["name"] == name: print(d["udid"]); sys.exit()
+' "$SIM")
+[[ -n $UDID ]] || fail "no simulator named \"$SIM\""
+xcrun simctl boot "$UDID" >/dev/null 2>&1 || true
+xcrun simctl bootstatus "$UDID" -b >/dev/null
+finish() {
+  [[ -n $CONSOLE_PID ]] && { kill "$CONSOLE_PID" >/dev/null 2>&1 || true; }
+  CONSOLE_PID=""
+  xcrun simctl terminate "$UDID" io.sheafs.reader >/dev/null 2>&1 || true
+}
+cleanup() {
+  local status=$?
+  finish
+  rm -rf "$WORK"
+  exit "$status"
+}
+trap cleanup EXIT
+
+if [[ -z ${NO_BUILD:-} ]]; then
+  [[ -f Config/Signing.xcconfig ]] || cp Config/Signing.example.xcconfig Config/Signing.xcconfig
+  xcodegen generate --quiet
+  xcodebuild -project Sheafs.xcodeproj -scheme Sheafs -destination "platform=iOS Simulator,id=$UDID" \
+    -derivedDataPath "$DD" -quiet build >"$WORK/build.log" 2>&1 || { tail -n 30 "$WORK/build.log" >&2; fail "build"; }
+fi
+xcrun simctl install "$UDID" "$DD/Build/Products/Debug-iphonesimulator/Sheafs.app"
+finish
+DATA=$(xcrun simctl get_app_container "$UDID" io.sheafs.reader data)
+mkdir -p "$DATA/Documents"
+cp "$EPUB" "$DATA/Documents/"
+xcrun simctl launch "$UDID" io.sheafs.reader >/dev/null            # imports Documents/ (dedupes)
+sleep 4
+finish
+
+"$HINGE" -d "$UDID" orient ll
+"$HINGE" -d "$UDID" 110
+sleep 2
+
+# launch <name> <line to wait for> [launch arguments…]: Pride halfway; waits for the line, then a
+# moment, and screenshots the inner display to $OUT/<name>.png (console kept beside it). A launch
+# that never prints the line is retried (simctl sometimes never attaches after the app's tests have
+# run); three in a row fail.
+launch() {
+  local name=$1 wait=$2 attempt
+  shift 2
+  for attempt in 1 2 3; do
+    : >"$WORK/console.log"
+    xcrun simctl launch --console-pty "$UDID" io.sheafs.reader -SheafsOpen Pride -SheafsGoTo 0.5 "$@" \
+      >"$WORK/console.log" 2>&1 &
+    CONSOLE_PID=$!
+    for _ in $(seq 1 40); do grep -aq "$wait" "$WORK/console.log" && break; sleep 0.5; done
+    grep -aq "$wait" "$WORK/console.log" && break
+    cp "$WORK/console.log" "$OUT/$name-console-attempt$attempt.log"
+    echo "  (no '$wait' in 20 s, attempt $attempt; relaunching)"
+    finish
+  done
+  cp "$WORK/console.log" "$OUT/$name-console.log"
+  grep -aq "$wait" "$WORK/console.log" || fail "$name: never saw '$wait' (console: $OUT/$name-console.log)"
+  sleep 2.5
+  xcrun simctl io "$UDID" screenshot --display=primary-1 "$OUT/$name.png" >/dev/null 2>&1
+  finish
+}
+
+echo "== the page lying"
+launch lying '^\[layout\].*pages='
+echo "== a forward turn, frozen at 0.1"
+launch turning '^\[flip\] turn forward folio' -SheafsFlipAuto forward -SheafsFlipFreeze 0.1 -SheafsFlipGrab 0.9
+
+# The page's frame (window points) from the reader's last layout line, then the rows around its
+# bottom edge in both screenshots.
+LAYOUT=$(grep -a '^\[layout\]' "$OUT/turning-console.log" | tail -1)
+python3 -I - "$LAYOUT" "$OUT/lying.png" "$OUT/turning.png" "$WORK" <<'PY' || exit 1
+import re, struct, subprocess, sys
+layout, lying, turning, work = sys.argv[1:5]
+def fail(message):
+    print(f"TABLETOP CHECK FAILED: {message}", file=sys.stderr)
+    sys.exit(1)
+size = re.search(r"size=\(([\d.]+), ([\d.]+)\)", layout)
+pages = re.findall(r"\(([\d.]+), ([\d.]+), ([\d.]+), ([\d.]+)\)", layout.split("pages=", 1)[1])
+if not size or not pages:
+    fail(f"cannot read the layout line: {layout}")
+height = float(size.group(2))
+x, y, w, h = map(float, pages[0])
+if len(pages) != 1 or y + h > height * 0.6:
+    fail(f"not the tabletop pose (one page on the upper half): {layout}")
+bottom = y + h
+
+def grey_rows(png, column, rows):
+    bmp = f"{work}/{png.rsplit('/', 1)[1]}.bmp"
+    subprocess.run(["sips", "-s", "format", "bmp", png, "--out", bmp], check=True, capture_output=True)
+    data = open(bmp, "rb").read()
+    offset, = struct.unpack_from("<I", data, 10)
+    width, bh = struct.unpack_from("<ii", data, 18)
+    step = struct.unpack_from("<H", data, 28)[0] // 8
+    stride = (width * step + 3) & ~3
+    out = []
+    for row in rows:
+        yy = (bh - 1 - row) if bh > 0 else row
+        total = 0
+        for dx in range(30):
+            i = offset + yy * stride + (column + dx) * step
+            b, g, r = data[i:i + 3]
+            total += 0.2126 * r + 0.7152 * g + 0.0722 * b
+        out.append(total / 30)
+    return out
+
+scale = 3
+column = int((x + 40) * scale)  # near the hinge: the leaf still lies flat there at 0.1
+edge = int(bottom * scale)      # the pixel row holding the page's edge
+rows = list(range(edge - 6, edge + 30))
+a, b = grey_rows(lying, column, rows), grey_rows(turning, column, rows)
+paper_a, paper_b = grey_rows(lying, column, [edge - 40])[0], grey_rows(turning, column, [edge - 40])[0]
+for row, ga, gb in zip(rows, a, b):
+    marker = "  <-- edge" if row == edge else ""
+    print(f"  row {row}: lying {ga:6.1f}  turning {gb:6.1f}{marker}")
+worst = max(range(len(rows)), key=lambda i: abs(a[i] - b[i]))
+if abs(a[worst] - b[worst]) > 8:
+    fail(f"row {rows[worst]} reads {a[worst]:.0f} with the page lying and {b[worst]:.0f} under the turn: "
+         f"the edge changes when a turn starts ({lying}, {turning})")
+near = range(rows.index(edge - 1), rows.index(edge + 3))
+for name, g, paper in (("lying", a, paper_a), ("turning", b, paper_b)):
+    darkest = min(g[i] for i in near)
+    if darkest > paper - 25:
+        fail(f"{name}: no page edge line (darkest {darkest:.0f} against paper {paper:.0f})")
+print(f"  ok: the page's edge reads the same lying and turning (worst row {rows[worst]}: {abs(a[worst] - b[worst]):.1f})")
+PY
+
+TURN=$(grep -a '^\[flip\] turn forward folio' "$OUT/turning-console.log" | head -1 | tr -d '\r')
+echo "  $TURN"
+read -r FROM TO <<<"$(sed -E 's/.*folio ([0-9]+) → ([0-9]+).*/\1 \2/' <<<"$TURN")"
+[[ $FROM =~ ^[0-9]+$ && $TO =~ ^[0-9]+$ ]] || fail "cannot read the folios from: $TURN"
+(( TO == FROM + 1 )) || fail "a forward turn from page $FROM lands on page $TO, not $((FROM + 1))"
+echo "  ok: the turn counts on by one ($FROM → $TO)"
+
+"$HINGE" -d "$UDID" orient portrait
+"$HINGE" -d "$UDID" 0
+echo "TABLETOP CHECK OK (screenshots in $OUT)"

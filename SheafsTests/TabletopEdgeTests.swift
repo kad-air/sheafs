@@ -67,7 +67,8 @@ struct TabletopEdgeTests {
             (u.paperR, u.paperG, u.paperB) = paper
             u.isDark = isDark ? 1 : 0
             u.pageTop = 0; u.pageHeight = Float(page)
-            u.baseY = Float(page); u.baseOn = 1; u.edge = Float(TabletopBaseView.sheetPitch)
+            u.baseY = Float(TabletopBaseView.top(pageBottom: page, scale: scale)); u.baseOn = 1
+            u.edge = Float(TabletopBaseView.sheetPitch)
             return u
         }
 
@@ -206,6 +207,36 @@ struct TabletopEdgeTests {
         // seventh as thick as it is tall (25 mm against 178 mm).
         let thickness = Double(TabletopBaseView.maxSheets) * TabletopBaseView.sheetPitch / Self.pageBottom
         #expect(thickness > 0.08 && thickness < 0.2, "the whole book is \(thickness) of the page's height")
+    }
+
+    /// 🔴 The surface starts on a whole pixel (at or above the page's edge, within a pixel): begun at
+    /// the fold's half pixel its top row came out dark on the device, a line the turning leaf's
+    /// texture didn't have. And it draws the page's edge itself, a crisp line along its top row,
+    /// so the live view and the leaf show the same.
+    @Test func surfaceStartsOnAPixelAndDrawsThePageEdge() throws {
+        for scale in [2.0, 3.0] {
+            for bottom in [455.5, 455.0, 455.3333, 612.25] {
+                let top = Double(TabletopBaseView.top(pageBottom: bottom, scale: scale))
+                #expect(abs((top * scale).rounded() - top * scale) < 1e-6, "\(bottom) at \(scale)x starts at \(top), not a pixel")
+                #expect(top <= bottom + 1e-9 && top > bottom - 1 / scale, "\(bottom) at \(scale)x starts at \(top)")
+            }
+        }
+        #expect(abs(Double(TabletopBaseView.top(pageBottom: 455.5, scale: 3)) - 1366.0 / 3) < 1e-9)
+
+        let base = TabletopBaseView(frame: CGRect(x: 0, y: 0, width: 40, height: 120))
+        base.contentScaleFactor = 3
+        base.sheets = 20
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 3
+        let image = UIGraphicsImageRenderer(size: base.bounds.size, format: format).image { _ in base.draw(base.bounds) }
+        let cg = try #require(image.cgImage)
+        let context = try #require(CGContext(data: nil, width: cg.width, height: cg.height, bitsPerComponent: 8, bytesPerRow: cg.width * 4,
+                                             space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                             bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue))
+        context.draw(cg, in: CGRect(x: 0, y: 0, width: cg.width, height: cg.height))
+        let pixels = try #require(context.data).assumingMemoryBound(to: UInt8.self)
+        func grey(row: Int) -> Int { Int(pixels[(row * cg.width + 20) * 4 + 1]) } // row 0 = top
+        #expect(grey(row: 0) < grey(row: 1) - 30, "no page edge along the top of the block (\(grey(row: 0)) over \(grey(row: 1)))")
     }
 
     /// 🔴 The block changes with the turn, not before it: under the part of the leaf still lying

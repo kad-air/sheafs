@@ -42,6 +42,9 @@ final class BookSession {
     private(set) var style: TypesetStyle?
     private(set) var textSize: CGSize = .zero
     private var paginated: [Int: PaginatedChapter] = [:]
+    /// Book-wide page numbers, kept per chapter once given until the layout changes. Not observed:
+    /// views number pages while they draw, and a number once given never changes.
+    @ObservationIgnored private var numbering = PageNumbering()
     private var images: [Int: ChapterImages] = [:]
     private let log = Logger(subsystem: "io.sheafs.reader", category: "session")
 
@@ -260,6 +263,7 @@ final class BookSession {
         self.style = style
         self.textSize = textSize
         paginated.removeAll()
+        numbering.reset()
     }
 
     /// The paginated chapter for the current style and size, laid out on demand. The first layout
@@ -297,6 +301,8 @@ final class BookSession {
 
     /// Book-wide page numbers like Books shows them: exact for chapters already laid out at this
     /// size, estimated from their text length for the rest (so the total settles as you read).
+    /// 🔴 A chapter's first number is kept once given (`PageNumbering`): recomputing it from the
+    /// estimates on every call made the folio jump back on a forward turn.
     func bookPages(spineIndex: Int, page: Int) -> (page: Int, total: Int) {
         guard !chapters.isEmpty else { return (1, 1) }
         var laidOutChars = 0, laidOutPages = 0
@@ -305,14 +311,13 @@ final class BookSession {
             laidOutPages += chapter.pageCount
         }
         let perPage = laidOutPages > 0 ? max(200, Double(laidOutChars) / Double(laidOutPages)) : 1500
-        func count(_ index: Int) -> Int {
-            paginated[index]?.pageCount ?? max(1, Int((Double(chapters[index].textLength) / perPage).rounded(.up)))
-        }
-        var before = 0
-        for index in 0 ..< min(spineIndex, chapters.count) { before += count(index) }
-        var total = 0
-        for index in chapters.indices { total += count(index) }
-        return (before + page + 1, max(total, before + page + 1))
+        func estimate(_ index: Int) -> Int { max(1, Int((Double(chapters[index].textLength) / perPage).rounded(.up))) }
+        func count(_ index: Int) -> Int { paginated[index]?.pageCount ?? estimate(index) }
+        let index = min(max(0, spineIndex), chapters.count - 1)
+        let start = numbering.start(of: index, exact: { [paginated] in paginated[$0]?.pageCount }, estimate: estimate)
+        let number = start + page + 1
+        let total = start + (index ..< chapters.count).reduce(0) { $0 + count($1) }
+        return (number, max(total, number))
     }
 
     /// Lays out the neighbours of `spineIndex` soon, so page turns don't wait.
