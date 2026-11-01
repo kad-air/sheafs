@@ -29,6 +29,10 @@ scripts/check-image-viewer        # end to end on a simulator (SIM="iPhone Duo")
                                   #   the tapped page's half in book pose (right page and left page), and it
                                   #   closes; folding shut closes it too (reads the picture's extent off
                                   #   screenshots, OUT=/tmp/sheafs-image-viewer)
+scripts/check-tabletop            # end to end on a simulator (SIM="iPhone Duo", tabletop): Pride halfway,
+                                  #   lying and with a forward turn frozen at 0.1; the row where the page
+                                  #   meets the block must read the same in both, with the edge line, and
+                                  #   the turn must count on by one (`[flip] turn … folio X → Y`); NO_BUILD=1
 scripts/check-volume-device       # on the PHONE (unlocked; DEVICE=<udid>, BOOK=<title>, APP=<built .app> or
                                   #   ASC_KEY_* to build): probes the volume one step at a time like presses
                                   #   and asserts each read, turned the right way (landed location) and was
@@ -554,13 +558,18 @@ display and inner-landscape), `toolbarVisibility(_:for: .statusBar)`, `ToolbarOv
 - tabletop/laptop (active horizontal division) → the page on the upper half, `ReaderDeck` (progress,
   prev/next, contents, text size, appearance) on the lower half. The page STANDS on a surface
   (`Reader/TabletopBase.swift`): `TabletopBaseView` (in `PagerController`, above the pages, below the
-  flip view) runs from the page's bottom edge to the bottom of the window in `ReaderPalette.surface`
+  flip view) runs from the page's bottom edge (🔴 rounded down to a whole pixel,
+  `TabletopBaseView.top(pageBottom:scale:)`: the page ends at the fold's half pixel, 455.5 pt, and
+  the view begun there drew a dark row along its top on the live page only, so a line under the
+  page vanished at every turn and came back when it landed) to the bottom of the window in `ReaderPalette.surface`
   (a shade under the paper; the deck has NO background of its own, it sits on this view), with the
   BOOK STILL TO READ under the page: a block of sheet edges, 1.25 pt each, `maxSheets` (48, 60 pt,
   a paperback's proportions) at the start thinning with progress to `minSheets` (3) near the end
   (`TabletopBaseView.sheets(progress:)`), running on into the deck's empty top, and a contact
   shadow. A sheet draws by its place from the top (tone, hairline weight from `grain`), so the
-  next page's block is this one less a sheet at the bottom or the same. Only the page on the upper
+  next page's block is this one less a sheet at the bottom or the same. The page's edge is a crisp
+  line along the view's top row (`edgeLine`), drawn there so the live view and the leaf (which
+  carries that row) show the same line. Only the page on the upper
   half shows, so there is no read pile: the leaf turns over the page's left edge, off screen. The
   page's last 22 pt shade a little as if curving over the fold (`PageView.curvesOverFold`). A turn
   draws the surface as textures 4 and 5: the block the leaf's page lies on, and the block it leaves
@@ -572,7 +581,7 @@ display and inner-landscape), `toolbarVisibility(_:for: .statusBar)`, `ToolbarOv
   (before, the line appeared from nowhere as the leaf lifted). The leaf's page stops at the page's
   edge (`PageFlipDriver.leafHeight`) and its shadow spills onto the surface, fading with the
   distance from the edge (`TabletopEdgeTests`; `TEST_RUNNER_SHEAFS_TABLETOP_RENDERS=1` writes renders
-  of it to the simulator's tmp/sheafs-tabletop);
+  of it to the simulator's tmp/sheafs-tabletop; `scripts/check-tabletop` end to end);
 - the cover display's camera hole (`CoverCamera`, a known spot, not read from the system) pushes the
   text below it (or the folio band up, if the interface turns it to the bottom).
 Both pages of a spread share one text size, so one pagination serves both. The reading position is
@@ -700,8 +709,14 @@ state and is followed at once; a size change while the bars are up hides them fi
   screenshot` comes out in the interface orientation, at App Store Connect's sizes as is. The
   system's own `tabletopPose` stays "Ambiguous" (it wants gravity input we cannot send), but the
   reserved regions do report the active horizontal fold, which is all `PageLayout` reads.
-- Page numbers of chapters not laid out yet are estimates (`BookSession.bookPages`) and shift when a
-  neighbour is laid out, most visibly deep into a book (a spread numbered 304 with 301 under the
-  turning leaf); `scripts/screenshots` keeps its positions early in each book.
+- 🔴 Page numbers of chapters not laid out yet are estimates (`BookSession.bookPages`: their text
+  length at the laid-out chapters' characters per page), and that estimate moves with every chapter
+  laid out. Summing every number afresh made the folio jump under the reader (a forward turn from
+  531 landed on 518 deep in a book; `scripts/check-tabletop` saw 482 → 472). So a chapter's first
+  number is KEPT once given (`PageNumbering`, reset on a new layout): a neighbour's comes from it by
+  the exact page count between them, so turns count by one; only a chapter reached by a jump starts
+  from the estimate, then keeps it. Numbers can disagree slightly with a fresh layout's estimate
+  (reading back across many chapters after a jump); the total still settles as you read.
+  `PageNumberingTests`.
 - kosync `progress` strings from other devices are treated as opaque for comparison
   (`book.lastSyncedPointer`) and only *resolved* via `XPointer`; never rewrite them.

@@ -22,6 +22,17 @@ final class TabletopBaseView: UIView {
     /// How far the contact shadow reaches below the block, in points.
     static let shadowDepth: CGFloat = 14
 
+    /// Where the view starts for a page ending at `pageBottom`: on the whole pixel at or above it.
+    /// 🔴 The page ends at the fold, 455.5 pt = 1366.5 px on the Duo, and the view begun there came
+    /// out with a dark row along its top (an opaque backing store a pixel taller than what it
+    /// draws): a line under the live page that the flip's texture of this view doesn't have, so it
+    /// vanished at every turn and came back when the leaf landed. Rounded down, the view covers the
+    /// page's half pixel row itself, as the flip does (`baseY`). `scripts/check-tabletop`.
+    static func top(pageBottom: CGFloat, scale: CGFloat) -> CGFloat {
+        let scale = max(1, scale)
+        return (pageBottom * scale).rounded(.down) / scale
+    }
+
     /// The block for a place in the book: the pages still to read, from `maxSheets` at the start
     /// down to `minSheets` near the end; a single sheet only past the end.
     static func sheets(progress: Double) -> Int {
@@ -79,7 +90,14 @@ final class TabletopBaseView: UIView {
             ctx.setFillColor(palette.text.withAlphaComponent(palette.isDark ? line * 0.7 : line).cgColor)
             ctx.fill(CGRect(x: 0, y: y + Self.sheetPitch - hairline, width: bounds.width, height: hairline))
         }
+        // The page's own edge where it meets the block, crisp: drawn here, so the live view and the
+        // turning leaf (which carries this row off with it, `sampleEdge`) show the same line.
+        ctx.setFillColor(palette.text.withAlphaComponent(palette.isDark ? Self.edgeLine * 0.7 : Self.edgeLine).cgColor)
+        ctx.fill(CGRect(x: 0, y: 0, width: bounds.width, height: hairline))
     }
+
+    /// The page edge's darkness (text colour alpha) along the top of the block.
+    static let edgeLine: CGFloat = 0.22
 
     /// A fixed 0…1 for each sheet, so a sheet always draws the same.
     static func grain(_ index: Int) -> CGFloat {

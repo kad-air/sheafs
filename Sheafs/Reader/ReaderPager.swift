@@ -226,7 +226,8 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
             return
         }
         baseView.isHidden = false
-        let frame = CGRect(x: 0, y: bottom, width: view.bounds.width, height: max(0, view.bounds.height - bottom))
+        let top = TabletopBaseView.top(pageBottom: bottom, scale: traitCollection.displayScale)
+        let frame = CGRect(x: 0, y: top, width: view.bounds.width, height: max(0, view.bounds.height - top))
         if baseView.frame != frame { baseView.frame = frame }
         baseView.palette = palette
         if let location { baseView.sheets = TabletopBaseView.sheets(progress: session.progress(for: location)) }
