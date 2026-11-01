@@ -67,12 +67,14 @@ struct TabletopEdgeTests {
             (u.paperR, u.paperG, u.paperB) = paper
             u.isDark = isDark ? 1 : 0
             u.pageTop = 0; u.pageHeight = Float(page)
-            u.baseY = Float(page); u.baseOn = 1
+            u.baseY = Float(page); u.baseOn = 1; u.edge = Float(TabletopBaseView.sheetPitch)
             return u
         }
 
-        /// Renders one frame; returns BGRA rows.
-        func render(_ u: FlipUniforms, front: MTLTexture, under: MTLTexture, base: MTLTexture, scale: Double) -> (pixels: [UInt8], width: Int, height: Int) {
+        /// Renders one frame; returns BGRA rows. `base` is the block the leaf lies on, `beneath`
+        /// the one it leaves (the same unless given).
+        func render(_ u: FlipUniforms, front: MTLTexture, under: MTLTexture, base: MTLTexture, beneath: MTLTexture? = nil,
+                    scale: Double) -> (pixels: [UInt8], width: Int, height: Int) {
             var u = u
             let width = Int(TabletopEdgeTests.width * scale), height = Int(TabletopEdgeTests.height * scale)
             let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm, width: width, height: height, mipmapped: false)
@@ -94,6 +96,7 @@ struct TabletopEdgeTests {
             encoder.setFragmentTexture(under, index: 2)
             encoder.setFragmentTexture(under, index: 3)
             encoder.setFragmentTexture(base, index: 4)
+            encoder.setFragmentTexture(beneath ?? base, index: 5)
             encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
             encoder.endEncoding()
             let blit = buffer.makeBlitCommandEncoder()!
@@ -185,11 +188,81 @@ struct TabletopEdgeTests {
         #expect(Double(PageFlipDriver.leafHeight(layout: flat, viewHeight: Self.height)) == Self.height)
     }
 
+    /// The block is the book still to read: the whole book at the start, thinner with every turn,
+    /// never fewer than `minSheets` while any of it is left, one sheet past the end.
     @Test func blockThinsTowardTheEnd() {
         #expect(TabletopBaseView.sheets(progress: 0) == TabletopBaseView.maxSheets)
         #expect(TabletopBaseView.sheets(progress: 1) == 1)
-        let counts = stride(from: 0.0, through: 1.0, by: 0.01).map { TabletopBaseView.sheets(progress: $0) }
-        #expect(zip(counts, counts.dropFirst()).allSatisfy { $0 >= $1 })
+        let counts = stride(from: 0.0, through: 1.0, by: 0.001).map { TabletopBaseView.sheets(progress: $0) }
+        #expect(zip(counts, counts.dropFirst()).allSatisfy { $0 >= $1 }, "the block grows somewhere")
+        // A sheet at a time while reading (past the end it drops to the book's last sheet).
+        let reading = counts.dropLast()
+        #expect(zip(reading, reading.dropFirst()).allSatisfy { $0 - $1 <= 1 }, "the block loses more than a sheet in one step")
+        #expect(counts.dropLast().allSatisfy { $0 >= TabletopBaseView.minSheets }, "the block runs out before the end")
+        #expect(TabletopBaseView.minSheets > 1)
+        // Halfway it is half the book (the bottom sheet stays: the book's own).
+        #expect(abs(TabletopBaseView.sheets(progress: 0.5) - (TabletopBaseView.maxSheets + 1) / 2) <= 1)
+        // The whole book is a real thickness under the page, not a rule: a paperback is about a
+        // seventh as thick as it is tall (25 mm against 178 mm).
+        let thickness = Double(TabletopBaseView.maxSheets) * TabletopBaseView.sheetPitch / Self.pageBottom
+        #expect(thickness > 0.08 && thickness < 0.2, "the whole book is \(thickness) of the page's height")
+    }
+
+    /// 🔴 The block changes with the turn, not before it: under the part of the leaf still lying
+    /// on it, the leaf's block; past the axis, where the leaf has lifted, the block it leaves
+    /// behind; all of it the old one before the leaf moves, all the new one once it has landed
+    /// (what the live view then shows). Leaf block green, the next one magenta, measured well
+    /// below the shadow.
+    @Test func blockChangesWithTheLeaf() throws {
+        let c = try #require(Composer())
+        let (leaf, page, block, next) = (c.solid(Self.red), c.solid(Self.blue), c.solid(Self.green), c.solid(0xFFFF_00FF))
+        let y = Self.pageBottom + 30
+        for amount in [0.0, 0.1, 0.3, 0.5, 0.7, 0.9, 1.0] {
+            let frame = c.render(c.uniforms(amount: amount, grab: 0.5, scale: Self.scale, paper: (1, 0, 0)),
+                                 front: leaf, under: page, base: block, beneath: next, scale: Self.scale)
+            let flat = PageCurl.solve(amount: amount, width: Self.width).flat
+            for x in stride(from: 0.5, to: Self.width, by: 2) {
+                let p = Self.pixel(frame, x: x, y: y)
+                let isBlock = p.green > 200 && p.red < 40 && p.blue < 40
+                let isNext = p.red > 200 && p.blue > 200 && p.green < 40
+                if x < flat - 1 {
+                    #expect(isBlock, "amount \(amount): x \(x) under the lying leaf (flat to \(flat)) is \(p), not its block")
+                } else if x > flat + 7 {
+                    #expect(isNext, "amount \(amount): x \(x) past the axis (\(flat)) is \(p), not the next block")
+                }
+                if amount == 0 { #expect(isBlock, "x \(x): the block changed before the leaf moved (\(p))") }
+                if amount == 1 { #expect(isNext, "x \(x): the landed turn still shows the old block (\(p))") }
+            }
+        }
+    }
+
+    /// The leaf carries its own sheet's edge off the block: held low, its bottom edge rises as it
+    /// bends, and below it, above the surface, is a thin strip of the block's top sheet (green
+    /// here), never a band; outside tabletop (`edge` 0) there is none.
+    @Test func leafCarriesItsOwnEdge() throws {
+        let c = try #require(Composer())
+        let (leaf, page, block) = (c.solid(Self.red), c.solid(Self.blue), c.solid(Self.green))
+        for amount in [0.3, 0.45, 0.6] {
+            for edge in [Float(TabletopBaseView.sheetPitch), 0] {
+                var u = c.uniforms(amount: amount, grab: 0.9, scale: Self.scale, paper: (1, 0, 0))
+                u.edge = edge
+                let frame = c.render(u, front: leaf, under: page, base: block, scale: Self.scale)
+                var columns = 0, thickest = 0.0
+                for x in stride(from: 0.5, to: Self.width, by: 1) {
+                    let rows = stride(from: Self.pageBottom - 40, to: Self.pageBottom - 0.5, by: 0.5).filter {
+                        let p = Self.pixel(frame, x: x, y: $0)
+                        return p.green > 150 && p.red < 60 && p.blue < 60
+                    }
+                    if !rows.isEmpty { columns += 1; thickest = max(thickest, Double(rows.count) * 0.5) }
+                }
+                if edge > 0 {
+                    #expect(columns > 10, "amount \(amount): the lifted leaf has no edge of its own above the surface (\(columns) columns)")
+                    #expect(thickest <= 4, "amount \(amount): the leaf's edge is \(thickest) pt thick, a band, not a sheet")
+                } else {
+                    #expect(columns == 0, "amount \(amount): an edge without tabletop (\(columns) columns)")
+                }
+            }
+        }
     }
 
     @Test func surfaceIsDarkerThanThePage() {
@@ -222,11 +295,13 @@ struct TabletopEdgeTests {
             base.sheets = TabletopBaseView.sheets(progress: 0.29)
             let front = try #require(PageFlipView.texture(for: page, scale: 3, device: c.device))
             let surface = try #require(PageFlipView.texture(for: base, scale: 3, device: c.device))
+            base.sheets = TabletopBaseView.sheets(progress: 0.29) - 1
+            let next = try #require(PageFlipView.texture(for: base, scale: 3, device: c.device))
             var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
             palette.background.getRed(&r, green: &g, blue: &b, alpha: &a)
             for amount in [0.0, 0.25, 0.5] {
                 let frame = c.render(c.uniforms(amount: amount, grab: 0.6, scale: 3, paper: (Float(r), Float(g), Float(b)), isDark: palette.isDark),
-                                     front: front, under: front, base: surface, scale: 3)
+                                     front: front, under: front, base: surface, beneath: next, scale: 3)
                 try Self.writePNG(frame, to: dir.appendingPathComponent("\(name)-\(Int(amount * 100)).png"))
             }
         }

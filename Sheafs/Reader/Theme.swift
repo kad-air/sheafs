@@ -7,7 +7,7 @@ struct ReaderPalette: Hashable, Sendable {
     var text: UIColor
     var secondary: UIColor
     var link: UIColor
-    /// What the page stands on in the tabletop pose (`TabletopBaseView`, the deck): a shade
+    /// What the page stands on in the tabletop pose (`TabletopBaseView`, under the deck): a shade
     /// darker than the paper, so the page reads as a sheet with an edge rather than a colour
     /// that runs out at the fold.
     var surface: UIColor

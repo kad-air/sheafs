@@ -293,7 +293,7 @@ struct ReaderView: View {
                                 onSystemSheet: { pagerSheet = $0 },
                                 onSketchEdits: { library.apply($0, for: book) })
                     if let deck = layout.deckFrame {
-                        ReaderDeck(session: session, palette: palette, proxy: pagerProxy,
+                        ReaderDeck(session: session, proxy: pagerProxy,
                                    showContents: $showContents, showAppearance: $showQuickAppearance,
                                    onSearch: openSearch,
                                    isBookmarked: bookmarkHere, onToggleBookmark: toggleBookmark) { location in
@@ -1402,7 +1402,6 @@ struct FootnoteView: View {
 /// Controls shown below an active horizontal fold, where the page lives on the upper half.
 struct ReaderDeck: View {
     let session: BookSession
-    let palette: ReaderPalette
     let proxy: PagerProxy
     @Binding var showContents: Bool
     @Binding var showAppearance: Bool
@@ -1451,7 +1450,8 @@ struct ReaderDeck: View {
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // The surface the page stands on (`TabletopBaseView` runs from the page's edge to here).
-        .background(Color(uiColor: palette.surface))
+        // No background: the surface the page stands on is `TabletopBaseView`, under the deck,
+        // from the page's edge to the bottom of the window, and the block of pages still to read
+        // runs on into the deck's empty top.
     }
 }

@@ -1,25 +1,33 @@
 import UIKit
 
-/// Below the page in the tabletop pose: the surface the book stands on. The page's bottom edge
-/// sits on a block of sheet edges (the pages still to come, thinner toward the end of the book)
-/// with a soft contact shadow under it, so the page reads as a sheet with an edge instead of a
-/// colour that runs out at the fold. It lies above the pages and below the flip view, which
-/// draws it as a texture while a page turns (the turning leaf throws its shadow onto it).
+/// Below the page in the tabletop pose: the surface the book stands on, and the rest of the book.
+/// The page's bottom edge sits on a block of sheet edges, the pages still to read: thick at the
+/// start of the book (the empty top of the deck below is its room), a few sheets at the end, with
+/// a soft contact shadow under it, so the page reads as the top sheet of a book instead of a
+/// colour that runs out at the fold. The top sheet's edge is the page's own: a turn lifts it off
+/// with the leaf (`FlipUniforms.edge`), and the line left under the new page is the next sheet's,
+/// there all along. It lies above the pages and below the flip view, which draws it as a texture
+/// while a page turns (the turning leaf throws its shadow onto it).
 final class TabletopBaseView: UIView {
     var palette = ReaderPalette.paper { didSet { if palette != oldValue { setNeedsDisplay() } } }
     /// Sheet edges drawn under the page, 1 … `maxSheets`.
     var sheets = 1 { didSet { if sheets != oldValue { setNeedsDisplay() } } }
 
-    static let maxSheets = 7
+    /// The whole book: 60 pt of sheets, about a paperback's thickness beside a page this tall.
+    static let maxSheets = 48
+    /// While any of the book is left at least this many show, so the block never runs out early.
+    static let minSheets = 3
     /// The thickness of one sheet's edge, in points.
     static let sheetPitch: CGFloat = 1.25
     /// How far the contact shadow reaches below the block, in points.
     static let shadowDepth: CGFloat = 14
 
-    /// The block for a place in the book: thick at the start, one sheet at the end.
+    /// The block for a place in the book: the pages still to read, from `maxSheets` at the start
+    /// down to `minSheets` near the end; a single sheet only past the end.
     static func sheets(progress: Double) -> Int {
         let left = 1 - min(1, max(0, progress))
-        return 1 + Int((left * Double(maxSheets - 1)).rounded())
+        guard left > 0 else { return 1 }
+        return max(minSheets, 1 + Int((left * Double(maxSheets - 1)).rounded()))
     }
 
     /// What the texture cache keys on: anything that changes what this view draws.
@@ -56,18 +64,27 @@ final class TabletopBaseView: UIView {
             ctx.restoreGState()
         }
 
-        // The sheets' edges, each a little further into shade than the one above it, with a
-        // hairline between them; the last one is the bottom of the book.
+        // The sheets' edges, each a little further into shade than the one above it (the light
+        // falls on the top of the block), with a hairline between them; the last one is the
+        // bottom of the book. A sheet draws by its place from the top, whatever the block's size,
+        // so the block under the next page is this one less a sheet at the bottom, or the same.
         let hairline = 1 / max(1, contentScaleFactor)
         for index in 0 ..< sheets {
             let y = CGFloat(index) * Self.sheetPitch
-            let depth = 0.05 + 0.05 * CGFloat(index) / CGFloat(Self.maxSheets - 1)
+            let depth = 0.05 + 0.06 * min(1, CGFloat(index) / 30)
             ctx.setFillColor(Self.blend(palette.background, palette.text, depth).cgColor)
             ctx.fill(CGRect(x: 0, y: y, width: bounds.width, height: Self.sheetPitch))
-            let line = index == sheets - 1 ? 0.24 : 0.12
+            // Paper edges are never quite even: each hairline has its own weight.
+            let line = index == sheets - 1 ? 0.24 : 0.06 + 0.09 * Self.grain(index)
             ctx.setFillColor(palette.text.withAlphaComponent(palette.isDark ? line * 0.7 : line).cgColor)
             ctx.fill(CGRect(x: 0, y: y + Self.sheetPitch - hairline, width: bounds.width, height: hairline))
         }
+    }
+
+    /// A fixed 0…1 for each sheet, so a sheet always draws the same.
+    static func grain(_ index: Int) -> CGFloat {
+        let hash = UInt32(truncatingIfNeeded: (index &+ 1) &* 0x9E37_79B1)
+        return CGFloat(hash >> 24) / 255
     }
 
     static func blend(_ a: UIColor, _ b: UIColor, _ t: CGFloat) -> UIColor {

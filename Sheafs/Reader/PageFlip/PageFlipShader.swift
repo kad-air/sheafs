@@ -25,6 +25,7 @@ struct FlipUniforms {
     float paperR, paperG, paperB, isDark;
     float pageTop, pageHeight;                   // where the printed page sits on the leaf (the leaf is the whole sheet)
     float baseY, baseOn;                         // tabletop: the surface below the page, from baseY down (texture 4)
+    float edge;                                  // tabletop: the leaf's own sheet edge below its page (0 elsewhere)
 };
 
 struct FlipVertexOut {
@@ -52,8 +53,17 @@ static float overhang(float2 s, float w, float h) {
     return max(0.0, -min(min(s.x, w - s.x), min(s.y, h - s.y)));
 }
 
+// Tabletop: below its page the leaf is its own sheet's edge, `edge` deep, the top sheet of the
+// block it lay on (texture 4 draws it there), which it carries off the block as it lifts.
+static half3 sampleEdge(texture2d<half> base, float2 s, constant FlipUniforms &u) {
+    float x = (u.hinge + u.flip * s.x) / u.viewWidth;
+    float y = (u.leafY + s.y - u.baseY) / max(1.0, u.viewHeight - u.baseY);
+    return base.sample(pageSampler, float2(x, y)).rgb;
+}
+
 // The leaf runs from the spine to the page's outer edge; the printed page starts `inset` in.
-static half3 sampleFront(texture2d<half> front, float2 s, half3 paper, constant FlipUniforms &u) {
+static half3 sampleFront(texture2d<half> front, texture2d<half> base, float2 s, half3 paper, constant FlipUniforms &u) {
+    if (s.y > u.leafHeight) return sampleEdge(base, s, u);
     float t = (s.x - u.inset) / (u.leafWidth - u.inset);
     float x = u.flip > 0 ? t : 1 - t;
     float y = (s.y - u.pageTop) / u.pageHeight;
@@ -63,7 +73,8 @@ static half3 sampleFront(texture2d<half> front, float2 s, half3 paper, constant 
 
 // The back of the leaf: the page that lands face up on the other side, or, for a single page
 // (a pad of sheets printed on one side), blank paper with the front showing through faintly.
-static half3 sampleBack(texture2d<half> front, texture2d<half> back, float2 s, half3 paper, constant FlipUniforms &u) {
+static half3 sampleBack(texture2d<half> front, texture2d<half> back, texture2d<half> base, float2 s, half3 paper, constant FlipUniforms &u) {
+    if (s.y > u.leafHeight) return sampleEdge(base, s, u);
     if (u.hasBack > 1.5) return paper;
     if (u.hasBack > 0.5) {
         float t = (s.x - u.inset) / (u.leafWidth - u.inset);
@@ -72,7 +83,7 @@ static half3 sampleBack(texture2d<half> front, texture2d<half> back, float2 s, h
         if (x < 0 || x > 1 || y < 0 || y > 1) return paper;
         return back.sample(pageSampler, float2(x, y)).rgb;
     }
-    half3 through = sampleFront(front, s, paper, u);
+    half3 through = sampleFront(front, base, s, paper, u);
     return mix(paper, through, half(0.11));
 }
 
@@ -147,26 +158,16 @@ fragment half4 flipFragment(FlipVertexOut in [[stage_in]],
                             texture2d<half> back [[texture(1)]],
                             texture2d<half> under0 [[texture(2)]],
                             texture2d<half> under1 [[texture(3)]],
-                            texture2d<half> base [[texture(4)]]) {
+                            texture2d<half> base [[texture(4)]],
+                            texture2d<half> beneath [[texture(5)]]) {
     float2 p = in.position.xy / u.scale;
     half3 paper = half3(u.paperR, u.paperG, u.paperB);
 
-    // What lies beneath the leaf.
-    half3 color = paper;
-    bool onBase = u.baseOn > 0.5 && p.y >= u.baseY;
-    if (onBase) {
-        color = base.sample(pageSampler, float2(p.x / u.viewWidth, (p.y - u.baseY) / max(1.0, u.viewHeight - u.baseY))).rgb;
-    } else if (u.under0On > 0.5 && p.x >= u.under0X && p.x < u.under0X + u.under0Width &&
-        p.y >= u.under0Y && p.y < u.under0Y + u.under0Height) {
-        color = under0.sample(pageSampler, (p - float2(u.under0X, u.under0Y)) / float2(u.under0Width, u.under0Height)).rgb;
-    } else if (u.under1On > 0.5 && p.x >= u.under1X && p.x < u.under1X + u.under1Width &&
-               p.y >= u.under1Y && p.y < u.under1Y + u.under1Height) {
-        color = under1.sample(pageSampler, (p - float2(u.under1X, u.under1Y)) / float2(u.under1Width, u.under1Height)).rgb;
-    }
-
     // This pixel in sheet coordinates (x along the sheet from the hinge, y down the page), then
-    // relative to the curl's axis, which passes through (flat, grabY) tilted by `tilt`.
+    // relative to the curl's axis, which passes through (flat, grabY) tilted by `tilt`. The leaf
+    // reaches `he` down: its page, and in tabletop its own sheet's edge below that.
     float w = u.leafWidth, h = u.leafHeight, R = u.radius, a = u.flat;
+    float he = h + u.edge;
     float2 sheet = float2(u.flip * (p.x - u.hinge), p.y - u.leafY);
     float2 pivot = float2(a, u.grabY - u.leafY);
     float2 n = float2(cos(u.tilt), sin(u.tilt));
@@ -176,10 +177,28 @@ fragment half4 flipFragment(FlipVertexOut in [[stage_in]],
     float eta = dot(rel, t);   // position along the axis
     float lift = min(1.0, 2 * R / 12.0); // how high the turned-over part floats: fades the shadows as it lands
 
+    // What lies beneath the leaf. Tabletop: the block of pages still to read, the one under the
+    // leaf's page (texture 4) where the leaf still lies on it, and past the axis the one it
+    // leaves behind (texture 5: one sheet less, or the same), so the block changes with the turn.
+    half3 color = paper;
+    bool onBase = u.baseOn > 0.5 && p.y >= u.baseY;
+    if (onBase) {
+        float2 v = float2(p.x / u.viewWidth, (p.y - u.baseY) / max(1.0, u.viewHeight - u.baseY));
+        float pixel = 0.5 / u.scale;
+        float lying = 1 - smoothstep(-pixel, pixel, dot(float2(clamp(sheet.x, 0.0, w), h) - pivot, n));
+        color = mix(beneath.sample(pageSampler, v).rgb, base.sample(pageSampler, v).rgb, half(lying));
+    } else if (u.under0On > 0.5 && p.x >= u.under0X && p.x < u.under0X + u.under0Width &&
+        p.y >= u.under0Y && p.y < u.under0Y + u.under0Height) {
+        color = under0.sample(pageSampler, (p - float2(u.under0X, u.under0Y)) / float2(u.under0Width, u.under0Height)).rgb;
+    } else if (u.under1On > 0.5 && p.x >= u.under1X && p.x < u.under1X + u.under1Width &&
+               p.y >= u.under1Y && p.y < u.under1Y + u.under1Height) {
+        color = under1.sample(pageSampler, (p - float2(u.under1X, u.under1Y)) / float2(u.under1Width, u.under1Height)).rgb;
+    }
+
     // The part still lying flat, this side of the axis.
     if (xi <= 0 && !onBase) {
-        float cov = coverage(sheet, w, h);
-        if (cov > 0) color = mix(color, sampleFront(front, sheet, paper, u), half(cov));
+        float cov = coverage(sheet, w, he);
+        if (cov > 0) color = mix(color, sampleFront(front, base, sheet, paper, u), half(cov));
     }
 
     // The shadow the lifted leaf throws on the page beneath, beyond its silhouette.
@@ -189,7 +208,8 @@ fragment half4 flipFragment(FlipVertexOut in [[stage_in]],
     if (cast.x > 0) color *= half(1 - mix(cast.x, cast.x * 0.35, u.isDark));
 
     // Tabletop: the page stands on the surface at its bottom edge, and the leaf ends there (it
-    // never dips through the surface, even where a leading corner swings below the edge). Below
+    // never dips through the surface, even where a leading corner swings below the edge; its own
+    // sheet's edge shows only where the leaf has lifted it clear, above the surface). Below
     // the edge the lifted part shades the surface: the row at the edge's full strength under the
     // whole lifted stretch (the part turned over, the bend, up to the silhouette), falling off
     // beyond it as on the page, with a soft outline, and fading over a few points below the
@@ -222,19 +242,19 @@ fragment half4 flipFragment(FlipVertexOut in [[stage_in]],
     if (R > 0.01 && xi > 0 && xi <= R) {
         float theta = asin(clamp(xi / R, 0.0, 1.0));
         float2 near = pivot + n * (R * theta) + t * eta;
-        float cov = coverage(near, w, h);
-        if (cov > 0) color = mix(color, sampleFront(front, near, paper, u) * half(shadeFront(theta, u.isDark)), half(cov));
+        float cov = coverage(near, w, he);
+        if (cov > 0) color = mix(color, sampleFront(front, base, near, paper, u) * half(shadeFront(theta, u.isDark)), half(cov));
 
         float theta2 = M_PI_F - theta;
         float2 far = pivot + n * (R * theta2) + t * eta;
-        float over = overhang(far, w, h);
+        float over = overhang(far, w, he);
         if (over > 0 && over < 14) {
             float edgeShade = 0.26 * (1 - smoothstep(0.0, 14.0, over)) * lift;
             color *= half(1 - mix(edgeShade, edgeShade * 0.3, u.isDark));
         }
-        float cov2 = coverage(far, w, h);
+        float cov2 = coverage(far, w, he);
         if (cov2 > 0) {
-            half3 b = sampleBack(front, back, far, paper, u) * half(shadeBack(theta2, u.isDark));
+            half3 b = sampleBack(front, back, base, far, paper, u) * half(shadeBack(theta2, u.isDark));
             color = mix(color, b, half(cov2));
         }
     }
@@ -242,16 +262,16 @@ fragment half4 flipFragment(FlipVertexOut in [[stage_in]],
     // The part already turned over, lying on top and heading back toward the hinge.
     if (xi <= 0) {
         float2 turned = pivot + n * (R * M_PI_F - xi) + t * eta;
-        float over = overhang(turned, w, h);
+        float over = overhang(turned, w, he);
         if (over > 0 && over < 14) {
             float edgeShade = 0.26 * (1 - smoothstep(0.0, 14.0, over)) * lift;
             color *= half(1 - mix(edgeShade, edgeShade * 0.3, u.isDark));
         }
-        float cov = coverage(turned, w, h);
+        float cov = coverage(turned, w, he);
         if (cov > 0) {
             // A hint of the crease where the turned part meets the bend.
             float crease = R > 0.01 ? 1 - 0.07 * (1 - smoothstep(0.0, R * 0.9, -xi)) : 1;
-            half3 b = sampleBack(front, back, turned, paper, u) * half(mix(crease, 1.0, u.isDark));
+            half3 b = sampleBack(front, back, base, turned, paper, u) * half(mix(crease, 1.0, u.isDark));
             color = mix(color, b, half(cov));
         }
     }
