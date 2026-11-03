@@ -47,6 +47,17 @@ struct PageLayout: Equatable {
     /// were; only whether the region is active changes between those poses, not where the text goes.
     static let minimumFoldGutter: CGFloat = 44
 
+    /// The window's size from a reader inside the safe area: its size plus its insets, on whole
+    /// pixels. 🔴 Summed as is, the bars' insets (thirds of a point) can leave it an ulp off the
+    /// window (677.9999999999999 for 678), and every comparison downstream (`SteadyPageGeometry`,
+    /// the page frames, the pagination cache's page size) is exact. Window sizes are whole pixels.
+    static func windowSize(content: CGSize, insets: EdgeInsets, scale: CGFloat) -> CGSize {
+        let scale = max(1, scale)
+        func snapped(_ value: CGFloat) -> CGFloat { (value * scale).rounded() / scale }
+        return CGSize(width: snapped(content.width + insets.leading + insets.trailing),
+                      height: snapped(content.height + insets.top + insets.bottom))
+    }
+
     static func compute(_ input: Input) -> PageLayout {
         var content = CGRect(origin: .zero, size: input.size).inset(by: UIEdgeInsets(
             top: input.safeArea.top, left: input.fullBleed ? 0 : input.safeArea.leading,
@@ -238,6 +249,21 @@ struct SteadyPageGeometry {
             used.safeArea = reading.safeArea
         }
         return used
+    }
+
+    /// Whether the bars, if they are up, must go for `fresh`: the WINDOW changed (a fold, unfold or
+    /// rotation), so the insets stored for the new display would be the bars' and not the reading
+    /// ones. 🔴 Within a point it is the same window: the reader rebuilds the window's size from its
+    /// insets, and the bars' own arrival must never read as a new display. Compared exactly, a size an
+    /// ulp off would hide the bars the moment a tap brought them up (the likely cause of the cover
+    /// display's bars not coming up on the phone).
+    func windowChanged(_ fresh: PageLayout.Input) -> Bool {
+        guard let reading else { return false }
+        return !Self.sameWindow(reading.size, fresh.size)
+    }
+
+    static func sameWindow(_ a: CGSize, _ b: CGSize) -> Bool {
+        abs(a.width - b.width) < 1 && abs(a.height - b.height) < 1
     }
 
     func isHolding(_ fresh: PageLayout.Input) -> Bool {

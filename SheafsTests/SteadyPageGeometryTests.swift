@@ -86,6 +86,45 @@ struct SteadyPageGeometryTests {
         #expect(flat.pageFrames.map(\.width) == book.pageFrames.map(\.width))
     }
 
+    /// 🔴 The reader rebuilds the window's size from its own size and insets. With the bars up on the
+    /// cover display (24 pt status bar, a 104⅔ pt strip) that sum is 677.9999999999999 in Double, not
+    /// 678, and compared exactly it reads as a new display: the bars are dropped the moment a tap
+    /// brings them up (the likely cause of the cover display's bars not coming up on the phone). The
+    /// size is snapped to whole pixels, and only a change of a point or more is a new window.
+    @Test func theBarsArrivingNeverReadAsANewWindow() {
+        let top: CGFloat = 24, bottom: CGFloat = 314.0 / 3
+        let content = CGSize(width: Self.cover.width - 84, height: Self.cover.height - (top + bottom))
+        let insets = EdgeInsets(top: top, leading: 0, bottom: bottom, trailing: 84)
+        // The arithmetic fact this guards against (else the test proves nothing).
+        let unsnapped = content.height + insets.top + insets.bottom
+        #expect(unsnapped != Self.cover.height)
+        #expect(abs(unsnapped - Self.cover.height) < 1e-9)
+
+        let window = PageLayout.windowSize(content: content, insets: insets, scale: 3)
+        #expect(window == Self.cover)
+        #expect(PageLayout.windowSize(content: CGSize(width: 382, height: 511.3333333333333),
+                                      insets: EdgeInsets(top: 24, leading: 0, bottom: 142.66666666666663, trailing: 84),
+                                      scale: 3) == Self.cover)
+
+        var replay = Replay()
+        replay.see(Self.coverInput(top: 0, bottom: 34), barsVisible: false)
+        let reading = replay.layouts[0]
+        // Even unsnapped, or a pixel off, it is the same window: the bars stay and the text stays.
+        for size in [window, CGSize(width: 466, height: unsnapped), CGSize(width: 466, height: 678 - 1.0 / 3)] {
+            var fresh = Self.coverInput(top: top, bottom: bottom)
+            fresh.size = size
+            #expect(!replay.geometry.windowChanged(fresh), "size \(size)")
+        }
+        replay.see(Self.coverInput(top: top, bottom: bottom), barsVisible: true, after: 10)
+        #expect(replay.layouts.last == reading)
+
+        // A real new display with the bars up still drops them: unfolding, or turning the phone.
+        #expect(replay.geometry.windowChanged(Self.innerInput(top: 24, bottom: 20)))
+        var turned = Self.coverInput(top: 0, bottom: 21)
+        turned.size = CGSize(width: Self.cover.height, height: Self.cover.width)
+        #expect(replay.geometry.windowChanged(turned))
+    }
+
     @Test func aNewDisplaySettlesWhileTheBarsLeaveThenLocks() {
         var replay = Replay()
         replay.see(Self.innerInput(top: 0, bottom: 20), barsVisible: false)
