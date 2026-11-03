@@ -213,6 +213,7 @@ struct ReaderView: View {
             )
         }
         .task { await open() }
+        .watchRemote(session: session, proxy: pagerProxy, title: book.title)
         .onChange(of: scenePhase) { _, phase in
             if phase != .active { flush() }
         }

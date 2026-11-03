@@ -24,7 +24,8 @@ step "1/6 open-source hygiene"
 # The repo is meant to be published: no personal names, mail addresses, hostnames or keys may sneak in.
 # (the pattern is assembled so this script doesn't match itself)
 PERSONAL="kei""th|ad""air|@hey\\.com|railway\\.app|BOOKS_""API_KEY|Auth""Key_"
-if grep -rIniE --exclude-dir=.git --exclude-dir=.build --exclude-dir=Sheafs.xcodeproj --exclude=Signing.xcconfig \
+# (build/ is scripts/release's git-ignored output: its archive log names the API key's path on this Mac)
+if grep -rIniE --exclude-dir=.git --exclude-dir=.build --exclude-dir=build --exclude-dir=Sheafs.xcodeproj --exclude=Signing.xcconfig \
      "$PERSONAL" . ; then
   fail "personal names, addresses or secrets found in the tree (see matches above)"
 fi

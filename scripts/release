@@ -54,7 +54,19 @@ pb() { /usr/libexec/PlistBuddy -c "Print :$1" "$PLIST" 2>/dev/null || true; }
 [[ $(pb CFBundleShortVersionString) == "$VERSION" ]] || fail "version is '$(pb CFBundleShortVersionString)', expected $VERSION"
 [[ $(pb DTSDKName) == "iphoneos$SDK" ]] || fail "linked SDK is '$(pb DTSDKName)', expected iphoneos$SDK"
 [[ $(pb ITSAppUsesNonExemptEncryption) == false ]] || fail "ITSAppUsesNonExemptEncryption must be false (TestFlight asks otherwise)"
-echo "ok: archive $VERSION ($BUILD), $BUNDLE, $(pb DTSDKName)"
+# The watch remote (SheafsWatch) rides inside the app, never as a product of its own; App Store
+# Connect refuses a watch app whose version or build differs from the app's, or without an icon.
+[[ $(ls "$ARCHIVE/Products/Applications") == Sheafs.app ]] || fail "the archive's products are $(ls "$ARCHIVE/Products/Applications" | tr '\n' ' '), not Sheafs.app alone"
+WPLIST=$ARCHIVE/Products/Applications/Sheafs.app/Watch/SheafsWatch.app/Info.plist
+[[ -f $WPLIST ]] || fail "no Watch/SheafsWatch.app in the archive"
+wpb() { /usr/libexec/PlistBuddy -c "Print :$1" "$WPLIST" 2>/dev/null || true; }
+[[ $(wpb CFBundleIdentifier) == "$BUNDLE.watchkitapp" ]] || fail "watch bundle id is '$(wpb CFBundleIdentifier)', expected $BUNDLE.watchkitapp"
+[[ $(wpb WKCompanionAppBundleIdentifier) == "$BUNDLE" ]] || fail "the watch app's companion is '$(wpb WKCompanionAppBundleIdentifier)', expected $BUNDLE"
+[[ $(wpb DTPlatformName) == watchos ]] || fail "the watch app is built for '$(wpb DTPlatformName)', not watchos"
+[[ $(wpb CFBundleVersion) == "$BUILD" && $(wpb CFBundleShortVersionString) == "$VERSION" ]] \
+  || fail "the watch app is $(wpb CFBundleShortVersionString) ($(wpb CFBundleVersion)), the app $VERSION ($BUILD)"
+[[ $(wpb CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconName) == AppIcon ]] || fail "the watch app has no icon"
+echo "ok: archive $VERSION ($BUILD), $BUNDLE, $(pb DTSDKName); watch app $(wpb CFBundleIdentifier), $(wpb DTSDKName)"
 [[ $MODE == --no-upload ]] && exit 0
 
 cat >"$OUT/ExportOptions.plist" <<EOF

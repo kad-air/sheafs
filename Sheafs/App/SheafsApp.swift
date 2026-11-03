@@ -15,6 +15,8 @@ struct SheafsApp: App {
         _navigation = State(initialValue: navigation)
         // The control's intent runs in this process (foreground mode) once the app is up.
         ContinueReading.handler = { navigation.openMostRecentBook(in: library) }
+        // The Apple Watch remote: a message from the watch may be what launched the app.
+        WatchLink.shared.activate()
     }
 
     var body: some Scene {

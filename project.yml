@@ -4,6 +4,8 @@ name: Sheafs
 options:
   deploymentTarget:
     iOS: "27.0"
+    # The watch remote (SheafsWatch): handGestureShortcut, which double tap presses, is watchOS 11.
+    watchOS: "11.0"
   createIntermediateGroups: true
   generateEmptyDirectories: true
   xcodeVersion: "27.1"
@@ -35,6 +37,8 @@ targets:
     dependencies:
       - package: SheafsKit
       - target: SheafsWidget
+      # Embedded in Watch/ (Embed Watch Content); installs on the paired watch with the app.
+      - target: SheafsWatch
     entitlements:
       path: Sheafs/Generated/Sheafs.entitlements
       properties:
@@ -101,6 +105,8 @@ targets:
     sources:
       - path: SheafsWidget
       - path: Shared
+        excludes:
+          - WatchMessages.swift
     info:
       path: Sheafs/Generated/SheafsWidget-Info.plist
       properties:
@@ -122,6 +128,38 @@ targets:
         INFOPLIST_FILE: Sheafs/Generated/SheafsWidget-Info.plist
         # WidgetKit's provider protocols are nonisolated; the app's MainActor default doesn't fit.
         SWIFT_DEFAULT_ACTOR_ISOLATION: nonisolated
+        SKIP_INSTALL: YES
+  # The Apple Watch remote: a single-target watch app (no WatchKit extension), embedded in the app.
+  SheafsWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - path: SheafsWatch
+      - path: Shared/WatchMessages.swift
+      # The phone's catalog: its AppIcon carries a watchOS entry naming the SAME light PNG, so the
+      # watch icon is the app icon (scripts/check-icon checks the entry) and can't drift from it.
+      - path: Sheafs/Resources/Assets.xcassets
+    info:
+      path: Sheafs/Generated/SheafsWatch-Info.plist
+      properties:
+        CFBundleDisplayName: Sheafs
+        CFBundleName: Sheafs
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        WKApplication: true
+        WKCompanionAppBundleIdentifier: io.sheafs.reader
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.sheafs.reader.watchkitapp
+        TARGETED_DEVICE_FAMILY: "4"
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: Sheafs/Generated/SheafsWatch-Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        # Embedded in the app; an archive must not list it as a product of its own.
         SKIP_INSTALL: YES
   SheafsTests:
     type: bundle.unit-test
