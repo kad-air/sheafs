@@ -39,6 +39,10 @@ scripts/check-watch-remote        # end to end on a simulator (SIM="iPhone Duo")
                                   #   the cover display and a spread; each turn must be the page FLIP, start
                                   #   from the page the watch was told and tell it the folio the leaf landed
                                   #   on; previous comes back to the page before; NO_BUILD=1
+scripts/check-cover-chrome        # end to end on a simulator (SIM="iPhone Duo"): a centre tap brings the
+                                  #   bars up and they STAY up 2.5 s later on the cover display (portrait) and
+                                  #   the inner display (flat, book pose): `[chrome]` lines + the screenshots'
+                                  #   progress-strip band (OUT=/tmp/sheafs-cover-chrome); NO_BUILD=1
 scripts/check-volume-device       # on the PHONE (unlocked; DEVICE=<udid>, BOOK=<title>, APP=<built .app> or
                                   #   ASC_KEY_* to build): probes the volume one step at a time like presses
                                   #   and asserts each read, turned the right way (landed location) and was
@@ -120,6 +124,11 @@ behind the same `acceptsDoubleTap` its `shouldReceive` uses; not the recognizers
 -SheafsFlipFreeze <0…1> [-SheafsFlipGrab <0…1 down the page>]` starts one page flip on its own
 once the book is up and holds it at that amount, so `simctl io … screenshot` can catch the leaf
 mid-air (the next tap lands it).
+`-SheafsTapCenter <s>` (with `-SheafsOpen`) taps the middle of the window that long after the page is
+up, through `PagerController.tap(at:)` (the single-tap recognizer's action), and prints `[chrome] 2.5 s
+after the centre tap the bars are UP|DOWN`. Whatever shows or hides the bars on its own account (the
+centre tap, a page move, a new window with the bars up) prints a `[chrome]` line (also in the unified
+log, category `reader`): on the phone, that says what hid them.
 `-SheafsSelect <0…1>` (with `-SheafsOpen`) selects the sentence at that fraction of the reading
 position's page 1 s after the book is up and opens the selection menu, as a long press would (simctl
 cannot long-press); `-SheafsSelectThen share` then taps Share, so the share sheet can be screenshotted.
@@ -676,6 +685,14 @@ The bars change the safe areas, so they are learned per display state (window si
 position/activity + camera) during the first 1.5 s, then LOCKED: later changes on the same display
 are ignored, and the bars overlay the page. A fold, unfold, rotation or book pose is a new display
 state and is followed at once; a size change while the bars are up hides them first.
+🔴 The window size is the reader's proxy size PLUS its insets, SNAPPED to whole pixels
+(`PageLayout.windowSize`), and only a change of a point or more is a new window with the bars up
+(`SteadyPageGeometry.windowChanged`). Summed raw, the bars' insets (thirds of a point) can come out an
+ulp off (24 + 104⅔ + 549⅓ = 677.9999999999999) and every comparison downstream is exact, so the
+bars' own arrival read as a new display and hid them again at once. That is the likely cause of
+"a tap on the cover display brings up nothing" (phone only, build 0.3 (42/43); the simulator's sums
+come out exact, so it never reproduced there): not confirmed on the phone yet, where `[chrome]` and
+`[layout] … (unsnapped …)` lines would show it. `scripts/check-cover-chrome`.
 
 ## Landmines
 - 🔴 The app runs on iOS 27.0, but the Duo's APIs (`reservedRegions`, `ReservedRegion`) are 27.1, the

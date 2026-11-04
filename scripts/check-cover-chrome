@@ -1,0 +1,153 @@
+#!/usr/bin/env bash
+# End-to-end check that a centre tap brings the reader's bars up and they STAY up, on the iPhone Duo
+# simulator's cover display (folded shut, portrait) and on the inner display (flat, book pose). Opens
+# Alice (the fixture) with `-SheafsTapCenter 3`, which taps the middle of the window through the
+# single-tap recognizer's action (`PagerController.tap(at:)`) 3 s after the page is up and says 2.5 s
+# later whether the bars are still up. Fails loudly unless, in each pose:
+#   - the tap was a centre tap and showed the bars (`[chrome] centre tap: bars shown`);
+#   - nothing hid them again (no `[chrome] … hiding them` / `[chrome] hidden` line) and they are UP
+#     2.5 s after the tap;
+#   - the screenshots say so too: the bottom band, where the progress strip goes, changed between
+#     just before the tap and after it (the second source: pixels, not the app's word).
+# The bug behind it (build 0.3 (42/43), cover display, on the phone only): a tap brought up nothing.
+# The likely cause: the reader rebuilds the window's size from its insets, the bars' insets can leave
+# it an ulp off, and compared exactly that hid the bars as soon as they came up. The simulator's sums
+# come out exact, so that arithmetic is pinned by
+# `SteadyPageGeometryTests.theBarsArrivingNeverReadAsANewWindow`, and this script guards the whole
+# tap → bars-up path; on the phone, `[chrome]` lines say what hid the bars (`xcrun devicectl device
+# process launch --console …`).
+# (The simulator cannot be tapped from a script, so UIKit's recognizer itself is not exercised here.)
+#   SIM="iPhone Duo" (default), DERIVED_DATA=/tmp/sheafs-derived (builds there, incrementally),
+#   OUT=/tmp/sheafs-cover-chrome (screenshots and consoles, kept), NO_BUILD=1 reuses the last build
+set -euo pipefail
+cd "$(dirname "$0")/.."
+fail() { echo "COVER CHROME CHECK FAILED: $*" >&2; exit 1; }
+SIM=${SIM:-iPhone Duo}
+DD=${DERIVED_DATA:-/tmp/sheafs-derived}
+OUT=${OUT:-/tmp/sheafs-cover-chrome}
+HINGE=scripts/hinge/hinge
+EPUB=Packages/SheafsKit/Tests/SheafsKitTests/Fixtures/alice-epub3.epub
+WORK=$(mktemp -d)
+CONSOLE_PID=""
+mkdir -p "$OUT"
+
+UDID=$(xcrun simctl list devices available -j | python3 -I -c '
+import json, sys
+name = sys.argv[1]
+for runtime in json.load(sys.stdin)["devices"].values():
+    for d in runtime:
+        if d["name"] == name: print(d["udid"]); sys.exit()
+' "$SIM")
+[[ -n $UDID ]] || fail "no simulator named \"$SIM\""
+xcrun simctl bootstatus "$UDID" -b >/dev/null
+# Cleans up and keeps the script's own status (a failing cleanup step must not turn OK into a failure).
+cleanup() {
+  local status=$?
+  [[ -n $CONSOLE_PID ]] && { kill "$CONSOLE_PID" >/dev/null 2>&1 || true; }
+  xcrun simctl terminate "$UDID" io.sheafs.reader >/dev/null 2>&1 || true
+  rm -rf "$WORK"
+  exit "$status"
+}
+trap cleanup EXIT
+
+if [[ -z ${NO_BUILD:-} ]]; then
+  [[ -f Config/Signing.xcconfig ]] || cp Config/Signing.example.xcconfig Config/Signing.xcconfig
+  xcodegen generate --quiet
+  xcodebuild -project Sheafs.xcodeproj -scheme Sheafs -destination "platform=iOS Simulator,id=$UDID" \
+    -derivedDataPath "$DD" -quiet build >"$WORK/build.log" 2>&1 || { tail -n 30 "$WORK/build.log" >&2; fail "build"; }
+fi
+APP="$DD/Build/Products/Debug-iphonesimulator/Sheafs.app"
+[[ -d $APP ]] || fail "no build at $APP"
+xcrun simctl install "$UDID" "$APP"
+xcrun simctl terminate "$UDID" io.sheafs.reader >/dev/null 2>&1 || true
+DATA=$(xcrun simctl get_app_container "$UDID" io.sheafs.reader data)
+mkdir -p "$DATA/Documents"
+cp "$EPUB" "$DATA/Documents/"
+xcrun simctl launch "$UDID" io.sheafs.reader >/dev/null            # imports Documents/ (dedupes)
+sleep 4
+xcrun simctl terminate "$UDID" io.sheafs.reader >/dev/null 2>&1 || true
+
+finish() {
+  xcrun simctl terminate "$UDID" io.sheafs.reader >/dev/null 2>&1 || true
+  kill "$CONSOLE_PID" >/dev/null 2>&1 || true
+  CONSOLE_PID=""
+}
+
+# How much of the band where the progress strip goes (the bottom 50…170 pt, 10…70 % across) changed
+# between two screenshots: the share of its pixels that differ by more than 24 in some channel.
+band_change() {
+  sips -s format bmp "$1" --out "$WORK/a.bmp" >/dev/null
+  sips -s format bmp "$2" --out "$WORK/b.bmp" >/dev/null
+  python3 -I - "$WORK/a.bmp" "$WORK/b.bmp" <<'PY'
+import struct, sys
+def load(path):
+    data = open(path, "rb").read()
+    offset, = struct.unpack_from("<I", data, 10)
+    width, height = struct.unpack_from("<ii", data, 18)
+    bpp, = struct.unpack_from("<H", data, 28)
+    return data, offset, width, height, bpp // 8, (width * (bpp // 8) + 3) & ~3
+a, b = load(sys.argv[1]), load(sys.argv[2])
+if a[2:4] != b[2:4]:
+    print("size-mismatch"); sys.exit()
+data_a, off_a, width, height, step, row = a
+data_b, off_b = b[0], b[1]
+h = abs(height)
+def pixel(data, offset, x, y):
+    yy = (height - 1 - y) if height > 0 else y
+    i = offset + yy * row + x * step
+    return data[i:i + 3]
+changed = total = 0
+for y in range(h - 170 * 3, h - 50 * 3, 3):
+    for x in range(int(width * 0.1), int(width * 0.7), 3):
+        total += 1
+        if max(abs(p - q) for p, q in zip(pixel(data_a, off_a, x, y), pixel(data_b, off_b, x, y))) > 24:
+            changed += 1
+print(f"{changed / total:.3f}")
+PY
+}
+
+# phase <name> <device orientation> <hinge°> <--display flag>
+phase() {
+  local name=$1 orient=$2 angle=$3 display=$4
+  echo "• $name"
+  "$HINGE" -d "$UDID" orient "$orient" >/dev/null
+  "$HINGE" -d "$UDID" "$angle" >/dev/null
+  sleep 2
+  local log="$OUT/$name-console.log" attempt
+  # A launch right after the app's tests have run sometimes never attaches (simctl prints nothing);
+  # that is the harness, so such a launch is retried once.
+  for attempt in 1 2; do
+    : >"$log"
+    xcrun simctl launch --console-pty "$UDID" io.sheafs.reader -SheafsOpen Alice -SheafsTapCenter 3 >"$log" 2>&1 &
+    CONSOLE_PID=$!
+    for _ in $(seq 1 40); do [[ -s $log ]] && break; sleep 0.5; done
+    [[ -s $log ]] && break
+    echo "  (simctl launch printed nothing in 20 s, attempt $attempt; relaunching)"
+    finish
+  done
+  for _ in $(seq 1 60); do grep -aq '^\[chrome\] -SheafsTapCenter: tapping' "$log" && break; sleep 0.5; done
+  grep -aq '^\[chrome\] -SheafsTapCenter: tapping' "$log" || fail "$name: the page never came up ($log)"
+  xcrun simctl io "$UDID" screenshot "$display" "$OUT/$name-before.png" >/dev/null 2>&1 || fail "$name: screenshot"
+  for _ in $(seq 1 40); do grep -aq '^\[chrome\] 2.5 s after the centre tap' "$log" && break; sleep 0.5; done
+  local verdict
+  verdict=$(grep -a '^\[chrome\] 2.5 s after the centre tap' "$log" | tail -1) || true
+  xcrun simctl io "$UDID" screenshot "$display" "$OUT/$name-after.png" >/dev/null 2>&1 || fail "$name: screenshot"
+  grep -aE '^\[(tap|chrome)\]' "$log" | sed 's/^/  /'
+  [[ -n $verdict ]] || fail "$name: no verdict 2.5 s after the tap ($log)"
+  grep -aq '^\[tap\] at .* → center' "$log" || fail "$name: the tap was not a centre tap"
+  grep -aq '^\[chrome\] centre tap: bars shown' "$log" || fail "$name: the centre tap did not show the bars"
+  if grep -aqE '^\[chrome\] (window .*hiding them|hidden)' "$log"; then fail "$name: the bars were hidden again after the tap"; fi
+  [[ $verdict == *"bars are UP"* ]] || fail "$name: $verdict"
+  local band
+  band=$(band_change "$OUT/$name-before.png" "$OUT/$name-after.png")
+  python3 -I -c "import sys; sys.exit(0 if sys.argv[1] != 'size-mismatch' and float(sys.argv[1]) >= 0.05 else 1)" "$band" \
+    || fail "$name: the screenshots show no progress strip after the tap (band changed $band, wanted ≥ 0.05; $OUT/$name-*.png)"
+  echo "  ok: bars up and the strip's band changed ($band of its pixels)"
+  finish
+}
+
+phase cover portrait 0 --display=primary
+phase inner-flat portrait 180 --display=primary-1
+phase inner-book-pose portrait 110 --display=primary-1
+"$HINGE" -d "$UDID" 180 >/dev/null
+echo "COVER CHROME OK (screenshots and consoles in $OUT)"

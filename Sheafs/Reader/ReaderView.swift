@@ -42,6 +42,7 @@ struct ReaderView: View {
     @Environment(\.colorScheme) private var environmentScheme
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.displayScale) private var displayScale
     @Environment(ReaderSettings.self) private var settings
     @Environment(LibraryStore.self) private var library
     @Environment(SyncService.self) private var sync
@@ -263,8 +264,10 @@ struct ReaderView: View {
         // in the background (`WindowRegions`); the cover camera is a known spot (`CoverCamera`).
         GeometryReader { proxy in
             let insets = proxy.safeAreaInsets
-            let full = CGSize(width: proxy.size.width + insets.leading + insets.trailing,
-                              height: proxy.size.height + insets.top + insets.bottom)
+            let full = PageLayout.windowSize(content: proxy.size, insets: insets, scale: displayScale)
+            // For the log: the sum as it comes, which the bars' insets can leave an ulp off the window.
+            let unsnapped = CGSize(width: proxy.size.width + insets.leading + insets.trailing,
+                                   height: proxy.size.height + insets.top + insets.bottom)
             let shift = CGPoint(x: insets.leading, y: insets.top)
             if let regions {
                 // Both displays read full width under the bars' strip; the bars overlay on tap.
@@ -287,7 +290,10 @@ struct ReaderView: View {
                                     if !foundMarks.isEmpty { foundMarks = [] }
                                     trail.arrived(at: location, samePage: samePage)
                                     persist(location)
-                                    if chromeVisible { withAnimation { chromeVisible = false } }
+                                    if chromeVisible {
+                                        noteChrome("hidden: the page moved to \(location.spineIndex):\(location.textOffset)")
+                                        withAnimation { chromeVisible = false }
+                                    }
                                 },
                                 onTap: handle(tap:),
                                 onSelectionAction: handle(selection:),
@@ -330,13 +336,18 @@ struct ReaderView: View {
                 .offset(x: -shift.x, y: -shift.y)
                 .onChange(of: fresh, initial: true) { _, new in
                     // A fold, unfold or rotation while the bars are up: drop the bars so the stored
-                    // insets are the reading ones, not the bars'.
+                    // insets are the reading ones, not the bars'. Never for the bars' own arrival
+                    // (`SteadyPageGeometry.windowChanged`).
                     if chromeVisible, let frozen = geometry.reading, frozen.size != new.size {
-                        chromeVisible = false
+                        let changed = geometry.windowChanged(new)
+                        noteChrome("window \(frozen.size) → \(new.size) (unsnapped \(unsnapped)) with the bars up: "
+                            + (changed ? "hiding them (a new display)" : "kept (the same window)"))
+                        if changed { chromeVisible = false }
                     }
                     geometry.observe(new, barsVisible: chromeVisible, now: ProcessInfo.processInfo.systemUptime)
                     let used = PageLayout.compute(geometry.input(for: new))
-                    print("[layout] size=\(new.size) safe=\(new.safeArea) division=\(String(describing: new.division)) " +
+                    print("[layout] size=\(new.size)\(unsnapped != new.size ? " (unsnapped \(unsnapped))" : "") " +
+                          "safe=\(new.safeArea) division=\(String(describing: new.division)) " +
                           "active=\(new.divisionIsActive) camera=\(String(describing: new.camera)) orientation=\(orientation.rawValue) → pages=\(used.pageFrames) " +
                           "textInsets=\(used.textInsets) " +
                           "holding=\(geometry.isHolding(new))")
@@ -533,6 +544,7 @@ struct ReaderView: View {
                 closeAsk()
             } else {
                 withAnimation(.snappy) { chromeVisible.toggle() }
+                noteChrome("centre tap: bars \(chromeVisible ? "shown" : "hidden")")
             }
         case .previous, .next:
             break // the pager turns the page itself
@@ -543,6 +555,14 @@ struct ReaderView: View {
         case .image(let tap):
             open(image: tap)
         }
+    }
+
+    /// Every time the bars come or go on their own account: `[chrome]` on stdout (`devicectl … launch
+    /// --console`) and in the unified log (Console.app, category `reader`), so a run on the phone says
+    /// why they went.
+    private func noteChrome(_ message: String) {
+        print("[chrome] \(message)")
+        log.notice("chrome: \(message, privacy: .public)")
     }
 
     /// Opens a tapped picture full screen, at its own resolution (decoded off the main actor).
@@ -901,6 +921,7 @@ struct ReaderView: View {
         askFromLaunchArgument()
         bookmarkFromLaunchArgument(session: fresh)
         openImageFromLaunchArgument(session: fresh)
+        tapCenterFromLaunchArgument()
 #if DEBUG
         demoFromLaunchArguments(session: fresh)
 #endif
@@ -1250,6 +1271,34 @@ struct ReaderView: View {
     }
 
     private static var imageArgumentConsumed = false
+
+    /// `-SheafsTapCenter <s>` (with `-SheafsOpen`): that long after the page is up, taps the middle of
+    /// the window through the single-tap recognizer's action (`PagerController.tap(at:)`), as a finger
+    /// would, then says whether the bars are still up 2.5 s later (`[chrome] … bars UP|DOWN`), so a
+    /// script can hold the bars to staying up (`scripts/check-cover-chrome`).
+    private func tapCenterFromLaunchArgument() {
+        guard !Self.tapArgumentConsumed else { return }
+        Self.tapArgumentConsumed = true
+        guard UserDefaults.standard.object(forKey: "SheafsTapCenter") != nil else { return }
+        let delay = UserDefaults.standard.double(forKey: "SheafsTapCenter")
+        Task {
+            for _ in 0 ..< 150 {
+                try? await Task.sleep(for: .milliseconds(200))
+                if let controller = pagerProxy.controller, controller.viewIfLoaded?.window != nil, controller.currentSpread != nil { break }
+            }
+            print("[chrome] -SheafsTapCenter: tapping in \(delay) s; bars \(chromeVisible ? "up" : "down")")
+            try? await Task.sleep(for: .seconds(delay))
+            guard let controller = pagerProxy.controller, let bounds = controller.viewIfLoaded?.bounds else {
+                return print("[chrome] -SheafsTapCenter: no pager to tap")
+            }
+            controller.tap(at: CGPoint(x: bounds.midX, y: bounds.midY))
+            try? await Task.sleep(for: .milliseconds(2500))
+            print("[chrome] 2.5 s after the centre tap the bars are \(chromeVisible ? "UP" : "DOWN") "
+                + "window=\(geometry.reading?.size ?? .zero)")
+        }
+    }
+
+    private static var tapArgumentConsumed = false
 
     private func accept(_ prompt: RemotePrompt) {
         jump(to: prompt.location)
