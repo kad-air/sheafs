@@ -1,0 +1,194 @@
+#!/usr/bin/env bash
+# End-to-end check of the Apple Watch remote's phone side on the iPhone Duo simulator, without a
+# watch: `-SheafsWatchCommands status,next,next,previous,status` sends each command through
+# `WatchLink.receive`, the path a message from the watch takes, once Pride is open halfway. On the
+# cover display (one page) and on the inner display flat (a spread), fails loudly unless:
+#   - the first status names the book and a page ("reading … page N of M");
+#   - every next and previous is taken (turned=true) and turns the page through the page FLIP, as a
+#     tap on the page's edge does (`[flip] turn forward|back folio X → Y`, printed by the flip
+#     driver from the pages it turns), starting from the page the watch was last told;
+#   - after each turn the watch is told the page the leaf landed on, in the reply (which waits for
+#     the landing) and in a pushed status (`[watch] reply/status … page Y`),
+#     the folio the flip read off the page itself, not a number of our own;
+#   - next goes forward, and previous comes back to exactly the page before;
+#   - the closing status agrees with the last page pushed.
+# The watch app itself (its buttons, double tap, WatchConnectivity) needs a paired watch.
+#   SIM="iPhone Duo" (default), DERIVED_DATA=/tmp/sheafs-derived (builds there, incrementally),
+#   NO_BUILD=1 (installs the last build), OUT=/tmp/sheafs-watch-remote (consoles, kept)
+set -euo pipefail
+cd "$(dirname "$0")/.."
+fail() { echo "WATCH REMOTE CHECK FAILED: $*" >&2; exit 1; }
+SIM=${SIM:-iPhone Duo}
+DD=${DERIVED_DATA:-/tmp/sheafs-derived}
+OUT=${OUT:-/tmp/sheafs-watch-remote}
+HINGE=scripts/hinge/hinge
+EPUB=Packages/SheafsKit/Tests/SheafsKitTests/Fixtures/pride-epub2.epub
+COMMANDS=status,next,next,previous,status
+WORK=$(mktemp -d)
+CONSOLE_PID=""
+mkdir -p "$OUT"
+
+UDID=$(xcrun simctl list devices available -j | python3 -I -c '
+import json, sys
+name = sys.argv[1]
+for runtime in json.load(sys.stdin)["devices"].values():
+    for d in runtime:
+        if d["name"] == name: print(d["udid"]); sys.exit()
+' "$SIM")
+[[ -n $UDID ]] || fail "no simulator named \"$SIM\""
+xcrun simctl boot "$UDID" >/dev/null 2>&1 || true
+xcrun simctl bootstatus "$UDID" -b >/dev/null
+finish() {
+  [[ -n $CONSOLE_PID ]] && { kill "$CONSOLE_PID" >/dev/null 2>&1 || true; }
+  CONSOLE_PID=""
+  xcrun simctl terminate "$UDID" io.sheafs.reader >/dev/null 2>&1 || true
+}
+cleanup() {
+  local status=$?
+  finish
+  "$HINGE" -d "$UDID" orient portrait >/dev/null 2>&1 || true
+  "$HINGE" -d "$UDID" 0 >/dev/null 2>&1 || true
+  rm -rf "$WORK"
+  exit "$status"
+}
+trap cleanup EXIT
+
+if [[ -z ${NO_BUILD:-} ]]; then
+  [[ -f Config/Signing.xcconfig ]] || cp Config/Signing.example.xcconfig Config/Signing.xcconfig
+  xcodegen generate --quiet
+  xcodebuild -project Sheafs.xcodeproj -scheme Sheafs -destination "platform=iOS Simulator,id=$UDID" \
+    -derivedDataPath "$DD" -quiet build >"$WORK/build.log" 2>&1 || { tail -n 30 "$WORK/build.log" >&2; fail "build"; }
+fi
+APP=$DD/Build/Products/Debug-iphonesimulator/Sheafs.app
+[[ -d $APP/Watch/SheafsWatch.app ]] || fail "$APP has no Watch/SheafsWatch.app: not a build with the watch remote"
+# install: (again) before every launch. The simulator is shared, and another session's install of
+# its own Sheafs in the middle of a run (it happened) makes every [watch] line vanish.
+install() {
+  xcrun simctl install "$UDID" "$APP"
+  [[ -d $(xcrun simctl get_app_container "$UDID" io.sheafs.reader app)/Watch/SheafsWatch.app ]] \
+    || fail "the Sheafs installed on the simulator has no watch app"
+}
+install
+finish
+DATA=$(xcrun simctl get_app_container "$UDID" io.sheafs.reader data)
+mkdir -p "$DATA/Documents"
+cp "$EPUB" "$DATA/Documents/"
+xcrun simctl launch "$UDID" io.sheafs.reader >/dev/null            # imports Documents/ (dedupes)
+sleep 4
+finish
+
+# run <name>: Pride halfway with the commands; waits for them to finish (a launch that never gets
+# going is retried: simctl sometimes never attaches after the app's tests have run), then checks
+# the console.
+run() {
+  local name=$1 attempt
+  for attempt in 1 2 3; do
+    install
+    : >"$WORK/console.log"
+    xcrun simctl launch --console-pty "$UDID" io.sheafs.reader -SheafsOpen Pride -SheafsGoTo 0.5 \
+      -SheafsWatchCommands "$COMMANDS" -SheafsWatchCommandGap 2.5 >"$WORK/console.log" 2>&1 &
+    CONSOLE_PID=$!
+    for _ in $(seq 1 80); do grep -aq '^\[watch\] launch commands done' "$WORK/console.log" && break; sleep 0.5; done
+    grep -aq '^\[watch\] launch commands done' "$WORK/console.log" && break
+    cp "$WORK/console.log" "$OUT/$name-console-attempt$attempt.log"
+    if grep -aq '^\[open\]' "$WORK/console.log" && ! grep -aq '^\[watch\]' "$WORK/console.log"; then
+      echo "  (the book opened but the app printed no [watch] line: not this build? attempt $attempt)"
+    else
+      echo "  (the commands did not finish in 40 s, attempt $attempt; relaunching)"
+    fi
+    finish
+  done
+  sleep 1
+  cp "$WORK/console.log" "$OUT/$name-console.log"
+  finish
+  grep -aq '^\[watch\] launch commands done' "$OUT/$name-console.log" \
+    || fail "$name: the commands never finished (console: $OUT/$name-console.log)"
+  python3 -I - "$OUT/$name-console.log" "$name" "$COMMANDS" <<'PY' || exit 1
+import re, sys
+path, name, commands = sys.argv[1], sys.argv[2], sys.argv[3].split(",")
+def fail(message):
+    sys.exit(f"WATCH REMOTE CHECK FAILED: {name}: {message} (console: {path})")
+lines = [l.strip("\r\n") for l in open(path, encoding="utf-8", errors="replace")]
+# One window of console lines per command: from its `[watch] command` line to the next one's.
+command_re = re.compile(r'^\[watch\] command (\w+)\b')
+reply_re = re.compile(r'^\[watch\] reply turned=(true|false) (\w+) ".*" page (\d+|\?) of (\d+|\?)')
+flip_re = re.compile(r'^\[flip\] turn (forward|back) folio (\d+) → (\d+)')
+status_re = re.compile(r'^\[watch\] status (\w+) ".*" page (\d+|\?) of (\d+|\?)')
+windows = []
+for line in lines:
+    if m := command_re.match(line):
+        windows.append((m.group(1), []))
+    elif windows:
+        windows[-1][1].append(line)
+sent = [w[0] for w in windows]
+if sent != commands:
+    fail(f"commands handled {sent}, sent {commands}")
+
+page, history = None, []
+for command, window in windows:
+    replies = [m for l in window if (m := reply_re.match(l))]
+    flips = [(i, m) for i, l in enumerate(window) if (m := flip_re.match(l))]
+    pushes = [(i, m) for i, l in enumerate(window) if (m := status_re.match(l))]
+    if len(replies) != 1:
+        fail(f"{command}: {len(replies)} replies")
+    turned, state, told = replies[0].group(1) == "true", replies[0].group(2), replies[0].group(3)
+    if state != "reading" or told == "?":
+        fail(f"{command}: answered {state} page {told}: no book and page")
+    if command == "status":
+        if turned:
+            fail("status turned a page")
+        if flips:
+            fail("status started a flip")
+        if page is not None and told != str(page):
+            fail(f"the closing status says page {told}, the last page pushed was {page}")
+        page = int(told)
+        if not history:
+            history.append(page)
+        print(f"  status: reading, page {page}")
+        continue
+    if not turned:
+        fail(f"{command} was not taken (turned=false)")
+    if len(flips) != 1:
+        fail(f"{command}: {len(flips)} page flips (pages slide? the turn must be the flip an edge tap starts)")
+    at, flip = flips[0]
+    way, origin, landed = flip.group(1), int(flip.group(2)), int(flip.group(3))
+    if way != ("forward" if command == "next" else "back"):
+        fail(f"{command}: the flip turned {way}")
+    if origin != page:
+        fail(f"{command}: the flip started from page {origin}, the watch was told {page}")
+    after = [m for i, m in pushes if i > at]
+    if not after:
+        fail(f"{command}: the watch was not told the new page before the next command")
+    if after[-1].group(1) != "reading" or after[-1].group(2) != str(landed):
+        fail(f"{command}: the watch was told {after[-1].group(1)} page {after[-1].group(2)}, "
+             f"the leaf landed on page {landed}")
+    # The reply waits for the landing: it carries the new page too.
+    if told != str(landed):
+        fail(f"{command}: the reply says page {told}, the leaf landed on page {landed}")
+    if command == "next" and landed <= origin:
+        fail(f"next went from page {origin} to {landed}")
+    if command == "previous":
+        if len(history) < 2 or landed != history[-2]:
+            fail(f"previous went from page {origin} to {landed}, not back to the page before")
+        history.pop()
+    else:
+        history.append(landed)
+    page = landed
+    print(f"  {command}: flip {way} {origin} → {landed}, watch told page {landed}")
+print(f"  ok: {name}")
+PY
+}
+
+echo "== cover display (one page)"
+"$HINGE" -d "$UDID" orient portrait
+"$HINGE" -d "$UDID" 0
+sleep 2
+run cover
+
+echo "== inner display, flat (a spread)"
+"$HINGE" -d "$UDID" orient portrait   # device portrait = the inner display wide: a spread
+"$HINGE" -d "$UDID" 180
+sleep 2
+run spread
+
+echo "WATCH REMOTE CHECK OK (consoles in $OUT)"

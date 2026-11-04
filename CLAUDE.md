@@ -1,7 +1,8 @@
 # Sheafs
 
 Native EPUB reader for iPhone, iPad and the foldable iPhone Duo, iOS 27.0 and later. SwiftUI + TextKit + Foundation (plus
-Metal for the page flip, LinkPresentation for the share sheet's header, PencilKit for markup) only; no web views, no third-party packages. Open source (MIT), so **no personal names, emails,
+Metal for the page flip, LinkPresentation for the share sheet's header, PencilKit for markup, WatchConnectivity for the
+Apple Watch remote) only; no web views, no third-party packages. Open source (MIT), so **no personal names, emails,
 hostnames or secrets anywhere in the tree** — `scripts/check` greps for them and fails.
 
 ## Commands
@@ -33,6 +34,11 @@ scripts/check-tabletop            # end to end on a simulator (SIM="iPhone Duo",
                                   #   lying and with a forward turn frozen at 0.1; the row where the page
                                   #   meets the block must read the same in both, with the edge line, and
                                   #   the turn must count on by one (`[flip] turn … folio X → Y`); NO_BUILD=1
+scripts/check-watch-remote        # end to end on a simulator (SIM="iPhone Duo"), no watch needed: Pride
+                                  #   halfway, `-SheafsWatchCommands status,next,next,previous,status` on
+                                  #   the cover display and a spread; each turn must be the page FLIP, start
+                                  #   from the page the watch was told and tell it the folio the leaf landed
+                                  #   on; previous comes back to the page before; NO_BUILD=1
 scripts/check-cover-chrome        # end to end on a simulator (SIM="iPhone Duo"): a centre tap brings the
                                   #   bars up and they STAY up 2.5 s later on the cover display (portrait) and
                                   #   the inner display (flat, book pose): `[chrome]` lines + the screenshots'
@@ -546,6 +552,51 @@ regions (see Duo behaviour below), so check layout changes on the phone.
   stale, and its `--selftest` proves a flat or shifted icon fails. Never edit the PNGs by hand. Its label is the book's title, so
   `publishRecentBook()` also calls `ControlCenter.reloadControls`. `WidgetTests` checks the intent
   is in BOTH bundles' `Metadata.appintents` and the icon loads as a symbol (`isSymbolImage`).
+- `SheafsWatch/` (single-target watchOS app, `io.sheafs.reader.watchkitapp`, watchOS 11+, embedded
+  in the app's `Watch/` folder by the Sheafs target's dependency; no extension, no entitlements) —
+  the Apple Watch page-turn REMOTE: one big Next Page button marked
+  `.handGestureShortcut(.primaryAction)`, so the watch's double tap presses it, a small Previous
+  Page button, the book's title and "136 of 594" (`WatchStatus.pageLabel`, a percentage until the
+  page is laid out), a click/failure haptic on each reply. `Shared/WatchMessages.swift` (app +
+  watch, NOT the widget) is the WatchConnectivity contract: `WatchCommand` (next/previous/status),
+  `WatchStatus` (reading / noBook / inBackground + title, page, total, progress) and `WatchReply`
+  (turned + the status after it), all property-list dictionaries. The phone's end
+  is `Sheafs/Watch/WatchLink.swift`: `WatchLink.shared` is the app's one `WCSession` delegate,
+  activated in `SheafsApp.init` (a watch message can launch the app in the background, and only an
+  activated session gets it); `ReaderView`'s ONE hook, `.watchRemote(session:proxy:title:)`,
+  attaches a `WatchReaderHandle` on every change of location / readiness / scene phase and
+  detaches it on disappear. A next/previous turns through `PagerProxy.turn(forward:)` →
+  `PagerController.turnPage`, the turn a tap on the page's edge makes (the flip, or the slide),
+  and 🔴 only while a book is open AND the scene is active (`WatchLink.answer`): never behind
+  another app or a locked phone, and 🔴 never for a command sent more than 5 s ago
+  (`WatchCommand.staleAfter`, commands carry `sentAt`): WatchConnectivity delivers a message the
+  watch gave up on when it next launches the phone app (seen on the simulators), and that page
+  would turn by itself. A turn's reply WAITS for the landing (the next `attach`, or
+  `landingTimeout`, 1.5 s) so it carries the new page; the push (`sendMessage` while the watch
+  app is reachable, plus `updateApplicationContext` for its next launch, only when changed) is for
+  moves made on the phone. Don't gate the live push on `isWatchAppInstalled`: the simulator
+  reports it false at times while the watch app is up and reachable. The page number is
+  the folio of the page holding the position, from `laidOutChapter` (never lays one out). The
+  watch asks for `.status` whenever it comes on screen. Concurrency: WatchConnectivity calls
+  delegates and handlers on its own queue and its headers carry no Sendable annotations, so every
+  handler is `nonisolated` or an explicit `@Sendable` closure that decodes to Sendable values
+  before hopping to the main actor (a closure inferred `@MainActor` there would trap at run time).
+  🔴 Double tap works only while the watch's screen is awake (raised wrist; not dimmed Always On),
+  and none of the `WKExtendedRuntimeSession` types (self care, mindfulness, physical therapy, smart
+  alarm) fits reading, so there is no session keeping it up; the user's own Settings → General →
+  Return to Clock → Sheafs → After 1 hour keeps the remote frontmost between wrist raises. The
+  watch icon is the app icon: `AppIcon.appiconset` carries a watchOS entry naming the light
+  `icon-1024.png` and the watch target compiles the app's catalog (`scripts/check-icon` checks the
+  entry and that the stack fits watchOS's circular mask). `WatchTests` (the messages are property
+  lists and round-trip, command → turn, no turn without a reader, in the background or when stale,
+  a turn's reply carries the landed page, a real session's first page is 1, the app embeds the
+  watch app with matching versions and an icon);
+  `scripts/check-watch-remote` end to end; `scripts/release` checks the archived watch app's id,
+  companion, versions and icon. `-SheafsWatchCommands next,…` (app, with `-SheafsOpen`) sends
+  commands through `WatchLink.receive` (`[watch] …` lines); `-SheafsWatchSend next,…` (watch app)
+  sends them over WatchConnectivity once the phone is reachable (`[watch-app] …` lines), for a
+  paired pair of simulators (`xcrun simctl pair <watch> <phone>`; install `SheafsWatch.app` from
+  `Debug-watchsimulator` on the watch yourself).
 
 ## iPhone Duo behaviour (the point of the app)
 

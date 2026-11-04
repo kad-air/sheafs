@@ -4,7 +4,9 @@ the geometry the control's symbol is drawn from, so the icon and the symbol cann
 and a hand-edited or stale PNG fails. Plain python3, no Chrome: it checks what is committed.
 
 Fails loudly when
-  - AppIcon.appiconset/Contents.json does not list the light, dark and tinted 1024 icons;
+  - AppIcon.appiconset/Contents.json does not list the light, dark and tinted 1024 icons, and the
+    light one once more for watchOS (the watch app shares the catalog); the stack does not fit
+    the circle watchOS masks its icons to;
   - an icon is not its size, the light or dark one has an alpha channel (App Store Connect
     refuses those), or the tinted one has none, is not grey everywhere, or is not transparent
     off the stack and opaque on it;
@@ -20,7 +22,7 @@ Fails loudly when
   scripts/check-icon             the checks
   scripts/check-icon --selftest  also proves the checks bite: a flat PNG and a shifted icon fail
 """
-import json, os, struct, sys, tempfile, zlib
+import json, math, os, struct, sys, tempfile, zlib
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
@@ -191,7 +193,14 @@ def check_contents():
         images = json.load(f)["images"]
     wanted = {"icon-1024.png": None, "icon-1024-dark.png": "dark", "icon-1024-tinted.png": "tinted"}
     seen = {}
+    watch = [image for image in images if image.get("platform") == "watchos"]
+    # The watch app (SheafsWatch) compiles this catalog too; its icon is the light one, no variants.
+    if [(w.get("filename"), w.get("idiom"), w.get("size"), w.get("appearances")) for w in watch] \
+            != [("icon-1024.png", "universal", "1024x1024", None)]:
+        fail(f"Contents.json: wanted one watchOS entry, the light icon-1024.png (universal, 1024x1024, no appearances); found {watch}")
     for image in images:
+        if image.get("platform") == "watchos":
+            continue
         if (image.get("idiom"), image.get("platform"), image.get("size")) != ("universal", "ios", "1024x1024"):
             fail(f"Contents.json: {image.get('filename')} is not universal/ios/1024x1024")
         appearances = image.get("appearances", [])
@@ -203,8 +212,20 @@ def check_contents():
         fail(f"Contents.json lists {seen}, wanted {wanted}")
 
 
+def check_watch_circle():
+    """watchOS masks app icons to a circle: every corner of every sheet must lie inside the circle
+    inscribed in the canvas (the corners are rounded, so this is on the safe side)."""
+    margin = 8
+    for sheet in range(mark.TOP + 1):
+        for corner in ((-mark.W / 2, -mark.H / 2), (mark.W / 2, -mark.H / 2), (mark.W / 2, mark.H / 2), (-mark.W / 2, mark.H / 2)):
+            x, y = canvas(corner, sheet)
+            if math.hypot(x - CANVAS / 2, y - CANVAS / 2) > CANVAS / 2 - margin:
+                fail(f"sheet {sheet + 1}'s corner ({x:.0f},{y:.0f}) falls outside the watch icon's circle")
+
+
 def check_all(iconset=ICONSET, docs=DOCS):
     check_contents()
+    check_watch_circle()
     for name, variant in (("icon-1024.png", "light"), ("icon-1024-dark.png", "dark"), ("icon-1024-tinted.png", "tinted")):
         path = os.path.join(iconset, name)
         png = PNG(path)
