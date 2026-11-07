@@ -70,6 +70,8 @@ struct ReaderView: View {
     @State private var remotePrompt: RemotePrompt?
     @State private var pagerProxy = PagerProxy()
     @State private var volumeButtons = VolumeButtonPager()
+    /// Holds the screen on while pages turn, lets it sleep once they stop (`ScreenAwake`).
+    @State private var screenAwake = ScreenAwake()
     @State private var pushTask: Task<Void, Never>?
     @State private var sliderValue: Double = 0
     @State private var isScrubbing = false
@@ -217,10 +219,13 @@ struct ReaderView: View {
         .watchRemote(session: session, proxy: pagerProxy, title: book.title)
         .onChange(of: scenePhase) { _, phase in
             if phase != .active { flush() }
+            // Back from the lock screen or another app: reading again.
+            if phase == .active { screenAwake.activity("scene active") }
         }
-        .onChange(of: settings.keepScreenAwake, initial: true) { _, awake in
-            UIApplication.shared.isIdleTimerDisabled = awake
+        .onChange(of: settings.screenAwake, initial: true) { _, window in
+            screenAwake.start(window: awakeSeconds(window), reason: "setting \(window.title)")
         }
+        .background { TouchActivityReader { screenAwake.activity("touch") } }
         .onChange(of: volumeButtonsArmed, initial: true) { _, armed in
             armVolumeButtons(armed)
         }
@@ -230,7 +235,7 @@ struct ReaderView: View {
         .onDisappear {
             ask?.recaps.stop()
             volumeButtons.stop()
-            UIApplication.shared.isIdleTimerDisabled = false
+            screenAwake.stop(reason: "reader closed")
             flush()
         }
     }
@@ -287,6 +292,7 @@ struct ReaderView: View {
                                         VolumeLog.shared.note("landed at spine=\(location.spineIndex) offset=\(location.textOffset)")
                                     }
                                     session.location = location
+                                    screenAwake.activity("page turn")
                                     if !foundMarks.isEmpty { foundMarks = [] }
                                     trail.arrived(at: location, samePage: samePage)
                                     persist(location)
@@ -532,6 +538,13 @@ struct ReaderView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             armVolumeButtonsWhenPagerIsUp(tries: tries - 1)
         }
+    }
+
+    /// The setting's window in seconds; `-SheafsAwakeSeconds <n>` (a launch argument) replaces it,
+    /// so `scripts/check-screen-awake` can watch the screen let go in seconds, not minutes.
+    private func awakeSeconds(_ window: ScreenAwakeWindow) -> TimeInterval? {
+        let override = UserDefaults.standard.double(forKey: "SheafsAwakeSeconds")
+        return override > 0 ? override : window.seconds
     }
 
     private func handle(tap: ReaderTap) {

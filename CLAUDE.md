@@ -39,6 +39,11 @@ scripts/check-watch-remote        # end to end on a simulator (SIM="iPhone Duo")
                                   #   the cover display and a spread; each turn must be the page FLIP, start
                                   #   from the page the watch was told and tell it the folio the leaf landed
                                   #   on; previous comes back to the page before; NO_BUILD=1
+scripts/check-screen-awake        # end to end on a simulator (SIM="iPhone Duo"): the screen is held on while
+                                  #   pages turn and let go 6 s (`-SheafsAwakeSeconds 6`) after the last one,
+                                  #   held again on the next turn, never with the setting Off; read off
+                                  #   SpringBoard's log (the value it received + its idle-timer decision),
+                                  #   turns via `-SheafsWatchCommands` (OUT=/tmp/sheafs-screen-awake); NO_BUILD=1
 scripts/check-cover-chrome        # end to end on a simulator (SIM="iPhone Duo"): a centre tap brings the
                                   #   bars up and they STAY up 2.5 s later on the cover display (portrait) and
                                   #   the inner display (flat, book pose): `[chrome]` lines + the screenshots'
@@ -124,6 +129,9 @@ behind the same `acceptsDoubleTap` its `shouldReceive` uses; not the recognizers
 -SheafsFlipFreeze <0…1> [-SheafsFlipGrab <0…1 down the page>]` starts one page flip on its own
 once the book is up and holds it at that amount, so `simctl io … screenshot` can catch the leaf
 mid-air (the next tap lands it).
+`-SheafsAwakeSeconds <n>` replaces the "Keep screen awake" window (minutes) with n seconds while a
+book is open, so the screen's release shows in seconds; the reader prints `[awake]` lines (also in the
+unified log, category `awake`): each activity, and each hold/release with UIKit's flag read back.
 `-SheafsTapCenter <s>` (with `-SheafsOpen`) taps the middle of the window that long after the page is
 up, through `PagerController.tap(at:)` (the single-tap recognizer's action), and prints `[chrome] 2.5 s
 after the centre tap the bars are UP|DOWN`. Whatever shows or hides the bars on its own account (the
@@ -456,6 +464,17 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     `-SheafsAsk <question>` (with `-SheafsOpen`) asks once and prints `[ask]` lines;
     `-SheafsAskOpen 1` opens the panel and prints the saved questions; `-SheafsAskSource <n>`
     then opens the answer's nth passage. Not on the tabletop deck.
+  - `Reader/ScreenAwake` — "Keep screen awake" (`ReaderSettings.screenAwake`: Off, 2, 5 (default),
+    10, 30 minutes). `ScreenAwake` sets `isIdleTimerDisabled` while the reader is in use and gives it
+    back once that many minutes pass with no page turn (`onLocationChange`: taps, swipes, volume
+    buttons, the watch, jumps), no touch (`TouchActivityReader`: a gesture recognizer on the WINDOW
+    that fails at its first touch, so sheets and panels count and no gesture waits for it) and no
+    return to the app; then the system's Auto-Lock dims and locks as usual (window + Auto-Lock after
+    the last turn). It used to hold the flag for as long as a book was open, so a book left open on
+    the table stayed lit. Activities only stamp a time; one pending check reschedules itself.
+    Off never touches the flag; closing the reader gives it back. `ScreenAwakeTests`,
+    `scripts/check-screen-awake`. The old switch (`keepScreenAwake`) is still written (false for Off)
+    for older builds, and read when `screenAwakeMinutes` is missing (on → 5 minutes).
   - `Reader/VolumeButtons` — `VolumeButtonPager` (setting `volumeButtonsTurn`, off by default):
     up = next page, down = previous (`Press.turnsForward`, the owner's choice). iOS has no public
     volume-button event outside a camera session (`AVCaptureEventInteraction` reaches only apps
@@ -733,6 +752,12 @@ come out exact, so it never reproduced there): not confirmed on the phone yet, w
 - `ReaderSettings.Stored` must keep NEW keys optional (`highlightColor: HighlightColor?`): a
   non-optional key missing from the saved JSON fails the whole decode and silently resets every
   setting.
+- SpringBoard applies an app's `isIdleTimerDisabled = true` lazily (its coordinator logs `requested idle
+  timer behavior disabled? YES` only when it next re-evaluates; often not at all on the simulator) but
+  logs EVERY value it receives, as FrontBoard's `[(FBSceneManager):sceneID:io.sheafs.reader-default]
+  Client settings updated with diff … idleTimerDisabled = YES|NO`, and re-evaluates at once on NO.
+  `scripts/check-screen-awake` reads the diffs, not the YES decision. The simulator never auto-locks,
+  so the screen actually going dark can only be seen on the phone.
 - The same layout pass turns the scroll view's scrolling OFF while pages flip (the flip's own pan
   takes the swipe; it yields to the selection long press and the handles) and back on for slide.
 - The flip shader is a Swift string compiled on the device (`PageFlipShader.source`,

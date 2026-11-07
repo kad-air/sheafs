@@ -82,14 +82,22 @@ struct AppearanceView: View {
                 Toggle("Justify", isOn: $settings.justified)
                 Toggle("Hyphenate", isOn: $settings.hyphenate)
             }
-            Section("Reading") {
+            Section {
                 Picker("Page Turn", selection: $settings.pageTurn) {
                     ForEach(PageTurnStyle.allCases) { Text($0.title).tag($0) }
                 }
                 .pickerStyle(.segmented)
                 Toggle("Tap edges to turn pages", isOn: $settings.tapToTurn)
                 Toggle("Volume buttons turn pages", isOn: $settings.volumeButtonsTurn)
-                Toggle("Keep screen awake", isOn: $settings.keepScreenAwake)
+                Picker("Keep screen awake", selection: $settings.screenAwake) {
+                    ForEach(ScreenAwakeWindow.allCases) { Text($0.title).tag($0) }
+                }
+            } header: {
+                Text("Reading")
+            } footer: {
+                Text(settings.screenAwake == .off
+                     ? "The screen locks with Auto-Lock, as in any other app."
+                     : "The screen stays on for \(settings.screenAwake.rawValue) minutes after the last page turn or touch, then locks with Auto-Lock.")
             }
         }
         .navigationTitle("Appearance")
