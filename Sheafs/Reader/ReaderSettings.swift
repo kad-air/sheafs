@@ -101,7 +101,8 @@ final class ReaderSettings {
     var justified: Bool { didSet { save() } }
     var hyphenate: Bool { didSet { save() } }
     var paragraphStyle: ParagraphStyleChoice { didSet { save() } }
-    var keepScreenAwake: Bool { didSet { save() } }
+    /// How long the screen stays on after the last page turn or touch (`ScreenAwake`).
+    var screenAwake: ScreenAwakeWindow { didSet { save() } }
     var tapToTurn: Bool { didSet { save() } }
     /// The colour the next highlight takes (the last one used).
     var highlightColor: HighlightColor { didSet { save() } }
@@ -125,6 +126,8 @@ final class ReaderSettings {
         var justified = false
         var hyphenate = true
         var paragraphStyle = ParagraphStyleChoice.indented
+        /// Superseded by `screenAwakeMinutes`; still written (false for Off) so an older build
+        /// reading these settings decodes them.
         var keepScreenAwake = true
         var tapToTurn = true
         // Optional: settings saved before this key existed must still decode.
@@ -134,6 +137,9 @@ final class ReaderSettings {
         var lightTheme: ReaderTheme?
         var darkTheme: ReaderTheme?
         var askEnabled: Bool?
+        /// `ScreenAwakeWindow.rawValue`. An Int, not the enum: an unknown value in a stored enum
+        /// would fail the whole decode.
+        var screenAwakeMinutes: Int?
     }
 
     init() {
@@ -149,7 +155,7 @@ final class ReaderSettings {
         justified = stored.justified
         hyphenate = stored.hyphenate
         paragraphStyle = stored.paragraphStyle
-        keepScreenAwake = stored.keepScreenAwake
+        screenAwake = Self.screenAwake(minutes: stored.screenAwakeMinutes, keepScreenAwake: stored.keepScreenAwake)
         tapToTurn = stored.tapToTurn
         highlightColor = stored.highlightColor ?? .yellow
         pageTurn = stored.pageTurn ?? .flip
@@ -161,12 +167,20 @@ final class ReaderSettings {
     private func save() {
         let stored = Stored(theme: theme, font: font, fontSize: fontSize, lineHeight: lineHeight, margin: margin,
                             justified: justified, hyphenate: hyphenate, paragraphStyle: paragraphStyle,
-                            keepScreenAwake: keepScreenAwake, tapToTurn: tapToTurn, highlightColor: highlightColor,
+                            keepScreenAwake: screenAwake != .off, tapToTurn: tapToTurn, highlightColor: highlightColor,
                             pageTurn: pageTurn, volumeButtonsTurn: volumeButtonsTurn,
-                            lightTheme: lightTheme, darkTheme: darkTheme, askEnabled: askEnabled)
+                            lightTheme: lightTheme, darkTheme: darkTheme, askEnabled: askEnabled,
+                            screenAwakeMinutes: screenAwake.rawValue)
         if let data = try? JSONEncoder().encode(stored) {
             UserDefaults.standard.set(data, forKey: Self.key)
         }
+    }
+
+    /// The stored window, else the old "Keep screen awake" switch: on (it held the screen on for as
+    /// long as a book was open) becomes the standard window, off stays off.
+    static func screenAwake(minutes: Int?, keepScreenAwake: Bool) -> ScreenAwakeWindow {
+        if let minutes, let window = ScreenAwakeWindow(rawValue: minutes) { return window }
+        return keepScreenAwake ? .standard : .off
     }
 
     /// The colours of `theme` (the current one by default) while the DEVICE is in `system` mode.

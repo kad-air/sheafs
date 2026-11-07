@@ -1,0 +1,201 @@
+#!/usr/bin/env bash
+# End-to-end check that the reader lets the screen sleep once the pages stop turning, on the iPhone
+# Duo simulator, read off SpringBoard: FrontBoard (in SpringBoard) logs every `idleTimerDisabled`
+# value the app's scene sends it (`Client settings updated with diff … idleTimerDisabled = YES|NO`),
+# and SpringBoard's idle-timer coordinator logs what it then decides (`requested idle timer behavior
+# disabled? NO`). The app's own `[awake]` lines only time the page turns.
+# Opens Pride with the window cut to 6 s (`-SheafsAwakeSeconds 6`) and turns pages through the
+# watch remote's launch commands (`-SheafsWatchCommands`, the path a watch's "next" takes: a real
+# page flip): status, next, next, (8 s of nothing), next. Fails loudly unless:
+#   - SpringBoard is told YES (screen held on) as the book opens;
+#   - it is told NO about 6 s after the LAST of the first two turns, not 6 s after opening (the turns
+#     held it on), and never before: 🔴 the bug was a YES held for as long as the book was open;
+#   - the coordinator then says the idle timer is back with the system (disabled? NO);
+#   - the third turn, after it let go, tells SpringBoard YES again at once, and NO 6 s later;
+#   - with the setting at Off, turning pages never tells SpringBoard YES.
+# The simulator does not lock on its own and cannot be tapped from a script, so the screen going
+# dark and touches holding it on are not exercised here (`ScreenAwakeTests` pins the timing).
+#   SIM="iPhone Duo" (default), DERIVED_DATA=/tmp/sheafs-derived (builds there, incrementally),
+#   NO_BUILD=1 (installs the last build), OUT=/tmp/sheafs-screen-awake (logs, kept)
+set -euo pipefail
+cd "$(dirname "$0")/.."
+fail() { echo "SCREEN AWAKE CHECK FAILED: $*" >&2; exit 1; }
+SIM=${SIM:-iPhone Duo}
+DD=${DERIVED_DATA:-/tmp/sheafs-derived}
+OUT=${OUT:-/tmp/sheafs-screen-awake}
+HINGE=scripts/hinge/hinge
+EPUB=Packages/SheafsKit/Tests/SheafsKitTests/Fixtures/pride-epub2.epub
+WINDOW=6
+WORK=$(mktemp -d)
+CONSOLE_PID=""
+STREAM_PID=""
+mkdir -p "$OUT"
+
+UDID=$(xcrun simctl list devices available -j | python3 -I -c '
+import json, sys
+name = sys.argv[1]
+for runtime in json.load(sys.stdin)["devices"].values():
+    for d in runtime:
+        if d["name"] == name: print(d["udid"]); sys.exit()
+' "$SIM")
+[[ -n $UDID ]] || fail "no simulator named \"$SIM\""
+xcrun simctl boot "$UDID" >/dev/null 2>&1 || true
+xcrun simctl bootstatus "$UDID" -b >/dev/null
+finish() {
+  [[ -n $CONSOLE_PID ]] && { kill "$CONSOLE_PID" >/dev/null 2>&1 || true; }
+  [[ -n $STREAM_PID ]] && { kill "$STREAM_PID" >/dev/null 2>&1 || true; }
+  CONSOLE_PID=""
+  STREAM_PID=""
+  xcrun simctl terminate "$UDID" io.sheafs.reader >/dev/null 2>&1 || true
+}
+PREFS=""
+reset_settings() {  # the reader settings back to their defaults (a 5 minute window)
+  [[ -n $PREFS && -f $PREFS ]] && plutil -remove 'reader\.settings\.v1' "$PREFS" >/dev/null 2>&1 || true
+  xcrun simctl spawn "$UDID" defaults delete io.sheafs.reader reader.settings.v1 >/dev/null 2>&1 || true
+}
+cleanup() {
+  local status=$?
+  finish
+  reset_settings
+  rm -rf "$WORK"
+  exit "$status"
+}
+trap cleanup EXIT
+
+if [[ -z ${NO_BUILD:-} ]]; then
+  [[ -f Config/Signing.xcconfig ]] || cp Config/Signing.example.xcconfig Config/Signing.xcconfig
+  xcodegen generate --quiet
+  xcodebuild -project Sheafs.xcodeproj -scheme Sheafs -destination "platform=iOS Simulator,id=$UDID" \
+    -derivedDataPath "$DD" -quiet build >"$WORK/build.log" 2>&1 || { tail -n 30 "$WORK/build.log" >&2; fail "build"; }
+fi
+APP=$DD/Build/Products/Debug-iphonesimulator/Sheafs.app
+[[ -d $APP ]] || fail "no build at $APP"
+grep -aq 'SheafsAwakeSeconds' "$APP/Sheafs.debug.dylib" "$APP/Sheafs" 2>/dev/null \
+  || fail "$APP does not know -SheafsAwakeSeconds: not a build with ScreenAwake"
+xcrun simctl install "$UDID" "$APP"
+finish
+DATA=$(xcrun simctl get_app_container "$UDID" io.sheafs.reader data)
+PREFS=$DATA/Library/Preferences/io.sheafs.reader.plist
+mkdir -p "$DATA/Documents"
+cp "$EPUB" "$DATA/Documents/"
+reset_settings
+"$HINGE" -d "$UDID" orient portrait >/dev/null
+"$HINGE" -d "$UDID" 0 >/dev/null     # the cover display: one page
+xcrun simctl launch "$UDID" io.sheafs.reader >/dev/null   # imports Documents/ (dedupes)
+sleep 4
+finish
+
+# run <name> <seconds> <launch args…>: the app's console and SpringBoard's log for one launch.
+run() {
+  local name=$1 seconds=$2
+  shift 2
+  xcrun simctl install "$UDID" "$APP"   # again: the simulator is shared
+  xcrun simctl spawn "$UDID" log stream --style compact --level debug --predicate '
+    (process == "SpringBoard" AND subsystem == "com.apple.FrontBoard" AND category == "ProcessScene"
+       AND eventMessage CONTAINS "sceneID:io.sheafs.reader-default] Client settings updated")
+    OR (process == "SpringBoard" AND category == "IdleTimer" AND eventMessage CONTAINS "requested idle timer")
+    OR (subsystem == "io.sheafs.reader" AND category == "awake")' >"$OUT/$name-system.log" 2>&1 &
+  STREAM_PID=$!
+  sleep 2
+  xcrun simctl launch --console-pty "$UDID" io.sheafs.reader -SheafsOpen Pride "$@" >"$OUT/$name-console.log" 2>&1 &
+  CONSOLE_PID=$!
+  local waited=0
+  until grep -aq '^\[watch\] launch commands done' "$OUT/$name-console.log"; do
+    sleep 1
+    waited=$((waited + 1))
+    ((waited < 60)) || { finish; fail "$name: the watch commands never finished (console: $OUT/$name-console.log)"; }
+  done
+  sleep "$seconds"   # past the last release
+  finish
+}
+
+echo "turns: window $WINDOW s; status, next, next, …, next"
+run turns $((WINDOW + 3)) -SheafsAwakeSeconds "$WINDOW" \
+  -SheafsWatchCommands status,next,next,status,status,status,next -SheafsWatchCommandGap 4
+python3 -I - "$OUT/turns-system.log" "$OUT/turns-console.log" "$WINDOW" <<'PY' || exit 1
+import re, sys
+from datetime import datetime
+system, console, window = sys.argv[1], sys.argv[2], float(sys.argv[3])
+def fail(message):
+    sys.exit(f"SCREEN AWAKE CHECK FAILED: turns: {message} (logs: {system}, {console})")
+text = open(system, encoding="utf-8", errors="replace").read()
+entries = re.split(r"\n(?=\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d+ )", text)
+def at(entry):
+    return datetime.strptime(entry[:23], "%Y-%m-%d %H:%M:%S.%f").timestamp()
+told, decided, turns, opened = [], [], [], None
+for e in entries:
+    if not re.match(r"\d{4}-", e):
+        continue
+    if "Client settings updated" in e and (m := re.search(r"idleTimerDisabled = (YES|NO);", e)):
+        told.append((at(e), m.group(1)))
+    elif m := re.search(r"requested idle timer behavior disabled\? (YES|NO)", e):
+        decided.append((at(e), m.group(1)))
+    elif "[awake] activity: page turn" in e:
+        turns.append(at(e))
+    elif "[awake] window" in e and opened is None:
+        opened = at(e)
+if opened is None:
+    fail("the reader never started the awake window ([awake] window …)")
+turned = len(re.findall(r"^\[watch\] reply turned=true", open(console, errors="replace").read(), re.M))
+if turned != 3:
+    fail(f"{turned} page turns taken, sent 3")
+if len(turns) != 3:
+    fail(f"{len(turns)} page turns reached the screen-awake hold, 3 were taken")
+# What SpringBoard was told from the moment the reader opened, repeats folded.
+changes = []
+for t, value in told:
+    if t >= opened - 0.05 and (not changes or changes[-1][1] != value):
+        changes.append((t, value))
+rel = lambda t: f"{t - opened:+.1f} s"
+print("  SpringBoard told: " + ", ".join(f"{v} at {rel(t)}" for t, v in changes))
+print("  page turns at: " + ", ".join(rel(t) for t in turns))
+values = [v for _, v in changes]
+if values[:1] != ["YES"]:
+    fail(f"SpringBoard was not told YES as the book opened (told {values})")
+if values != ["YES", "NO", "YES", "NO"]:
+    fail(f"SpringBoard was told {values}; expected YES (open), NO (pages stopped), YES (turn), NO "
+         "(a YES with no NO is the bug: the screen held on for as long as the book is open)")
+(held, _), (released, _), (again, _), (released2, _) = changes
+before = [t for t in turns if t < released]
+after = [t for t in turns if released < t]
+if len(before) != 2 or len(after) != 1:
+    fail(f"turns before the first release {len(before)}, after it {len(after)}; expected 2 and 1")
+if held - opened > 2:
+    fail(f"SpringBoard was told YES {held - opened:.1f} s after the reader opened")
+if abs(released - (before[-1] + window)) > 1.5:
+    fail(f"let go {released - before[-1]:.1f} s after the last turn, expected {window:.0f} s")
+if released - held < window + 4:
+    fail(f"let go {released - held:.1f} s after opening: the turns did not hold the screen on")
+if not 0 <= again - after[0] <= 1.5:
+    fail(f"the turn after it let go told SpringBoard YES {again - after[0]:+.1f} s later")
+if abs(released2 - (after[0] + window)) > 1.5:
+    fail(f"let go again {released2 - after[0]:.1f} s after that turn, expected {window:.0f} s")
+for t in (released, released2):
+    if not any(v == "NO" and 0 <= d - t <= 1.0 for d, v in decided):
+        fail(f"SpringBoard's idle timer did not go back to the system after the release at {rel(t)}")
+print(f"ok: held on while pages turned, let go {window:.0f} s after the last turn, held again on the next turn")
+PY
+
+echo "off: the setting at Off"
+SETTINGS='{"theme":"system","font":"newYork","fontSize":19,"lineHeight":1.4,"margin":24,"justified":false,"hyphenate":true,"paragraphStyle":"indented","keepScreenAwake":false,"tapToTurn":true,"screenAwakeMinutes":0}'
+reset_settings
+xcrun simctl spawn "$UDID" defaults write io.sheafs.reader reader.settings.v1 -data "$(printf '%s' "$SETTINGS" | xxd -p | tr -d '\n')"
+run off 2 -SheafsWatchCommands status,next,next -SheafsWatchCommandGap 2
+python3 -I - "$OUT/off-system.log" "$OUT/off-console.log" <<'PY' || exit 1
+import re, sys
+system, console = sys.argv[1], sys.argv[2]
+def fail(message):
+    sys.exit(f"SCREEN AWAKE CHECK FAILED: off: {message} (logs: {system}, {console})")
+text = open(system, encoding="utf-8", errors="replace").read()
+out = open(console, errors="replace").read()
+if "[awake] off (setting Off)" not in out:
+    fail("the reader did not read the setting as Off")
+if len(re.findall(r"^\[watch\] reply turned=true", out, re.M)) != 2:
+    fail("the two page turns were not taken")
+if re.search(r"idleTimerDisabled = YES;", text):
+    fail("SpringBoard was told YES with the setting at Off")
+if "Client settings updated" not in text:
+    fail("no client settings from the app's scene at all: is SpringBoard's log being read?")
+print("ok: Off never held the screen on")
+PY
+echo "SCREEN AWAKE OK"
