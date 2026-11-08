@@ -2,6 +2,11 @@ import SwiftUI
 
 /// App name, version, and the open standards Sheafs speaks.
 struct AboutSettingsView: View {
+    /// Tapping the version row 5 times reveals Input Debug, for good (UserDefaults).
+    @AppStorage(InputDebugLog.revealedKey) private var inputDebugRevealed = false
+    @State private var versionTaps = 0
+    @State private var inputDebugShown = false
+
     private var appName: String {
         info("CFBundleDisplayName") ?? info("CFBundleName") ?? "Sheafs"
     }
@@ -17,6 +22,13 @@ struct AboutSettingsView: View {
             Section {
                 LabeledContent("App", value: appName)
                 LabeledContent("Version", value: versionString)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        versionTaps += 1
+                        if versionTaps >= 5, !inputDebugRevealed {
+                            withAnimation { inputDebugRevealed = true }
+                        }
+                    }
             }
             Section {
                 Label("Sheafs is open source", systemImage: "chevron.left.forwardslash.chevron.right")
@@ -33,7 +45,25 @@ struct AboutSettingsView: View {
             } footer: {
                 Text("What the volume-button page turner saw since the app started.")
             }
+            if inputDebugRevealed {
+                Section {
+                    Button {
+                        inputDebugShown = true
+                    } label: {
+                        LabeledContent("Input Debug") {
+                            Image(systemName: "chevron.forward")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                                .accessibilityHidden(true)
+                        }
+                    }
+                    .foregroundStyle(.primary)
+                } footer: {
+                    Text("Everything a remote, keyboard or mouse sends: keys, media commands, volume, touches.")
+                }
+            }
         }
+        .fullScreenCover(isPresented: $inputDebugShown) { InputDebugScreen() }
         .navigationTitle("About")
         .navigationBarTitleDisplayMode(.inline)
     }

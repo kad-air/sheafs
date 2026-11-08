@@ -48,7 +48,8 @@ final class VolumeButtonPager {
         return String(describing: type(of: view)) + (children.isEmpty ? "" : "[\(children)]")
     }
 
-    private static func firstSlider(in view: UIView) -> UISlider? {
+    /// Also used by the Input Debug screen's volume watch (`AudioWatch`).
+    static func firstSlider(in view: UIView) -> UISlider? {
         for subview in view.subviews {
             if let slider = subview as? UISlider ?? firstSlider(in: subview) { return slider }
         }

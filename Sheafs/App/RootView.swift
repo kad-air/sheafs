@@ -4,6 +4,7 @@ import SwiftData
 struct RootView: View {
     @Environment(AppNavigation.self) private var navigation
     @Environment(LibraryStore.self) private var library
+    @State private var inputDebugShown = false
 
     var body: some View {
         @Bindable var navigation = navigation
@@ -21,6 +22,7 @@ struct RootView: View {
         .fullScreenCover(item: $navigation.openBook) { book in
             ReaderView(book: book)
         }
+        .fullScreenCover(isPresented: $inputDebugShown) { InputDebugScreen() }
         .alert("Couldn't Add Book", isPresented: Binding(
             get: { navigation.importError != nil },
             set: { if !$0 { navigation.importError = nil } }
@@ -37,9 +39,16 @@ struct RootView: View {
 
     /// Launch arguments for screenshots and testing: `-SheafsCatalogURL <url>` (with an optional
     /// `-SheafsCatalogName <name>`) adds a catalog once, and `-SheafsOpen <title fragment>` opens
-    /// the first matching book.
+    /// the first matching book. `-SheafsInputDebug` (alone, or with a value other than NO/0/false)
+    /// opens the Input Debug screen.
     private func openFromLaunchArguments() async {
         let defaults = UserDefaults.standard
+        // Read from the arguments, not the defaults alone: a bare flag has no value there.
+        if ProcessInfo.processInfo.arguments.contains("-SheafsInputDebug"),
+           !["no", "0", "false"].contains(defaults.string(forKey: "SheafsInputDebug")?.lowercased() ?? "") {
+            print("[open] Input Debug (-SheafsInputDebug)")
+            inputDebugShown = true
+        }
         if let urlString = defaults.string(forKey: "SheafsCatalogURL"), URL(string: urlString) != nil {
             let existing = (try? library.context.fetch(FetchDescriptor<Catalog>())) ?? []
             if !existing.contains(where: { $0.urlString == urlString }) {
