@@ -140,6 +140,10 @@ log, category `reader`): on the phone, that says what hid them.
 `-SheafsSelect <0…1>` (with `-SheafsOpen`) selects the sentence at that fraction of the reading
 position's page 1 s after the book is up and opens the selection menu, as a long press would (simctl
 cannot long-press); `-SheafsSelectThen share` then taps Share, so the share sheet can be screenshotted.
+`-SheafsInputDebug` (alone or with any value but NO/0/false; read from the arguments, since a bare flag
+has no value in the defaults) opens the Input Debug screen at launch (`[input] …` lines on stdout). On a
+phone it is HIDDEN: Settings → About, tap the Version row 5 times and an "Input Debug" row appears
+under Volume Button Log, for good (`UserDefaults` `SheafsInputDebugRevealed`).
 DEBUG builds only, for the App Store shots (`Reader/ScreenshotDemo.swift`): `-SheafsHighlightDemo
 "<phrase>|<phrase>…"` (with `-SheafsOpen`) highlights the first place in the book each phrase occurs,
 through the highlight colours, via the menu's own `add` (`-SheafsHighlightNote <text>` notes the first);
@@ -541,6 +545,37 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     Library → storage stats, Sync & Accounts → the kosync account, About), each row pushing its
     own screen (`LibrarySettingsView`, `SyncSettingsView`, `AboutSettingsView`). `Sync/SyncService` — kosync
     settings (password in the keychain) + `pull`/`push`.
+  - `Debug/` — Input Debug (hidden, see the launch arguments): logs EVERYTHING an input device sends,
+    to see what a Bluetooth page-turner remote's buttons do before mapping any. Presented full screen
+    (no edge-swipe back or swipe-down a remote's synthesized swipes could trigger); changes nothing in
+    the reader. `InputDebugLog` (in memory, last 2,000 rows, each `HH:mm:ss.SSS +Nms [tag] source
+    message`, also `[input]` on stdout and the unified log, category `input`; the "Now pressing"
+    picker tags the rows that follow; Pause drops rows and makes the list scrollable; Copy All puts
+    a header + every row on the pasteboard). `InputCaptureController` is the whole screen BEHIND the
+    controls (the log lets touches through unless paused): first responder (it takes it back if it
+    loses it), every press logged, and `UIKeyCommand`s for arrows/space/return/escape… with
+    `wantsPriorityOverSystemBehavior` (the "Priority keys" toggle). 🔴 A key command fires only for
+    a press the press handlers pass on to `super` (simulator: swallowing every press meant no key
+    command ever fired), so with the toggle on exactly those keys (no modifiers) are passed on and
+    this controller's own commands take them; everything else is swallowed (Escape could otherwise
+    reach SwiftUI's Done). Raw touches (begin + one coalesced end row) and tap/double tap/long
+    press/swipes/pan (scroll types all)/hover, none cancelling touches. On the simulator, HID keys
+    posted inside it (`IOHIDEventCreateKeyboardEvent` through `IOHIDEventSystemClientDispatchEvent`,
+    the way `scripts/hinge/hinge_helper.c` posts its events, run with `simctl spawn`) reach the app;
+    the Xcode device-interaction tool's typing does not (it connects a "Generic Keyboard" whose keys
+    never arrive). Volume keys do nothing there (no volume route). `InputDebugSession`: GameController (connects with vendor and category,
+    `GCKeyboard.coalesced` keys, mouse moves/scrolls summed every 0.25 s, controller elements),
+    `outputVolume` (old → new, read by the reader's `PressReader` and put back like
+    `VolumeButtonPager`, with its on-screen 1 pt `MPVolumeView`), and every `MPRemoteCommandCenter`
+    command. Media commands only reach the Now Playing app, so with "Now Playing" on the session is
+    NON-mixable and a silent buffer loops (other apps' audio pauses while the screen is up); off,
+    a mixable session watches the volume only. Leaving restores the volume, removes every command
+    target (and each command's enabled state), clears the Now Playing info and deactivates the
+    session. Handlers from GameController and MediaPlayer are `@Sendable` and hop to the main actor
+    with plain values (like `WatchLink`). The app has no `UIApplicationSupportsIndirectInputEvents`,
+    so a pointer's click arrives as a direct touch; don't add the key for this screen, it changes
+    pointer input app-wide. `InputDebugTests` (formatting, the tag, the cap, key names against
+    `UIKeyboardHIDUsage` and `GCKeyCode`).
 - `SheafsWidget/` (app extension, `SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated`: WidgetKit's
   providers are nonisolated) — "Continue Reading", `systemSmall` only: the most recently read book's
   cover (blurred cover behind it), a progress bar, tap → `sheafs://open?book=<uuid>`. `Shared/`
