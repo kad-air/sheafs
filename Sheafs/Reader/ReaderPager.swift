@@ -123,6 +123,9 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
     private var selectionAnchor: NSRange?
     private let startHandle = SelectionHandleView(isStart: true)
     private let endHandle = SelectionHandleView(isStart: false)
+    /// The selected text as a read-only `UITextInput`, first responder while the menu is up: iOS's
+    /// own Ask Siri item in the menu reads the selection from there, and only from a text input.
+    let selectionInput = SelectionTextInput()
     private lazy var editMenu = UIEditMenuInteraction(delegate: self)
     private weak var scrollView: UIScrollView?
     /// Double tap on a picture opens it. It only takes touches that land on a picture, so the
@@ -179,6 +182,7 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         view.addGestureRecognizer(press)
         selectPress = press
         view.addInteraction(editMenu)
+        view.addSubview(selectionInput)
         for handle in [startHandle, endHandle] {
             handle.isHidden = true
             handle.tintColor = palette.link
@@ -714,6 +718,10 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         selection = new
         currentSpread?.selection = new
         layoutHandles()
+        if new == nil, selectionInput.isFirstResponder {
+            selectionInput.withdraw()
+            becomeFirstResponder()
+        }
     }
 
     func clearSelection() {
@@ -746,7 +754,14 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
     private func presentMenu() {
         let rects = selectionRects()
         guard let union = rects.dropFirst().reduce(rects.first, { $0?.union($1) }) else { return }
-        becomeFirstResponder()
+        // The first responder is what the menu's Ask Siri item reads the selection from.
+        let text = trimmedSelection()?.1 ?? ""
+        if selectionInput.offer(text, lineRects: rects) {
+            log.notice("selection offered to the system: \(text.utf16.count) UTF-16 units")
+        } else {
+            log.notice("selection not offered to the system (empty or refused), menu on the pager")
+            becomeFirstResponder()
+        }
         editMenu.presentEditMenu(with: UIEditMenuConfiguration(identifier: nil, sourcePoint: CGPoint(x: union.midX, y: union.minY)))
     }
 
@@ -786,21 +801,7 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         let fraction = min(1, max(0, defaults.double(forKey: "SheafsSelect")))
         let then = defaults.string(forKey: "SheafsSelectThen")
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-            guard let self, let slot = currentSpread?.lastSlot, let chapter = session.paginatedChapter(slot.spineIndex) else { return }
-            let page = chapter.range(ofPage: slot.page)
-            let string = chapter.textStorage.string as NSString
-            guard page.length > 0 else { return }
-            let index = min(NSMaxRange(page) - 1, page.location + Int(Double(page.length) * fraction))
-            var sentence = chapter.wordRange(at: index)
-            string.enumerateSubstrings(in: string.paragraphRange(for: NSRange(location: index, length: 0)),
-                                       options: .bySentences) { _, range, _, stop in
-                if NSLocationInRange(index, range) { sentence = range; stop.pointee = true }
-            }
-            let visible = NSIntersectionRange(sentence, page)
-            log.notice("auto select: spine \(slot.spineIndex) page \(slot.page) range \(visible.location)+\(visible.length)")
-            guard visible.length > 0 else { return }
-            setSelection(TextSelection(spineIndex: slot.spineIndex, range: visible))
-            presentMenu()
+            guard let self, selectSentence(atFraction: fraction) else { return }
             guard then == "share" else { return }
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
                 guard let self, let (trimmed, text) = trimmedSelection() else { return }
@@ -810,9 +811,31 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         }
     }
 
+    /// Selects the sentence at `fraction` of the reading position's page (the part of it on that
+    /// page) and opens the selection menu, as a long press and lift would. False if nothing was selected.
+    @discardableResult
+    func selectSentence(atFraction fraction: Double) -> Bool {
+        guard let slot = currentSpread?.lastSlot, let chapter = session.paginatedChapter(slot.spineIndex) else { return false }
+        let page = chapter.range(ofPage: slot.page)
+        let string = chapter.textStorage.string as NSString
+        guard page.length > 0 else { return false }
+        let index = min(NSMaxRange(page) - 1, page.location + Int(Double(page.length) * fraction))
+        var sentence = chapter.wordRange(at: index)
+        string.enumerateSubstrings(in: string.paragraphRange(for: NSRange(location: index, length: 0)),
+                                   options: .bySentences) { _, range, _, stop in
+            if NSLocationInRange(index, range) { sentence = range; stop.pointee = true }
+        }
+        let visible = NSIntersectionRange(sentence, page)
+        log.notice("auto select: spine \(slot.spineIndex) page \(slot.page) range \(visible.location)+\(visible.length)")
+        guard visible.length > 0 else { return false }
+        setSelection(TextSelection(spineIndex: slot.spineIndex, range: visible))
+        presentMenu()
+        return true
+    }
+
     /// The selected text, trimmed of the whitespace a word drag may have swept in, with the
     /// selection shrunk to match.
-    private func trimmedSelection() -> (TextSelection, String)? {
+    func trimmedSelection() -> (TextSelection, String)? {
         guard let selection, let chapter = session.paginatedChapter(selection.spineIndex) else { return nil }
         let string = chapter.textStorage.string as NSString
         let range = NSIntersectionRange(selection.range, NSRange(location: 0, length: string.length))

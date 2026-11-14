@@ -347,7 +347,16 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     two `SelectionHandleView`s then adjust it by characters, a `UIEditMenuInteraction` offers
     Highlight / Note / Color / Copy / Share / Look Up; the selection lives in `PagerController`, the
     spread only provides geometry and the `PageView`s draw it; a tap, a page turn or a layout
-    change clears it), `AnnotationViews` (`AnnotationEditorView`: colour, underline, note, show in
+    change clears it. 🔴 iOS 27 adds its OWN Ask Siri item to the menu (UIKit puts it into every
+    edit menu, whatever the delegate returns; the simulator has no Siri and never shows it), and
+    it reads the selected text from the window's FIRST RESPONDER, and only from a `UITextInput`
+    (`selectedTextRange` → `text(in:)`, UIKit 27.1's `_intelligentAssistantTextSelectionContext`).
+    With the pager itself first responder Siri opened with an empty prompt, so while the menu is up
+    `SelectionTextInput` is: a read-only `UITextInput` view over the selection whose whole text is
+    the selected text as Copy quotes it, empty `inputView` (no keyboard), not editable, no touches;
+    clearing the selection hands first responder back to the pager. `SelectionTextInputTests` asks
+    UIKit's own lookup on a real pager in a window, and fails if UIKit drops that method),
+    `AnnotationViews` (`AnnotationEditorView`: colour, underline, note, show in
     book, delete; `NotesListView`: the Notes segment of the contents sheet, share as Markdown),
     `BookSearchView` (`BookSearchModel`, owned by `ReaderView` for the reader's life: builds the
     index detached on first open, searches debounced 250 ms off the main actor, each cancelling the
