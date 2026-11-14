@@ -139,7 +139,10 @@ centre tap, a page move, a new window with the bars up) prints a `[chrome]` line
 log, category `reader`): on the phone, that says what hid them.
 `-SheafsSelect <0…1>` (with `-SheafsOpen`) selects the sentence at that fraction of the reading
 position's page 1 s after the book is up and opens the selection menu, as a long press would (simctl
-cannot long-press); `-SheafsSelectThen share` then taps Share, so the share sheet can be screenshotted.
+cannot long-press); `-SheafsSelectThen share` then taps Share, so the share sheet can be screenshotted,
+and `-SheafsSelectThen ask` taps Ask (if the menu offers it; `[select] menu: …` lists the items), which
+prints `[ask] subject … attached=… text="…"`; `-SheafsAskSubjectSend YES` then sends the default
+question and prints the answer as `[ask]` lines.
 `-SheafsInputDebug` (alone or with any value but NO/0/false; read from the arguments, since a bare flag
 has no value in the defaults) opens the Input Debug screen at launch (`[input] …` lines on stdout). On a
 phone it is HIDDEN: Settings → About, tap the Version row 5 times and an "Input Debug" row appears
@@ -260,6 +263,9 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     before the limit, then each term's first and last mention and the best matches, then chapter
     summaries latest first, then more matches) and ignores summaries at or past the limit's chapter;
     `RecapPlan` cuts a chapter into parts for summarising and keys a summary to the chapter's text.
+    `AskSubject` is a passage the reader picked (the selection menu's Ask): 🔴 `text(in:limit:)` is
+    the spoiler wall for it, its display text up to the limit only (cut back to a whole word, nil
+    if it starts at or past it), cleaned like a passage, at most 1200 units.
     `CompanionTests`.
   - `Text/BookSearch` — find-in-book. `BookSearchIndex(chapters:)` folds each chapter's text ONCE
     (case, diacritics, width, NFKC, curly → straight quotes, whitespace runs → one space, soft
@@ -345,9 +351,19 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     running head; `ImageViewerTests`, `scripts/check-image-viewer`; text
     SELECTION: a long press selects the word under the finger and grows by words while it moves,
     two `SelectionHandleView`s then adjust it by characters, a `UIEditMenuInteraction` offers
-    Highlight / Note / Color / Copy / Share / Look Up; the selection lives in `PagerController`, the
+    Highlight / Note / Ask (Ask About the Book on and available, `Reader/Ask/` below) / Color /
+    Copy / Share / Look Up; the selection lives in `PagerController`, the
     spread only provides geometry and the `PageView`s draw it; a tap, a page turn or a layout
-    change clears it), `AnnotationViews` (`AnnotationEditorView`: colour, underline, note, show in
+    change clears it. 🔴 iOS 27 adds its OWN Ask Siri item to the menu (UIKit puts it into every
+    edit menu, whatever the delegate returns; the simulator has no Siri and never shows it), and
+    it reads the selected text from the window's FIRST RESPONDER, and only from a `UITextInput`
+    (`selectedTextRange` → `text(in:)`, UIKit 27.1's `_intelligentAssistantTextSelectionContext`).
+    With the pager itself first responder Siri opened with an empty prompt, so while the menu is up
+    `SelectionTextInput` is: a read-only `UITextInput` view over the selection whose whole text is
+    the selected text as Copy quotes it, empty `inputView` (no keyboard), not editable, no touches;
+    clearing the selection hands first responder back to the pager. `SelectionTextInputTests` asks
+    UIKit's own lookup on a real pager in a window, and fails if UIKit drops that method),
+    `AnnotationViews` (`AnnotationEditorView`: colour, underline, note, show in
     book, delete; `NotesListView`: the Notes segment of the contents sheet, share as Markdown),
     `BookSearchView` (`BookSearchModel`, owned by `ReaderView` for the reader's life: builds the
     index detached on first open, searches debounced 250 ms off the main actor, each cancelling the
@@ -465,6 +481,16 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     Application Support/Ask (`AskHistoryStore`, newest 200, deleted with the book; the panel's
     history and Settings delete them too) and listed under the panel's clock button. A follow-up
     question carries the previous answer only from this opening and within the current limit.
+    ASK ABOUT A PASSAGE: the selection menu's Ask (third, after Highlight and Note; only while
+    `askEnabled` and `AskEngine.availability` is available, asked each time the menu is built;
+    the toolbar button needs only the setting, the panel explains an unavailable model) opens the
+    panel with the selection attached (`AskModel.attach`: `AskSubject.text` at the current
+    limit, so the model never gets text past the reader's page even from a selection), quoted over
+    the input (✕ removes it) with the draft "What does this mean?". The next question takes it
+    (`answerPrompt` quotes it in a `"""` block before the question, the search-word step sees it,
+    the budget makes room for it); the exchange and the saved history keep it (`subject`, optional
+    in the JSON, so older files load) and show it over the question. A follow-up names the passage
+    the last question was about. `AskSelectionTests`.
     `-SheafsAsk <question>` (with `-SheafsOpen`) asks once and prints `[ask]` lines;
     `-SheafsAskOpen 1` opens the panel and prints the saved questions; `-SheafsAskSource <n>`
     then opens the answer's nth passage. Not on the tabletop deck.

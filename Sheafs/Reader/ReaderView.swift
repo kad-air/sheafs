@@ -287,6 +287,7 @@ struct ReaderView: View {
                     ReaderPager(session: session, layout: layout, style: style, palette: palette,
                                 location: session.location, tapTurnsPages: settings.tapToTurn,
                                 marks: annotations.map(\.mark) + foundMarks, bookmarks: bookmarks.map(\.mark), sketches: sketches.compactMap(\.mark), highlightColor: settings.highlightColor, pageTurn: settings.pageTurn, proxy: pagerProxy,
+                                offersAsk: settings.askEnabled,
                                 onLocationChange: { location in
                                     if volumeButtons.isRunning {
                                         VolumeLog.shared.note("landed at spine=\(location.spineIndex) offset=\(location.textOffset)")
@@ -602,13 +603,17 @@ struct ReaderView: View {
         withAnimation(.snappy) { viewedImage = nil }
     }
 
-    /// Makes a highlight from the selection; a note opens the editor right away.
+    /// Makes a highlight from the selection; a note opens the editor right away; Ask opens the Ask
+    /// panel with the selection as the question's subject.
     private func handle(selection action: SelectionAction) {
         switch action {
         case .highlight(let selection, let text, let color):
             _ = add(selection, text: text, color: color)
         case .note(let selection, let text, let color):
             editingAnnotation = add(selection, text: text, color: color)
+        case .ask(let selection, _):
+            openAsk(about: AskSubject(spineIndex: selection.spineIndex,
+                                      range: selection.range.location ..< NSMaxRange(selection.range)))
         }
     }
 
@@ -805,10 +810,27 @@ struct ReaderView: View {
         return max(140, height * 0.5 - AskPanel.chromeHeight)
     }
 
-    private func openAsk() {
+    /// Opens the Ask panel; `subject` (the selection menu's Ask) is attached to the next question,
+    /// cut to the reading limit like everything Ask reads.
+    private func openAsk(about subject: AskSubject? = nil) {
         guard let session, session.isReady else { return }
         if ask == nil { ask = AskModel(session: session, bookID: book.id) }
-        ask?.limit = readingLimit(session)
+        guard let ask else { return }
+        ask.limit = readingLimit(session)
+        if let subject {
+            let attached = ask.attach(subject)
+            print("[ask] subject \(subject.spineIndex):\(subject.range.lowerBound)+\(subject.range.count) "
+                + "limit \(ask.limit.spineIndex):\(ask.limit.textOffset) attached=\(attached) "
+                + "draft=\"\(ask.draft)\" text=\"\(ask.subject?.text ?? "")\"")
+            if attached, UserDefaults.standard.bool(forKey: "SheafsAskSubjectSend") {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(1.5))
+                    print("[ask] availability: \(ask.availability) sending \"\(ask.draft)\"")
+                    ask.ask()
+                    await report(ask)
+                }
+            }
+        }
         withAnimation(.snappy) {
             chromeVisible = false
             showQuickAppearance = false
@@ -1131,20 +1153,9 @@ struct ReaderView: View {
             for exchange in ask.exchanges {
                 print("[ask] saved: \(exchange.question) (\(exchange.caption), \(exchange.sources.count) sources)")
             }
-            if !question.isEmpty {
-                ask.ask(question)
-                var waited = 0
-                while ask.isBusy, waited < 1200 {
-                    try? await Task.sleep(for: .milliseconds(100))
-                    waited += 1
-                }
-            }
-            guard let last = ask.exchanges.last else { return print("[ask] no exchange") }
-            print("[ask] state: \(last.state)")
-            print("[ask] answer: \(last.answer)")
-            for source in last.sources {
-                print("[ask] source \(source.location.spineIndex):\(source.location.textOffset) \(source.chapter): \(source.snippet.prefix(80))")
-            }
+            if !question.isEmpty { ask.ask(question) }
+            await report(ask)
+            guard let last = ask.exchanges.last else { return }
             let pick = defaults.integer(forKey: "SheafsAskSource")
             if pick > 0, pick <= last.sources.count, let session {
                 let location = last.sources[pick - 1].location
@@ -1155,6 +1166,24 @@ struct ReaderView: View {
     }
 
     private static var askArgumentConsumed = false
+
+    /// Waits (up to two minutes) for the question being answered, then prints the newest exchange
+    /// as `[ask]` lines: its subject, state, answer and sources.
+    private func report(_ ask: AskModel) async {
+        var waited = 0
+        while ask.isBusy, waited < 1200 {
+            try? await Task.sleep(for: .milliseconds(100))
+            waited += 1
+        }
+        guard let last = ask.exchanges.last else { return print("[ask] no exchange") }
+        if let subject = last.subject { print("[ask] about: \(subject)") }
+        print("[ask] question: \(last.question)")
+        print("[ask] state: \(last.state)")
+        print("[ask] answer: \(last.answer)")
+        for source in last.sources {
+            print("[ask] source \(source.location.spineIndex):\(source.location.textOffset) \(source.chapter): \(source.snippet.prefix(80))")
+        }
+    }
 
 #if DEBUG
     /// Debug, for App Store screenshots (the simulator has no Pencil and can't long-press):

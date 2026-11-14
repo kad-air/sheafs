@@ -27,6 +27,8 @@ final class AskModel {
         }
         let id = UUID()
         var question: String
+        /// The passage it was asked about (picked in the book), as the model was given it.
+        var subject: String?
         var answer = ""
         var state = State.lookingUp
         var sources: [Source] = []
@@ -39,14 +41,16 @@ final class AskModel {
         /// Asked while the book was open before: shown, but not followed up on (`ask`).
         var restored = false
 
-        init(question: String, chapter: String, limit: ReadingLimit) {
+        init(question: String, subject: String? = nil, chapter: String, limit: ReadingLimit) {
             self.question = question
+            self.subject = subject
             self.chapter = chapter
             self.limit = limit
         }
 
         init(_ entry: AskHistoryStore.Entry) {
             question = entry.question
+            subject = entry.subject
             answer = entry.answer
             state = .done
             sources = entry.sources.map {
@@ -61,7 +65,7 @@ final class AskModel {
         }
 
         var entry: AskHistoryStore.Entry {
-            AskHistoryStore.Entry(question: question, answer: answer,
+            AskHistoryStore.Entry(question: question, subject: subject, answer: answer,
                                   sources: sources.map { .init(spineIndex: $0.location.spineIndex, textOffset: $0.location.textOffset,
                                                                chapter: $0.chapter, snippet: $0.snippet) },
                                   summaryCount: summaryCount, askedAt: askedAt, chapter: chapter,
@@ -69,10 +73,21 @@ final class AskModel {
         }
     }
 
+    /// A passage picked in the book to ask about, with its text as the model will be given it.
+    struct Subject: Equatable {
+        var passage: AskSubject
+        var text: String
+    }
+
+    /// The question the draft starts with when a passage is attached.
+    static let subjectQuestion = "What does this mean?"
+
     let session: BookSession
     let recaps: RecapBuilder
     private let history: AskHistoryStore
     var draft = ""
+    /// The passage the next question is about (the selection menu's Ask), quoted in the panel.
+    private(set) var subject: Subject?
     private(set) var exchanges: [Exchange]
     private(set) var availability = AskEngine.availability
     /// The end of what the reader has read: set by the reader when the panel opens, and moved on
@@ -92,6 +107,25 @@ final class AskModel {
 
     func refreshAvailability() { availability = AskEngine.availability }
 
+    /// Attaches a passage picked in the book as the subject of the next question, and starts the
+    /// draft with `subjectQuestion`. 🔴 Its text is cut to the current limit like everything else
+    /// the model sees (`AskSubject.text`); a passage wholly past it is refused (false).
+    @discardableResult
+    func attach(_ passage: AskSubject) -> Bool {
+        guard let text = passage.text(in: session.chapters, limit: limit) else {
+            AskEngine.log.notice("ask: subject \(passage.spineIndex):\(passage.range.lowerBound) refused, past the limit")
+            return false
+        }
+        subject = Subject(passage: passage, text: text)
+        draft = Self.subjectQuestion
+        return true
+    }
+
+    func detachSubject() {
+        if draft == Self.subjectQuestion { draft = "" }
+        subject = nil
+    }
+
     /// The reader moved: summarise chapters finished since.
     func readerMoved(to spine: Int) { recaps.start(before: spine) }
 
@@ -101,18 +135,23 @@ final class AskModel {
         refreshAvailability()
         guard availability.isAvailable else { return }
         draft = ""
+        // The attached passage goes with this question, cut to the limit again as it is now.
+        let subject = self.subject.flatMap { $0.passage.text(in: session.chapters, limit: limit) }
+        self.subject = nil
         // A follow-up builds on the last answer from this opening, and only one made within the
         // current limit (an answer from further on would carry what lies past it).
         var earlier: (question: String, answer: String)?
         if let last = exchanges.last(where: { $0.state == .done }), !last.restored, admits(last.limit) {
-            earlier = (last.question, last.answer)
+            // "What does this mean?" says nothing without the passage it was about.
+            let asked = last.subject.map { "\(last.question) (about the passage “\($0.prefix(200))”)" } ?? last.question
+            earlier = (asked, last.answer)
         }
         let chapter = session.chapterTitle(for: limit.spineIndex) ?? "Chapter \(limit.spineIndex + 1)"
-        exchanges.append(Exchange(question: question, chapter: chapter, limit: limit))
+        exchanges.append(Exchange(question: question, subject: subject, chapter: chapter, limit: limit))
         let id = exchanges[exchanges.count - 1].id
         answering = Task {
             recaps.pause()
-            await answer(question, earlier: earlier, id: id)
+            await answer(question, subject: subject, earlier: earlier, id: id)
             recaps.resume()
             answering = nil
         }
@@ -148,14 +187,15 @@ final class AskModel {
         change(&exchanges[index])
     }
 
-    private func answer(_ question: String, earlier: (question: String, answer: String)?, id: UUID) async {
+    private func answer(_ question: String, subject: String?, earlier: (question: String, answer: String)?, id: UUID) async {
         let limit = self.limit
         let index = await passageIndex(for: limit)
         guard !Task.isCancelled else { return update(id) { $0.state = .failed("Stopped.") } }
 
         // Search words: the model's (names, other names of the same people, key words) kept to the
         // ones the read text has, then the question's own words.
-        let suggested = await AskEngine.searchTerms(question: question, earlier: earlier?.question, names: index.topNames(150))
+        let suggested = await AskEngine.searchTerms(question: question, earlier: earlier?.question, subject: subject,
+                                                    names: index.topNames(150))
         let terms = index.presentTerms(suggested + PassageIndex.words(question))
         AskEngine.log.info("ask: terms \(terms.joined(separator: ", "), privacy: .private)")
 
@@ -164,7 +204,7 @@ final class AskModel {
         for spine in 0 ..< chapters { labels[spine] = session.chapterTitle(for: spine) ?? "Chapter \(spine + 1)" }
         let summaries = recaps.recaps(before: limit.spineIndex)
         let earlierLength = earlier.map { $0.question.count + min(400, $0.answer.count) } ?? 0
-        var budget = AskEngine.contextBudget(question: question, earlier: earlierLength)
+        var budget = AskEngine.contextBudget(question: question, earlier: earlierLength, subject: subject?.utf16.count ?? 0)
 
         func source(for excerpt: AskContext.Excerpt) -> Source {
             Source(location: ReadingLocation(spineIndex: excerpt.passage.spineIndex, textOffset: excerpt.passage.range.lowerBound),
@@ -185,7 +225,7 @@ final class AskModel {
                 return update(id) { $0.state = .failed("There’s nothing read yet to answer from.") }
             }
             let prompt = AskEngine.answerPrompt(question: question, context: context.text, names: index.topNames(15),
-                                                earlier: earlier)
+                                                earlier: earlier, subject: subject)
             do {
                 for try await partial in AskEngine.answer(prompt: prompt) {
                     update(id) { $0.answer = partial }

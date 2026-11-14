@@ -64,7 +64,9 @@ enum AskEngine {
     /// Which words to look the question up by: the names it is about, the other names the SAME
     /// characters or places go by among the names the text uses, and a few key words. The caller
     /// keeps only those the read text has (`PassageIndex.presentTerms`).
-    static func searchTerms(question: String, earlier: String?, names: [String]) async -> [String] {
+    /// `subject`: the passage the question is about, if the reader picked one (already within the
+    /// reading limit, `AskSubject.text`).
+    static func searchTerms(question: String, earlier: String?, subject: String? = nil, names: [String]) async -> [String] {
         let session = LanguageModelSession(model: model, instructions: """
             You help look things up in a novel. Given a reader's question and the names used in the \
             part they have read, list what to search the text for: the names the question is about, \
@@ -72,6 +74,7 @@ enum AskEngine {
             three other key words. Most important first.
             """)
         var prompt = "Question: \(question)\n"
+        if let subject { prompt += "Passage it is about: \(subject.prefix(600))\n" }
         if let earlier { prompt += "Previous question: \(earlier)\n" }
         prompt += "Names in the text: " + names.joined(separator: ", ")
         do {
@@ -92,17 +95,23 @@ enum AskEngine {
         Never use anything you know about this book, its author, adaptations or sequels from \
         elsewhere, and never guess, hint at or foreshadow what happens later. If the excerpts don't \
         answer the question, say you can't tell from what they've read so far. Answer in two to \
-        five plain sentences. Say who people are by how the text describes them.
+        five plain sentences. Say who people are by how the text describes them. When the question \
+        is about a passage they quote, explain that passage in plain words: what it says, who is \
+        speaking or meant, and how it fits what came before.
         """
 
     /// `names`: the names the read text uses most, most first, so a broad question ("who are the
-    /// main characters?") has more to go on than the passages that matched it.
+    /// main characters?") has more to go on than the passages that matched it. `subject`: the
+    /// passage the reader picked to ask about, already within the reading limit (`AskSubject.text`).
     static func answerPrompt(question: String, context: String, names: [String],
-                             earlier: (question: String, answer: String)?) -> String {
+                             earlier: (question: String, answer: String)?, subject: String? = nil) -> String {
         var prompt = "From the book, up to where the reader is:\n\n\(context)\n\n"
         if !names.isEmpty { prompt += "Names mentioned most so far, most first: \(names.joined(separator: ", "))\n\n" }
         if let earlier {
             prompt += "They asked before: \(earlier.question)\nYou answered: \(earlier.answer.prefix(400))\n\n"
+        }
+        if let subject {
+            prompt += "The passage they are asking about, from what they have read:\n\"\"\"\n\(subject)\n\"\"\"\n\n"
         }
         return prompt + "Question: \(question)"
     }
@@ -127,9 +136,10 @@ enum AskEngine {
 
     static let responseTokens = 320
 
-    /// How many UTF-16 units of book text fit beside the instructions, the question and the answer.
-    static func contextBudget(question: String, earlier: Int) -> Int {
-        let fixed = Double(answerInstructions.count + question.count + earlier + 400) / charactersPerToken
+    /// How many UTF-16 units of book text fit beside the instructions, the question (and the
+    /// passage it is about, `subject` units) and the answer.
+    static func contextBudget(question: String, earlier: Int, subject: Int = 0) -> Int {
+        let fixed = Double(answerInstructions.count + question.count + earlier + subject + 400) / charactersPerToken
         let tokens = Double(contextTokens - responseTokens) - fixed - 150
         return max(1500, Int(tokens * charactersPerToken))
     }
