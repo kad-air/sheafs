@@ -15,6 +15,8 @@ final class AskHistoryStore {
         }
 
         var question: String
+        /// The passage it was asked about; optional, so files from before it decode.
+        var subject: String?
         var answer: String
         var sources: [Source]
         var summaryCount: Int

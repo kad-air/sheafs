@@ -37,6 +37,8 @@ struct TextSelection: Hashable {
 enum SelectionAction {
     case highlight(TextSelection, text: String, color: HighlightColor)
     case note(TextSelection, text: String, color: HighlightColor)
+    /// Ask About the Book, with the selection as the question's subject.
+    case ask(TextSelection, text: String)
 }
 
 /// Hosts a `UIPageViewController` whose units are spreads of one or two pages.
@@ -53,6 +55,8 @@ struct ReaderPager: UIViewControllerRepresentable {
     let highlightColor: HighlightColor
     let pageTurn: PageTurnStyle
     let proxy: PagerProxy
+    /// Ask About the Book is on: the selection menu offers Ask (when the model is available).
+    var offersAsk = false
     var onLocationChange: (ReadingLocation) -> Void
     var onTap: (ReaderTap) -> Void
     var onSelectionAction: (SelectionAction) -> Void
@@ -81,6 +85,7 @@ struct ReaderPager: UIViewControllerRepresentable {
         controller.tapTurnsPages = tapTurnsPages
         controller.highlightColor = highlightColor
         controller.pageTurn = pageTurn
+        controller.offersAsk = offersAsk
         session.configure(style: style, textSize: layout.textSize)
         controller.apply(marks: marks)
         controller.apply(bookmarks: bookmarks)
@@ -105,6 +110,10 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
     var onSketchEdits: (([SketchEdit]) -> Void)?
     var tapTurnsPages = true
     var highlightColor = HighlightColor.yellow
+    /// The selection menu offers Ask while this is on (the setting) and `askAvailable` says the
+    /// on-device model can run (asked each time the menu is built: it can still be downloading).
+    var offersAsk = false
+    var askAvailable: () -> Bool = { AskEngine.availability.isAvailable }
     /// How pages turn: a flipping leaf (the default) or the page controller's slide. The flip
     /// needs Metal and respects Reduce Motion; otherwise pages slide.
     var pageTurn = PageTurnStyle.flip { didSet { if pageTurn != oldValue { updateTurnStyle() } } }
@@ -793,7 +802,8 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
 
     /// Debug: `-SheafsSelect <0…1>` selects the sentence at that fraction of the reading position's
     /// page once the book is up and opens the selection menu, as a long press would; with
-    /// `-SheafsSelectThen share` it then shares it, as tapping Share would.
+    /// `-SheafsSelectThen share` it then shares it, as tapping Share would, and with `ask` it asks
+    /// about it, as tapping Ask would (if the menu offers Ask). The menu's items print as `[select] menu: …`.
     private func autoSelectForScreenshots() {
         let defaults = UserDefaults.standard
         guard !autoSelected, defaults.object(forKey: "SheafsSelect") != nil else { return }
@@ -802,11 +812,16 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         let then = defaults.string(forKey: "SheafsSelectThen")
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
             guard let self, selectSentence(atFraction: fraction) else { return }
-            guard then == "share" else { return }
+            guard then == "share" || then == "ask" else { return }
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
                 guard let self, let (trimmed, text) = trimmedSelection() else { return }
                 editMenu.dismissMenu()
-                shareQuote(trimmed, text: text)
+                if then == "ask" {
+                    print("[select] ask: offered=\(asksAboutSelection)")
+                    if asksAboutSelection { askAboutSelection() }
+                } else {
+                    shareQuote(trimmed, text: text)
+                }
             }
         }
     }
@@ -860,6 +875,27 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
 
     func editMenuInteraction(_ interaction: UIEditMenuInteraction, menuFor configuration: UIEditMenuConfiguration,
                              suggestedActions: [UIMenuElement]) -> UIMenu? {
+        let menu = selectionMenu()
+        print("[select] menu: \(menu?.children.map(\.title).joined(separator: ", ") ?? "none")")
+        return menu
+    }
+
+    /// Whether the selection menu offers Ask now: the setting is on, the model can run, and the
+    /// selection has words (not only a picture).
+    var asksAboutSelection: Bool {
+        guard offersAsk, let (_, text) = trimmedSelection(), !AnnotationExport.quoteText(text).isEmpty else { return false }
+        return askAvailable()
+    }
+
+    /// The menu's Ask: the selection becomes the subject of a question in the Ask panel.
+    func askAboutSelection() {
+        guard let (trimmed, text) = trimmedSelection() else { return }
+        clearSelection()
+        onSelectionAction?(.ask(trimmed, text: text))
+    }
+
+    /// The selection menu: Sheafs's own items (iOS adds Ask Siri by itself, `SelectionTextInput`).
+    func selectionMenu() -> UIMenu? {
         guard let (trimmed, text) = trimmedSelection() else { return nil }
         let colour = highlightColor
         var children: [UIMenuElement] = [
@@ -871,6 +907,14 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
                 self?.clearSelection()
                 self?.onSelectionAction?(.note(trimmed, text: text, color: colour))
             },
+        ]
+        // Third, so it shows in the compact menu next to Highlight and Note.
+        if asksAboutSelection {
+            children.append(UIAction(title: "Ask", image: UIImage(systemName: "bubble.left.and.text.bubble.right")) { [weak self] _ in
+                self?.askAboutSelection()
+            })
+        }
+        children += [
             UIMenu(title: "Color", image: UIImage(systemName: "paintpalette"), children: HighlightColor.allCases.map { option in
                 UIAction(title: option.title, image: UIImage(systemName: "circle.fill")?.withTintColor(option.base, renderingMode: .alwaysOriginal),
                          state: option == colour ? .on : .off) { [weak self] _ in

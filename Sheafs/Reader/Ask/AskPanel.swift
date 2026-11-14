@@ -18,6 +18,8 @@ struct AskPanel: View {
     @State private var showHistory = false
     @State private var confirmClear = false
     @State private var contentHeight: CGFloat = 0
+    /// The attached passage's quote: the answer area gives up that much height to it.
+    @State private var subjectHeight: CGFloat = 0
     @FocusState private var fieldFocused: Bool
 
     /// What the panel adds around the answer: the header and input bar rows (40 each), the
@@ -56,7 +58,11 @@ struct AskPanel: View {
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
             }
             .scrollBounceBehavior(.basedOnSize)
-            .frame(height: min(contentHeight, maxHeight))
+            .frame(height: min(contentHeight, max(60, maxHeight - (model.subject == nil ? 0 : subjectHeight))))
+            if let subject = model.subject {
+                subjectQuote(subject.text)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height + 10 } action: { subjectHeight = $0 }
+            }
             inputBar
         }
         .font(.subheadline)
@@ -111,14 +117,38 @@ struct AskPanel: View {
         }
     }
 
+    /// The passage picked in the book (the selection menu's Ask), going with the next question; ✕
+    /// lets it go and the question is about the book again.
+    private func subjectQuote(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "text.quote")
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            Text(text)
+                .italic()
+                .lineLimit(3)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityLabel("Asking about: \(text)")
+            Button("Remove Passage", systemImage: "xmark.circle.fill") { model.detachSubject() }
+                .labelStyle(.iconOnly)
+                .foregroundStyle(.secondary)
+                .frame(width: 28, height: 28)
+        }
+        .padding(10)
+        .background(.fill.tertiary, in: .rect(cornerRadius: 14))
+    }
+
     private var intro: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ForEach(Self.suggestions, id: \.self) { suggestion in
-                Button(suggestion) { model.ask(suggestion) }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(.fill.tertiary, in: Capsule())
-                    .disabled(model.isBusy)
+            // Questions about the whole book; not while a passage is attached (it would go with them).
+            if model.subject == nil {
+                ForEach(Self.suggestions, id: \.self) { suggestion in
+                    Button(suggestion) { model.ask(suggestion) }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(.fill.tertiary, in: Capsule())
+                        .disabled(model.isBusy)
+                }
             }
             Text("Answers come from Apple’s on-device model and use only the text up to the end of this page, so they can’t give away what happens next. Nothing leaves your device. \(recapLine)")
                 .font(.caption)
@@ -147,6 +177,12 @@ struct AskPanel: View {
                         Text(exchange.question)
                             .lineLimit(2)
                             .multilineTextAlignment(.leading)
+                        if let subject = exchange.subject {
+                            Text("“\(subject)”")
+                                .italic()
+                                .lineLimit(1)
+                                .foregroundStyle(.secondary)
+                        }
                         Text(exchange.caption)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -166,7 +202,8 @@ struct AskPanel: View {
 
     private var inputBar: some View {
         HStack(spacing: 8) {
-            TextField("Ask about the story so far", text: $model.draft, axis: .vertical)
+            TextField(model.subject == nil ? "Ask about the story so far" : "Ask about this passage",
+                      text: $model.draft, axis: .vertical)
                 .lineLimit(1 ... 3)
                 .focused($fieldFocused)
                 .submitLabel(.send)
@@ -208,6 +245,13 @@ private struct ExchangeCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if let subject = exchange.subject {
+                Text("“\(subject)”")
+                    .italic()
+                    .lineLimit(4)
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel("About: \(subject)")
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(exchange.question)
                     .font(.headline)
@@ -283,7 +327,7 @@ struct AskSettingsView: View {
             Section {
                 Toggle("Ask About the Book", isOn: $settings.askEnabled)
             } footer: {
-                Text("Adds an Ask button to the reader. Questions about plot and characters are answered by Apple’s on-device model from the text up to your page only, so answers can’t spoil what comes next. While a book is open, Ask also summarises the chapters you’ve finished, in the background, to answer from. Nothing leaves your device.")
+                Text("Adds an Ask button to the reader, and Ask to the menu for selected text, to ask about a passage. Questions about plot and characters are answered by Apple’s on-device model from the text up to your page only, so answers can’t spoil what comes next. While a book is open, Ask also summarises the chapters you’ve finished, in the background, to answer from. Nothing leaves your device.")
             }
             Section("Apple Intelligence") {
                 Label(availability.message, systemImage: availability.isAvailable ? "checkmark.circle" : "exclamationmark.circle")

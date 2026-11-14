@@ -48,6 +48,38 @@ struct CompanionTests {
         }
     }
 
+    @Test("🔴 a picked passage reaches the model only up to the limit, cut at a whole word")
+    func subjectWall() {
+        let chapter = Self.book[1]
+        let first = chapter.blocks[1], second = chapter.blocks[2], third = chapter.blocks[3]
+        // The limit falls mid-word in "Gandalf spoke little. Then he turned…" (after "The").
+        let limit = ReadingLimit(spineIndex: 1, textOffset: second.textOffset + 25)
+        let across = AskSubject(spineIndex: 1, range: first.textOffset ..< third.textOffset + third.textLength)
+        #expect(across.text(in: Self.book, limit: limit)
+                == "They rode south toward Minas Tirith under a dark sky.\nGandalf spoke little.")
+        // Wholly before the limit: the passage as it reads.
+        let before = AskSubject(spineIndex: 1, range: first.textOffset ..< first.textOffset + first.textLength)
+        #expect(before.text(in: Self.book, limit: limit) == first.text)
+        // At or past the limit, or in a later chapter: nothing.
+        #expect(AskSubject(spineIndex: 1, range: limit.textOffset ..< third.textOffset + 5).text(in: Self.book, limit: limit) == nil)
+        #expect(AskSubject(spineIndex: 2, range: 0 ..< 40).text(in: Self.book, limit: limit) == nil)
+        #expect(AskSubject(spineIndex: 7, range: 0 ..< 40).text(in: Self.book, limit: limit) == nil)
+        #expect(AskSubject(spineIndex: 1, range: 5 ..< 5).text(in: Self.book, limit: limit) == nil)
+        // An earlier chapter is read in full.
+        let bree = Self.book[0].blocks[2]
+        #expect(AskSubject(spineIndex: 0, range: bree.textOffset ..< bree.textOffset + bree.textLength)
+            .text(in: Self.book, limit: limit) == bree.text)
+    }
+
+    @Test("a long picked passage is cut at a word, with an ellipsis")
+    func longSubject() throws {
+        let block = Self.book[0].blocks[2]   // "In a corner sat a strange-looking weather-beaten man. …"
+        let subject = AskSubject(spineIndex: 0, range: block.textOffset ..< block.textOffset + block.textLength)
+        let text = try #require(subject.text(in: Self.book, limit: ReadingLimit(spineIndex: 2, textOffset: 0), maxLength: 30))
+        #expect(text == "In a corner sat a…")
+        #expect(text.utf16.count <= 31)
+    }
+
     @Test("a limit at the start of a chapter leaves all of that chapter out")
     func limitAtChapterStart() {
         let passages = ReadSoFar.passages(chapters: Self.book, limit: ReadingLimit(spineIndex: 2, textOffset: 0))
