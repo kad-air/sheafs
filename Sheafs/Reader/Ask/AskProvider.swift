@@ -5,8 +5,8 @@ import SheafsKit
 /// `OnDeviceAskProvider` (Apple's on-device model, the conversation in Application Support/Ask); a
 /// plugin may supply another for a book (`SheafsPlugin.askProvider(for:)`), which may hand questions
 /// back to the on-device one (`AskProviderContext.onDevice`). `AskModel` is the panel's side: it
-/// holds the conversation as `Exchange`s, asks the provider for it once when made, appends each new
-/// question, and hands the finished ones back to `keep`.
+/// holds the conversation as `AskTurn`s, asks the provider for it, appends each new question, and
+/// hands the finished ones back to `keep`.
 @MainActor
 protocol AskProvider: AnyObject {
     /// Whether it can answer now; the panel shows `message` when it can't.
@@ -54,22 +54,44 @@ struct AskQuestion {
 enum AskUpdate {
     /// It looked the question up and is answering, maybe again (any answer so far is dropped):
     /// the passages it found and how many chapter summaries it was given.
-    case answering(sources: [AskModel.Source], summaryCount: Int)
+    case answering(sources: [AskTurn.Source], summaryCount: Int)
     /// The whole answer so far.
     case text(String)
     /// The answer is complete; `sources`, when given, replace the ones from `answering`.
-    case done(sources: [AskModel.Source]?)
+    case done(sources: [AskTurn.Source]?)
     /// It couldn't answer, in words for the reader ("Stopped." when cancelled).
     case failed(String)
 }
 
-/// One finished question and answer of a book's conversation, as a provider keeps it.
-struct AskTurn: Equatable {
+/// One question and its answer in a book's Ask conversation, the ONE turn type: what `AskModel`
+/// holds (`turns`, oldest first), what the pane draws (`AskThread`), and what a provider loads and
+/// keeps. Nothing in it is particular to who answered.
+struct AskTurn: Identifiable, Equatable {
+    enum Status: Equatable {
+        /// Asked, nothing written yet; `note` says what is going on, if anything.
+        case waiting(note: String?)
+        /// The answer is coming in (it may still be empty).
+        case answering
+        case done
+        /// It stopped: what was written stays, the message says why.
+        case failed(String)
+    }
+
+    /// A place in the book the answer came from; tapping it turns there.
+    struct Source: Identifiable, Hashable {
+        var id = UUID()
+        var location: ReadingLocation
+        var chapter: String
+        var snippet: String
+    }
+
+    var id = UUID()
     var question: String
-    /// The passage it was asked about, as the provider was given it.
+    /// The passage it was asked about (picked in the book), as the provider was given it.
     var subject: String?
-    var answer: String
-    var askedAt: Date
+    var answer = ""
+    var status = Status.done
+    var askedAt = Date.now
     /// How far the reader had read: the reading limit it was answered within, when the provider
     /// keeps it in the book's own offsets.
     var limit: ReadingLimit?
@@ -77,7 +99,9 @@ struct AskTurn: Equatable {
     var wordsRead: Int?
     /// The chapter the reader was in ("" when not known).
     var chapter = ""
-    /// The passages the answer came from.
-    var sources: [AskModel.Source] = []
+    /// The passages the answer came from (while it is being answered: the ones it was looked up in).
+    var sources: [Source] = []
     var summaryCount = 0
+    /// From an earlier opening (the provider's saved conversation): captioned, not followed up on.
+    var restored = false
 }

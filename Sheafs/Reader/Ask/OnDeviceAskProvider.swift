@@ -58,8 +58,8 @@ final class OnDeviceAskProvider: AskProvider {
         let earlierLength = earlier.map { $0.question.count + min(400, $0.answer.count) } ?? 0
         var budget = AskEngine.contextBudget(question: question.text, earlier: earlierLength, subject: subject?.utf16.count ?? 0)
 
-        func source(for excerpt: AskContext.Excerpt) -> AskModel.Source {
-            AskModel.Source(location: ReadingLocation(spineIndex: excerpt.passage.spineIndex, textOffset: excerpt.passage.range.lowerBound),
+        func source(for excerpt: AskContext.Excerpt) -> AskTurn.Source {
+            AskTurn.Source(location: ReadingLocation(spineIndex: excerpt.passage.spineIndex, textOffset: excerpt.passage.range.lowerBound),
                             chapter: labels[excerpt.passage.spineIndex] ?? "",
                             snippet: String(excerpt.passage.text.prefix(160)))
         }
@@ -123,7 +123,7 @@ extension AskTurn {
                   limit: ReadingLimit(spineIndex: entry.limitSpine, textOffset: entry.limitOffset),
                   chapter: entry.chapter,
                   sources: entry.sources.map {
-                      AskModel.Source(location: ReadingLocation(spineIndex: $0.spineIndex, textOffset: $0.textOffset),
+                      AskTurn.Source(location: ReadingLocation(spineIndex: $0.spineIndex, textOffset: $0.textOffset),
                                       chapter: $0.chapter, snippet: $0.snippet)
                   },
                   summaryCount: entry.summaryCount)

@@ -114,13 +114,18 @@ struct PluginTests {
                     askedAt: asked.addingTimeInterval(60), limit: ReadingLimit(spineIndex: 8, textOffset: 900), chapter: "VII"),
         ]
         let model = AskModel(session: try await Self.alice(), bookID: UUID()) { _ in provider }
-        await Self.settle { model.exchanges.count == 2 }
-        #expect(model.exchanges.map(\.question) == ["Who is the Hatter?", "What does this mean?"], "oldest first")
-        #expect(model.exchanges.allSatisfy { $0.restored && $0.state == .done })
-        #expect(model.exchanges[0].wordsRead == 1200)
-        #expect(model.exchanges[1].subject == "Twinkle, twinkle, little bat!")
-        #expect(model.exchanges[1].limit == ReadingLimit(spineIndex: 8, textOffset: 900))
-        #expect(model.exchanges[1].turn == provider.saved[1], "a turn comes back as it went in")
+        await Self.settle { model.turns.count == 2 }
+        #expect(model.turns.map(\.question) == ["Who is the Hatter?", "What does this mean?"], "oldest first")
+        #expect(model.turns.allSatisfy { $0.restored && $0.status == .done })
+        #expect(model.turns[0].wordsRead == 1200)
+        #expect(model.turns[1].subject == "Twinkle, twinkle, little bat!")
+        #expect(model.turns[1].limit == ReadingLimit(spineIndex: 8, textOffset: 900))
+        var back = model.turns[1]
+        back.restored = false
+        #expect(back == provider.saved[1], "a turn comes back as it went in, marked as from before")
+        // The pane (`AskThread`) draws them as they are: how far was read, in the provider's terms.
+        #expect(model.turns[0].caption?.hasPrefix("1,200 words in · ") == true, "\(model.turns[0].caption ?? "nil")")
+        #expect(model.turns[1].caption?.hasPrefix("VII · ") == true)
     }
 
     /// A conversation kept elsewhere is asked for again each time the panel opens; this
@@ -129,7 +134,7 @@ struct PluginTests {
         let provider = ScriptedProvider()
         provider.saved = [AskTurn(question: "One?", answer: "1.", askedAt: .now)]
         let model = AskModel(session: try await Self.alice(), bookID: UUID()) { _ in provider }
-        await Self.settle { model.exchanges.count == 1 }
+        await Self.settle { model.turns.count == 1 }
         model.limit = ReadingLimit(spineIndex: 2, textOffset: 400)
         provider.script = [.answering(sources: [], summaryCount: 0), .text("2."), .done(sources: nil)]
         model.ask("Two?")
@@ -140,20 +145,20 @@ struct PluginTests {
         // The provider has kept "Two?" (and someone asked "Four?" elsewhere meanwhile).
         provider.saved += [AskTurn(question: "Two?", answer: "2.", askedAt: .now), AskTurn(question: "Four?", answer: "4.", askedAt: .now)]
         model.refreshAvailability()
-        await Self.settle { model.exchanges.map(\.question) == ["One?", "Two?", "Four?", "Three?"] }
-        #expect(model.exchanges.map(\.question) == ["One?", "Two?", "Four?", "Three?"])
-        #expect(model.exchanges.last?.state == .failed("Offline."), "the failed question stays, after the saved ones")
+        await Self.settle { model.turns.map(\.question) == ["One?", "Two?", "Four?", "Three?"] }
+        #expect(model.turns.map(\.question) == ["One?", "Two?", "Four?", "Three?"])
+        #expect(model.turns.last?.status == .failed("Offline."), "the failed question stays, after the saved ones")
     }
 
     @Test func answersStreamIntoTheConversationAndAreKept() async throws {
         let session = try await Self.alice()
         let provider = ScriptedProvider()
         provider.saved = [AskTurn(question: "Before?", answer: "Yes.", askedAt: .now)]
-        let source = AskModel.Source(location: ReadingLocation(spineIndex: 2, textOffset: 10), chapter: "Down the Rabbit-Hole",
+        let source = AskTurn.Source(location: ReadingLocation(spineIndex: 2, textOffset: 10), chapter: "Down the Rabbit-Hole",
                                      snippet: "Alice was beginning")
         provider.script = [.answering(sources: [source], summaryCount: 1), .text("The"), .text("The rabbit."), .done(sources: nil)]
         let model = AskModel(session: session, bookID: UUID()) { _ in provider }
-        await Self.settle { model.exchanges.count == 1 }
+        await Self.settle { model.turns.count == 1 }
         let limit = ReadingLimit(spineIndex: 2, textOffset: 400)
         model.limit = limit
         #expect(model.attach(AskSubject(spineIndex: 2, range: 0 ..< 300)))
@@ -166,8 +171,8 @@ struct PluginTests {
         #expect(question.subject == subject, "the passage goes to the provider as cut to the limit")
         #expect(question.limit == limit)
         #expect(question.earlier == nil)
-        let last = try #require(model.exchanges.last)
-        #expect(last.state == .done && last.answer == "The rabbit." && last.summaryCount == 1)
+        let last = try #require(model.turns.last)
+        #expect(last.status == .done && last.answer == "The rabbit." && last.summaryCount == 1)
         #expect(last.sources == [source])
         #expect(last.subject == subject && !last.restored)
         #expect(provider.kept.last?.map(\.question) == ["Before?", AskModel.subjectQuestion], "the whole conversation is kept")
@@ -179,7 +184,7 @@ struct PluginTests {
         let earlier = try #require(provider.asked.last?.earlier)
         #expect(earlier.answer == "The rabbit.")
         #expect(earlier.question.hasPrefix(AskModel.subjectQuestion) && earlier.question.contains("about the passage"))
-        #expect(model.exchanges.last?.sources.isEmpty == true, "done's sources replace the ones it looked up")
+        #expect(model.turns.last?.sources.isEmpty == true, "done's sources replace the ones it looked up")
     }
 
     @Test func failuresAndStopReachThePanel() async throws {
@@ -190,8 +195,8 @@ struct PluginTests {
         model.limit = ReadingLimit(spineIndex: 2, textOffset: 400)
         model.ask("Who?")
         await Self.settle { !model.isBusy }
-        #expect(model.exchanges.last?.state == .failed("Couldn’t answer: offline"))
-        #expect(model.exchanges.last?.answer == "Partly")
+        #expect(model.turns.last?.status == .failed("Couldn’t answer: offline"))
+        #expect(model.turns.last?.answer == "Partly")
         #expect(provider.kept.isEmpty, "a failed answer isn't kept")
 
         provider.hangs = true
@@ -199,13 +204,13 @@ struct PluginTests {
         await Self.settle { provider.asked.count == 2 }
         model.cancel()
         await Self.settle { !model.isBusy }
-        #expect(model.exchanges.last?.state == .failed("Stopped."))
+        #expect(model.turns.last?.status == .failed("Stopped."))
 
         provider.hangs = false
         provider.script = []
         model.ask("When?")
         await Self.settle { !model.isBusy }
-        #expect(model.exchanges.last?.state == .failed("No answer came back."), "a provider that says nothing")
+        #expect(model.turns.last?.status == .failed("No answer came back."), "a provider that says nothing")
     }
 
     @Test func availabilityNoticeMovesAndClearGoThroughTheProvider() async throws {
@@ -214,7 +219,7 @@ struct PluginTests {
         provider.availability = .modelNotReady
         let model = AskModel(session: session, bookID: UUID()) { _ in provider }
         model.ask("Who?")
-        #expect(provider.asked.isEmpty && model.exchanges.isEmpty, "no question while the provider can't answer")
+        #expect(provider.asked.isEmpty && model.turns.isEmpty, "no question while the provider can't answer")
         #expect(model.availability == .modelNotReady)
 
         provider.availability = .available
@@ -231,7 +236,7 @@ struct PluginTests {
         await Self.settle { !model.isBusy }
         model.clear()
         await Self.settle { provider.cleared == 1 }
-        #expect(provider.cleared == 1 && model.exchanges.isEmpty)
+        #expect(provider.cleared == 1 && model.turns.isEmpty)
     }
 
     /// The on-device provider's conversation is today's saved history, there from the start.
@@ -246,7 +251,7 @@ struct PluginTests {
         AskHistoryStore(bookID: id).save([entry])
 
         let model = AskModel(session: session, bookID: id)
-        #expect(model.exchanges.map(\.question) == ["Who is the Hatter?"], "loaded with the model, as before")
+        #expect(model.turns.map(\.question) == ["Who is the Hatter?"], "loaded with the model, as before")
         let turns = await model.onDevice.conversation()
         let turn = try #require(turns.first)
         #expect(turn.subject == "Twinkle, twinkle" && turn.answer == "A host." && turn.chapter == "VII")

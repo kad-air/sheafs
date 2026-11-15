@@ -2,45 +2,11 @@ import SwiftUI
 
 /// The running conversation in the Ask pane: every turn, oldest at the top, the newest at the bottom
 /// (the pane scrolls there), each its quoted passage and question, then the answer and its passages.
-/// It is drawn from `Turn`s only, and nothing in a turn is particular to who answered: `AskModel`'s
-/// exchanges map onto them (`AskModel.thread`), and another backend that keeps its own thread can
-/// fill the same view.
+/// It draws `AskTurn`s, the one turn type: `AskModel.turns` as whichever provider filled them (the
+/// on-device model's saved history, or a plugin's own thread). Nothing in a turn is particular to
+/// who answered.
 struct AskThread: View {
-    /// One question and its answer as the pane shows them.
-    struct Turn: Identifiable, Equatable {
-        enum Status: Equatable {
-            /// Asked, nothing written yet; `note` says what is going on, if anything.
-            case waiting(note: String?)
-            /// The answer is coming in (it may still be empty).
-            case answering
-            case done
-            /// It stopped: what was written stays, `message` says why.
-            case failed(String)
-        }
-
-        /// A place in the book the answer came from; tapping it turns there.
-        struct Source: Identifiable, Equatable {
-            var id = UUID()
-            var location: ReadingLocation
-            var chapter: String
-            var snippet: String
-        }
-
-        var id: UUID
-        var question: String
-        /// The passage the question was about (picked in the book), quoted over it.
-        var passage: String?
-        var answer: String
-        var status: Status
-        /// Where and when it was asked, for a turn from an earlier opening ("Chapter 22 · yesterday").
-        var caption: String?
-        /// Empty when the backend doesn't cite.
-        var sources: [Source] = []
-        /// The heading the sources fold under ("Found in 3 passages").
-        var sourcesTitle: String?
-    }
-
-    let turns: [Turn]
+    let turns: [AskTurn]
     var onGo: (ReadingLocation) -> Void
 
     var body: some View {
@@ -54,43 +20,33 @@ struct AskThread: View {
     }
 }
 
-extension AskThread.Turn {
-    init(_ exchange: AskModel.Exchange) {
-        id = exchange.id
-        question = exchange.question
-        passage = exchange.subject
-        answer = exchange.answer
-        switch exchange.state {
-        case .lookingUp: status = .waiting(note: "Looking through what you’ve read…")
-        case .answering: status = .answering
-        case .done: status = .done
-        case .failed(let message): status = .failed(message)
-        }
-        caption = exchange.restored ? exchange.caption : nil
-        // The passages are scored against the answer once it is in; until then they are lookups.
-        if exchange.state == .done, !exchange.sources.isEmpty {
-            sources = exchange.sources.map { Source(id: $0.id, location: $0.location, chapter: $0.chapter, snippet: $0.snippet) }
-            let passages = sources.count == 1 ? "1 passage" : "\(sources.count) passages"
-            let summaries = exchange.summaryCount
-            sourcesTitle = summaries > 0
-                ? "Found in \(passages) and \(summaries) chapter \(summaries == 1 ? "summary" : "summaries")"
-                : "Found in \(passages)"
-        }
+extension AskTurn {
+    /// Where and when it was asked, for a turn from an earlier opening: "Chapter 22 · yesterday". A
+    /// provider that counts how far was read in words, not chapters, says that instead ("6,206
+    /// words in · yesterday"). Nil for this opening's turns.
+    var caption: String? {
+        guard restored else { return nil }
+        let when = askedAt.formatted(.relative(presentation: .named))
+        if chapter.isEmpty, let wordsRead { return "\(wordsRead.formatted()) words in · \(when)" }
+        return chapter.isEmpty ? when : "\(chapter) · \(when)"
     }
 
-    /// The thread for a list of exchanges, in their order (`AskModel` keeps them oldest first).
-    static func thread(_ exchanges: [AskModel.Exchange]) -> [Self] { exchanges.map(Self.init) }
-}
+    /// The passages listed under the answer: the ones it was scored against once it is in; until
+    /// then they are lookups, and none show.
+    var citedSources: [Source] { status == .done ? sources : [] }
 
-extension AskModel {
-    /// The conversation about this book as the pane shows it: the saved questions, then this
-    /// opening's, oldest first.
-    var thread: [AskThread.Turn] { AskThread.Turn.thread(exchanges) }
+    /// The heading the passages fold under ("Found in 3 passages and 1 chapter summary").
+    var sourcesTitle: String {
+        let passages = sources.count == 1 ? "1 passage" : "\(sources.count) passages"
+        return summaryCount > 0
+            ? "Found in \(passages) and \(summaryCount) chapter \(summaryCount == 1 ? "summary" : "summaries")"
+            : "Found in \(passages)"
+    }
 }
 
 /// One turn of the thread: the question as a bubble on the trailing side, the answer under it.
 private struct AskTurnView: View {
-    let turn: AskThread.Turn
+    let turn: AskTurn
     var onGo: (ReadingLocation) -> Void
     @State private var showSources = false
 
@@ -105,10 +61,10 @@ private struct AskTurnView: View {
             question
                 .frame(maxWidth: .infinity, alignment: .trailing)
             answer
-            if !turn.sources.isEmpty {
-                DisclosureGroup(turn.sourcesTitle ?? "Passages", isExpanded: $showSources) {
+            if !turn.citedSources.isEmpty {
+                DisclosureGroup(turn.sourcesTitle, isExpanded: $showSources) {
                     VStack(alignment: .leading, spacing: 6) {
-                        ForEach(turn.sources) { source in
+                        ForEach(turn.citedSources) { source in
                             Button {
                                 onGo(source.location)
                             } label: {
@@ -135,7 +91,7 @@ private struct AskTurnView: View {
 
     private var question: some View {
         VStack(alignment: .leading, spacing: 4) {
-            if let passage = turn.passage {
+            if let passage = turn.subject {
                 Text("“\(passage)”")
                     .italic()
                     .lineLimit(4)
