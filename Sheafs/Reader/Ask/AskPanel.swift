@@ -1,21 +1,22 @@
 import SwiftUI
 
 /// The Ask panel: floats over the bottom of the page like the quick appearance panel, so the
-/// reader stays in the book. It shows one answer at a time (the newest, or one picked from the
-/// history) with the passages it was found in; tapping a passage turns to its page with the panel
-/// still up, and "Back to page N" returns. The history lists every saved question for this book.
+/// reader stays in the book; beside the book on the Duo's inner display (`AskPresentation`), it runs
+/// the window's full height on the left of the fold (`fillsHeight`). It shows the running
+/// conversation about this book (`AskThread`, from `AskModel.thread`): the saved questions and this
+/// opening's, oldest first, scrolled to the newest. Tapping an answer's passage turns to its page
+/// with the panel still up, and "Back to page N" returns.
 struct AskPanel: View {
     @Bindable var model: AskModel
-    /// The tallest the answer or the history may grow before it scrolls.
+    /// The tallest the conversation may grow before it scrolls (floating only).
     var maxHeight: CGFloat
+    /// Beside the book: the panel fills the height it is given and the conversation the rest of it.
+    var fillsHeight = false
     /// "Back to page N" after a passage was opened (the panel may cover the page's own button).
     var backLabel: String?
     var onBack: () -> Void
     var onGo: (ReadingLocation) -> Void
     var onClose: () -> Void
-    /// The answer being read: nil is the newest.
-    @State private var shown: UUID?
-    @State private var showHistory = false
     @State private var confirmClear = false
     @State private var contentHeight: CGFloat = 0
     /// The attached passage's quote: the answer area gives up that much height to it.
@@ -32,33 +33,40 @@ struct AskPanel: View {
         "Who are the main characters so far?",
     ]
 
-    private var exchange: AskModel.Exchange? {
-        if let shown, let picked = model.exchanges.first(where: { $0.id == shown }) { return picked }
-        return model.exchanges.last
-    }
+    /// The bottom of the conversation, scrolled to as turns arrive and answers grow.
+    private static let end = "end"
 
     var body: some View {
+        let turns = model.thread
         VStack(alignment: .leading, spacing: 10) {
             header
-            ScrollView {
-                Group {
-                    if !model.availability.isAvailable {
-                        Label(model.availability.message, systemImage: "apple.intelligence")
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    } else if showHistory {
-                        historyList
-                    } else if let exchange {
-                        ExchangeCard(exchange: exchange, onGo: onGo)
-                            .id(exchange.id)
-                    } else {
-                        intro
+            ScrollViewReader { reader in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        if !turns.isEmpty {
+                            AskThread(turns: turns, onGo: onGo)
+                        }
+                        if !model.availability.isAvailable {
+                            Label(model.availability.message, systemImage: "apple.intelligence")
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        } else if turns.isEmpty {
+                            intro
+                        }
+                        Color.clear.frame(height: 1).id(Self.end)
                     }
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
                 }
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+                .scrollBounceBehavior(.basedOnSize)
+                .defaultScrollAnchor(.bottom)
+                .onAppear { reader.scrollTo(Self.end, anchor: .bottom) }
+                .onChange(of: turns.last.map { [$0.id.uuidString, $0.answer, "\($0.status)"] }) {
+                    reader.scrollTo(Self.end, anchor: .bottom)
+                }
+                .onChange(of: fillsHeight) { DispatchQueue.main.async { reader.scrollTo(Self.end, anchor: .bottom) } }
             }
-            .scrollBounceBehavior(.basedOnSize)
-            .frame(height: min(contentHeight, max(60, maxHeight - (model.subject == nil ? 0 : subjectHeight))))
+            .frame(height: fillsHeight ? nil : min(contentHeight, max(60, maxHeight - (model.subject == nil ? 0 : subjectHeight))))
+            .frame(maxHeight: fillsHeight ? .infinity : nil)
             if let subject = model.subject {
                 subjectQuote(subject.text)
                     .onGeometryChange(for: CGFloat.self) { $0.size.height + 10 } action: { subjectHeight = $0 }
@@ -67,24 +75,18 @@ struct AskPanel: View {
         }
         .font(.subheadline)
         .padding(12)
-        .frame(maxWidth: 460)
+        .frame(maxWidth: 460, maxHeight: fillsHeight ? .infinity : nil, alignment: .bottom)
         .glassEffect(in: .rect(cornerRadius: 26))
         .padding(.horizontal, 10)
+        .padding(.top, fillsHeight ? 10 : 0)
         .padding(.bottom, 6)
         .onAppear { model.refreshAvailability() }
-        .onChange(of: model.exchanges.count) { old, new in
-            // A new question shows its answer; the history closes for it.
-            if new > old {
-                shown = nil
-                showHistory = false
-            }
+        // `[ask] thread: …` for scripts (`scripts/check-ask-duo`): how many turns the pane holds, in order.
+        .onChange(of: turns.map(\.id), initial: true) {
+            print("[ask] thread: \(turns.count) turns, oldest first: \(turns.map(\.question).joined(separator: " | "))")
         }
         .confirmationDialog("Delete all questions about this book?", isPresented: $confirmClear, titleVisibility: .visible) {
-            Button("Delete Questions", role: .destructive) {
-                model.clear()
-                shown = nil
-                showHistory = false
-            }
+            Button("Delete Questions", role: .destructive) { model.clear() }
         }
     }
 
@@ -102,14 +104,11 @@ struct AskPanel: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 4)
-            Button(showHistory ? "Hide Earlier Questions" : "Earlier Questions",
-                   systemImage: showHistory ? "clock.fill" : "clock.arrow.circlepath") {
-                withAnimation(.snappy) { showHistory.toggle() }
-            }
-            .labelStyle(.iconOnly)
-            .frame(width: 40, height: 40)
-            .background(.fill.tertiary, in: Circle())
-            .disabled(model.exchanges.isEmpty)
+            Button("Delete All Questions", systemImage: "trash") { confirmClear = true }
+                .labelStyle(.iconOnly)
+                .frame(width: 40, height: 40)
+                .background(.fill.tertiary, in: Circle())
+                .disabled(model.exchanges.isEmpty || model.isBusy)
             Button("Close", systemImage: "xmark", action: onClose)
                 .labelStyle(.iconOnly)
                 .frame(width: 40, height: 40)
@@ -165,41 +164,6 @@ struct AskPanel: View {
         return "Summaries of finished chapters: \(progress.done) of \(progress.total) ready."
     }
 
-    /// Every question about this book, newest first; tap one to read its answer again.
-    private var historyList: some View {
-        LazyVStack(alignment: .leading, spacing: 6) {
-            ForEach(model.exchanges.reversed()) { exchange in
-                Button {
-                    shown = exchange.id
-                    withAnimation(.snappy) { showHistory = false }
-                } label: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(exchange.question)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.leading)
-                        if let subject = exchange.subject {
-                            Text("“\(subject)”")
-                                .italic()
-                                .lineLimit(1)
-                                .foregroundStyle(.secondary)
-                        }
-                        Text(exchange.caption)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(10)
-                    .background(.fill.tertiary, in: .rect(cornerRadius: 14))
-                }
-                .buttonStyle(.plain)
-            }
-            Button("Delete All Questions", role: .destructive) { confirmClear = true }
-                .font(.footnote)
-                .padding(.top, 4)
-                .disabled(model.isBusy)
-        }
-    }
-
     private var inputBar: some View {
         HStack(spacing: 8) {
             TextField(model.subject == nil ? "Ask about the story so far" : "Ask about this passage",
@@ -234,80 +198,6 @@ extension AskModel.Exchange {
     var caption: String {
         let when = askedAt.formatted(.relative(presentation: .named))
         return chapter.isEmpty ? when : "\(chapter) · \(when)"
-    }
-}
-
-/// One question, its answer as it streams, and the passages it was found in.
-private struct ExchangeCard: View {
-    let exchange: AskModel.Exchange
-    var onGo: (ReadingLocation) -> Void
-    @State private var showSources = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let subject = exchange.subject {
-                Text("“\(subject)”")
-                    .italic()
-                    .lineLimit(4)
-                    .foregroundStyle(.secondary)
-                    .accessibilityLabel("About: \(subject)")
-            }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(exchange.question)
-                    .font(.headline)
-                if exchange.restored {
-                    Text(exchange.caption)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            switch exchange.state {
-            case .lookingUp:
-                Label("Looking through what you’ve read…", systemImage: "text.magnifyingglass")
-                    .foregroundStyle(.secondary)
-            case .answering where exchange.answer.isEmpty:
-                ProgressView()
-            case .failed(let message):
-                if !exchange.answer.isEmpty { Text(exchange.answer) }
-                Label(message, systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.secondary)
-            default:
-                Text(exchange.answer)
-                    .font(.body)
-                    .textSelection(.enabled)
-            }
-            if exchange.state == .done, !exchange.sources.isEmpty {
-                DisclosureGroup(sourcesTitle, isExpanded: $showSources) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(exchange.sources) { source in
-                            Button {
-                                onGo(source.location)
-                            } label: {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(source.chapter).font(.caption).foregroundStyle(.secondary)
-                                    Text(source.snippet + "…").font(.footnote).lineLimit(2)
-                                        .multilineTextAlignment(.leading)
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(8)
-                                .background(.fill.tertiary, in: .rect(cornerRadius: 12))
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.top, 6)
-                }
-                .font(.footnote)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .fixedSize(horizontal: false, vertical: true)
-    }
-
-    private var sourcesTitle: String {
-        let passages = exchange.sources.count == 1 ? "1 passage" : "\(exchange.sources.count) passages"
-        guard exchange.summaryCount > 0 else { return "Found in \(passages)" }
-        return "Found in \(passages) and \(exchange.summaryCount) chapter \(exchange.summaryCount == 1 ? "summary" : "summaries")"
     }
 }
 

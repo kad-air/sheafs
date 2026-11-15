@@ -48,6 +48,14 @@ scripts/check-cover-chrome        # end to end on a simulator (SIM="iPhone Duo")
                                   #   bars up and they STAY up 2.5 s later on the cover display (portrait) and
                                   #   the inner display (flat, book pose): `[chrome]` lines + the screenshots'
                                   #   progress-strip band (OUT=/tmp/sheafs-cover-chrome); NO_BUILD=1
+scripts/check-ask-duo             # end to end on a simulator (SIM="iPhone Duo"; Apple Intelligence on this
+                                  #   Mac): Ask BESIDE the book on the inner display (`[ask] presentation`,
+                                  #   the page = the spread's right page, the right page's pixels unchanged,
+                                  #   the left page gone), pages turning one at a time with it up, the
+                                  #   selection menu's Ask landing beside, two turns in the pane in the saved
+                                  #   history's order (the JSON on disk), fold shut → floating / open →
+                                  #   beside with the same position and turns, a centre tap: bars beside,
+                                  #   closes Ask on the cover (OUT=/tmp/sheafs-ask-duo); NO_BUILD=1
 scripts/check-volume-device       # on the PHONE (unlocked; DEVICE=<udid>, BOOK=<title>, APP=<built .app> or
                                   #   ASC_KEY_* to build): probes the volume one step at a time like presses
                                   #   and asserts each read, turned the right way (landed location) and was
@@ -471,15 +479,37 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     background while the reader is up and Ask is on, latest first, chunk-and-carry (each part
     rewrites the running summary), pausing while a question is answered; stored per book as JSON
     in Application Support/Recaps (`RecapStore`, deleted with the book). Guardrails are
-    `.permissiveContentTransformations` (book text is violent). `AskPanel` floats over the bottom of
-    the page like the quick appearance panel (left page over a vertical fold; a centre tap or ✕
-    closes it; edge taps and the volume buttons still turn pages, and turning on moves the limit
-    on, never back: `AskModel.extendLimit`). It shows one answer with the passages it came from (`AskContext.citations`: the context's
+    `.permissiveContentTransformations` (book text is violent). WHERE THE PANEL GOES
+    (`AskPresentation`, in `ReaderLayout.swift`): over a VERTICAL fold laid out as a spread (the
+    Duo's inner display, flat or book pose) Ask is BESIDE the book: `AskPanel` runs the left page's
+    side full height (`fillsHeight`; the overlay's width = the left page frame's right edge) and the
+    pager is framed to the right page's side alone (`bookFrame`), laid out as ONE page: 🔴 the
+    spread's right page, same frame in the window, same size (`AskPresentation.pages`), so opening,
+    closing or unfolding with Ask up moves no text and reuses the spread's pagination (the right page
+    holds the position; that's also why Ask is on the LEFT). Pages then turn one at a time, tap
+    zones are the book side's, a centre tap toggles the bars (the progress strip keeps to the book
+    side) instead of closing Ask, Search leaves it up (the result lands on the book side), and the
+    selection menu's Ask lands there too. Everywhere else
+    (cover display, inner portrait, tabletop, iPhone, iPad's fold-less spread) it floats over the
+    bottom of the page like the quick appearance panel (a centre tap or ✕ closes it). Folding or
+    unfolding with it up moves between the two, the same panel in the same overlay slot: the
+    conversation (in `AskModel`) and the position stay. In both, edge taps and the volume buttons
+    still turn pages, and turning on moves the limit on, never back: `AskModel.extendLimit`.
+    `[ask] presentation beside|floating … pages=… location=… turns=…` is printed whenever it opens
+    or moves, `[ask] closed` when it closes; `AskPresentationTests`, `scripts/check-ask-duo`.
+    THE CONVERSATION: the panel shows the RUNNING thread for the book (`AskThread`), oldest first,
+    scrolled to the newest (and kept there while an answer streams): each turn's quoted passage and
+    question as a bubble, then its answer and the passages it came from (`AskContext.citations`: the context's
     excerpts, recent ones included, scored by the answer's words they share);
     tapping one jumps there with the panel up, and the panel carries "Back to page N" (it can
-    cover the folio's). Finished answers and their passages are saved per book as JSON in
-    Application Support/Ask (`AskHistoryStore`, newest 200, deleted with the book; the panel's
-    history and Settings delete them too) and listed under the panel's clock button. A follow-up
+    cover the folio's). 🔴 The thread is drawn from `AskThread.Turn`s only (`AskThread.swift`:
+    question, passage, answer, status, optional caption and sources), provider-neutral: `AskModel.thread`
+    maps the exchanges onto them, and another backend that keeps its own thread can fill the same
+    view (`AskThreadTests`).
+    `[ask] thread: N turns, oldest first: …` on every change. Finished answers and their passages are saved per book as JSON in
+    Application Support/Ask (`AskHistoryStore`, newest 200, newest last, deleted with the book; the
+    panel's trash button and Settings delete them too) and come back as the thread's earlier turns,
+    each captioned with its chapter and when. A follow-up
     question carries the previous answer only from this opening and within the current limit.
     ASK ABOUT A PASSAGE: the selection menu's Ask (third, after Highlight and Note; only while
     `askEnabled` and `AskEngine.availability` is available, asked each time the menu is built;
@@ -728,7 +758,9 @@ display and inner-landscape), `toolbarVisibility(_:for: .statusBar)`, `ToolbarOv
   distance from the edge (`TabletopEdgeTests`; `TEST_RUNNER_SHEAFS_TABLETOP_RENDERS=1` writes renders
   of it to the simulator's tmp/sheafs-tabletop; `scripts/check-tabletop` end to end);
 - the cover display's camera hole (`CoverCamera`, a known spot, not read from the system) pushes the
-  text below it (or the folio band up, if the interface turns it to the bottom).
+  text below it (or the folio band up, if the interface turns it to the bottom);
+- Ask up over a spread on a fold → Ask on the left page's side, the book the right page alone, in
+  place (`AskPresentation`, Ask in Architecture above).
 Both pages of a spread share one text size, so one pagination serves both. The reading position is
 the first character of the RIGHT-hand page of a spread (the left page shows what came just before,
 or is blank at the very start). Pagination is ANCHORED: the first layout of a chapter after a
