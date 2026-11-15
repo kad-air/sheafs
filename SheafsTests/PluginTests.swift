@@ -123,6 +123,28 @@ struct PluginTests {
         #expect(model.exchanges[1].turn == provider.saved[1], "a turn comes back as it went in")
     }
 
+    /// A conversation kept elsewhere is asked for again each time the panel opens; this
+    /// opening's finished answers come back from it (no doubles), unfinished ones stay.
+    @Test func theProvidersConversationReloadsWhenThePanelOpens() async throws {
+        let provider = ScriptedProvider()
+        provider.saved = [AskTurn(question: "One?", answer: "1.", askedAt: .now)]
+        let model = AskModel(session: try await Self.alice(), bookID: UUID()) { _ in provider }
+        await Self.settle { model.exchanges.count == 1 }
+        model.limit = ReadingLimit(spineIndex: 2, textOffset: 400)
+        provider.script = [.answering(sources: [], summaryCount: 0), .text("2."), .done(sources: nil)]
+        model.ask("Two?")
+        await Self.settle { !model.isBusy }
+        provider.script = [.failed("Offline.")]
+        model.ask("Three?")
+        await Self.settle { !model.isBusy }
+        // The provider has kept "Two?" (and someone asked "Four?" elsewhere meanwhile).
+        provider.saved += [AskTurn(question: "Two?", answer: "2.", askedAt: .now), AskTurn(question: "Four?", answer: "4.", askedAt: .now)]
+        model.refreshAvailability()
+        await Self.settle { model.exchanges.map(\.question) == ["One?", "Two?", "Four?", "Three?"] }
+        #expect(model.exchanges.map(\.question) == ["One?", "Two?", "Four?", "Three?"])
+        #expect(model.exchanges.last?.state == .failed("Offline."), "the failed question stays, after the saved ones")
+    }
+
     @Test func answersStreamIntoTheConversationAndAreKept() async throws {
         let session = try await Self.alice()
         let provider = ScriptedProvider()

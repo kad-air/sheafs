@@ -529,9 +529,11 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     `AskUpdate`s (`answering` with the passages found, `text` = the whole answer so far, `done`,
     `failed`) and keeps the conversation as `AskTurn`s (question, passage, answer, when, how far
     read: a `ReadingLimit` and/or words). `AskModel.init` takes `Plugins.current`'s provider for
-    the book, else the on-device one (whose saved turns load synchronously, as before; any other
-    provider's load once, asynchronously, per opening), and hands every finished conversation to
-    `keep`. A provider's `about` replaces the panel intro's on-device sentence and its `notice`
+    the book, else the on-device one (whose saved turns load synchronously, once, as before; any
+    other provider's load asynchronously when the model is made AND each time the panel opens
+    (`refreshAvailability`), since such a conversation may be shared and move on elsewhere; the
+    reload keeps this opening's unfinished questions after the provider's turns), and hands every
+    finished conversation to `keep`. A provider's `about` replaces the panel intro's on-device sentence and its `notice`
     shows over the question field; both nil for the on-device provider, so the panel reads as it
     always did. `recaps` stays on `AskModel` (the on-device provider's) for the panel's summary
     line. The selection menu still offers Ask only while the ON-DEVICE model is available

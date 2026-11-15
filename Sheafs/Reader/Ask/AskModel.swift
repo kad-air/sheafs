@@ -122,19 +122,23 @@ final class AskModel {
     /// What the reader should know about the next answer (`AskProvider.notice`).
     var notice: String? { provider.notice }
 
-    /// The panel opened: ask the provider again whether it can answer.
+    /// The panel opened: ask the provider again whether it can answer, and (unless it is the
+    /// on-device one) for the conversation as it is now: one kept elsewhere may have moved on
+    /// since (asked on another device, or an answer that finished after the app went away).
     func refreshAvailability() {
         availability = provider.availability
         Task {
             await provider.refresh()
             availability = provider.availability
+            if provider !== onDevice, !isBusy { await loadConversation() }
         }
     }
 
-    /// The provider's saved conversation, before anything asked since the model was made.
+    /// The provider's saved conversation, then what it doesn't have: questions asked here that
+    /// are still being answered or failed (a finished one is in the provider's by then).
     private func loadConversation() async {
         let saved = await provider.conversation()
-        exchanges = saved.map(Exchange.init) + exchanges.filter { !$0.restored }
+        exchanges = saved.map(Exchange.init) + exchanges.filter { !$0.restored && $0.state != .done }
     }
 
     /// Attaches a passage picked in the book as the subject of the next question, and starts the
