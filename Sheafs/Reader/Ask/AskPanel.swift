@@ -3,7 +3,7 @@ import SwiftUI
 /// The Ask panel: floats over the bottom of the page like the quick appearance panel, so the
 /// reader stays in the book; beside the book on the Duo's inner display (`AskPresentation`), it runs
 /// the window's full height on the left of the fold (`fillsHeight`). It shows the running
-/// conversation about this book (`AskThread`, from `AskModel.thread`): the saved questions and this
+/// conversation about this book (`AskThread`, from `AskModel.turns`): the saved questions and this
 /// opening's, oldest first, scrolled to the newest. Tapping an answer's passage turns to its page
 /// with the panel still up, and "Back to page N" returns.
 struct AskPanel: View {
@@ -37,7 +37,7 @@ struct AskPanel: View {
     private static let end = "end"
 
     var body: some View {
-        let turns = model.thread
+        let turns = model.turns
         VStack(alignment: .leading, spacing: 10) {
             header
             ScrollViewReader { reader in
@@ -70,6 +70,12 @@ struct AskPanel: View {
             if let subject = model.subject {
                 subjectQuote(subject.text)
                     .onGeometryChange(for: CGFloat.self) { $0.size.height + 10 } action: { subjectHeight = $0 }
+            }
+            // The provider's word on the next answer (`AskProvider.notice`).
+            if let notice = model.notice {
+                Label(notice, systemImage: "info.circle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             inputBar
         }
@@ -108,7 +114,7 @@ struct AskPanel: View {
                 .labelStyle(.iconOnly)
                 .frame(width: 40, height: 40)
                 .background(.fill.tertiary, in: Circle())
-                .disabled(model.exchanges.isEmpty || model.isBusy)
+                .disabled(model.turns.isEmpty || model.isBusy)
             Button("Close", systemImage: "xmark", action: onClose)
                 .labelStyle(.iconOnly)
                 .frame(width: 40, height: 40)
@@ -149,7 +155,7 @@ struct AskPanel: View {
                         .disabled(model.isBusy)
                 }
             }
-            Text("Answers come from Apple’s on-device model and use only the text up to the end of this page, so they can’t give away what happens next. Nothing leaves your device. \(recapLine)")
+            Text(model.about ?? "Answers come from Apple’s on-device model and use only the text up to the end of this page, so they can’t give away what happens next. Nothing leaves your device. \(recapLine)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -190,14 +196,6 @@ struct AskPanel: View {
                     .disabled(model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !model.availability.isAvailable)
             }
         }
-    }
-}
-
-extension AskModel.Exchange {
-    /// Where and when it was asked: "Chapter 22 · yesterday".
-    var caption: String {
-        let when = askedAt.formatted(.relative(presentation: .named))
-        return chapter.isEmpty ? when : "\(chapter) · \(when)"
     }
 }
 

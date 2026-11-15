@@ -502,10 +502,12 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     question as a bubble, then its answer and the passages it came from (`AskContext.citations`: the context's
     excerpts, recent ones included, scored by the answer's words they share);
     tapping one jumps there with the panel up, and the panel carries "Back to page N" (it can
-    cover the folio's). 🔴 The thread is drawn from `AskThread.Turn`s only (`AskThread.swift`:
-    question, passage, answer, status, optional caption and sources), provider-neutral: `AskModel.thread`
-    maps the exchanges onto them, and another backend that keeps its own thread can fill the same
-    view (`AskThreadTests`).
+    cover the folio's). 🔴 The thread is drawn from `AskTurn`s only, the ONE turn type
+    (`AskProvider.swift`: question, passage (`subject`), answer, status, when, how far read,
+    sources; `AskThread.swift` derives the caption, only for a turn from an earlier opening, and
+    the cited passages, only once it is done), provider-neutral: `AskModel.turns` IS the
+    conversation, filled by whichever provider answers, so a plugin's own thread draws the same
+    (`AskThreadTests`).
     `[ask] thread: N turns, oldest first: …` on every change. Finished answers and their passages are saved per book as JSON in
     Application Support/Ask (`AskHistoryStore`, newest 200, newest last, deleted with the book; the
     panel's trash button and Settings delete them too) and come back as the thread's earlier turns,
@@ -521,9 +523,42 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     the budget makes room for it); the exchange and the saved history keep it (`subject`, optional
     in the JSON, so older files load) and show it over the question. A follow-up names the passage
     the last question was about. `AskSelectionTests`.
+    WHO ANSWERS is an `AskProvider` (`AskProvider.swift`), the seam a plugin uses (`Plugins/` below):
+    `OnDeviceAskProvider` is everything above that touches the model (search words, context,
+    stream, retry, citations; the `RecapBuilder`, which it pauses while answering; the per-book
+    `AskHistoryStore`, mapped onto `AskTurn`s), and `AskModel` is the panel's side: the
+    conversation as `turns` (oldest first), the attached passage, the limit, follow-ups, Stop. A
+    new question is a turn `.waiting(note: AskModel.lookingUp)` until the provider writes. The provider reports
+    `AskUpdate`s (`answering` with the passages found, `text` = the whole answer so far, `done`,
+    `failed`) and loads and keeps the conversation as the same `AskTurn`s the pane draws (how far
+    read: a `ReadingLimit` and/or words). `AskModel.init` takes `Plugins.current`'s provider for
+    the book, else the on-device one (whose saved turns load synchronously, once, as before; any
+    other provider's load asynchronously when the model is made AND each time the panel opens
+    (`refreshAvailability`), since such a conversation may be shared and move on elsewhere; the
+    reload keeps this opening's unfinished questions after the provider's turns), and hands every
+    finished conversation to `keep`. The pane draws the provider's turns like any other; a turn with
+    no chapter but a word count is captioned "6,206 words in · yesterday". A provider's `about` replaces the panel intro's on-device
+    sentence and its `notice` shows over the question field; both nil for the on-device provider, so the panel reads as it
+    always did. `recaps` stays on `AskModel` (the on-device provider's) for the panel's summary
+    line. The selection menu still offers Ask only while the ON-DEVICE model is available
+    (`PagerController.askAvailable`). `PluginTests` (a scripted provider, and the on-device one
+    against `AskHistoryStore`).
     `-SheafsAsk <question>` (with `-SheafsOpen`) asks once and prints `[ask]` lines;
     `-SheafsAskOpen 1` opens the panel and prints the saved questions; `-SheafsAskSource <n>`
     then opens the answer's nth passage. Not on the tabletop deck.
+  - `Plugins/SheafsPlugin.swift` — the seam for a build that adds features of its own (Sheafs has
+    none: `Plugins.current` is nil and nothing below shows). Such a build compiles its sources into
+    the Sheafs target and sets the compile condition `SHEAFS_PLUGIN`; `SheafsApp.init` then calls
+    the `makeSheafsPlugin(PluginHost)` those sources define (the host is the app's own
+    `LibraryStore` and `SyncService`). The protocol's requirements all default to nothing:
+    `askProvider(for:)` (Ask, above), `settingsScreens` (a Settings section after Ask, rows push
+    the screen), `libraryScreens` (the library toolbar's leading buttons, each a sheet:
+    `PluginSheet` gives it a navigation stack and a close button) and `bookActions(for:)` (items
+    in a book's library menu before Delete: run a closure or open a screen as that sheet). Keep it
+    small and generic: no feature of any particular build belongs in this tree. A build under its
+    own bundle ids also names its app group and link scheme in BOTH bundles' Info.plists
+    (`SheafsAppGroup`, `SheafsURLScheme`; `RecentBookShelf.appGroup`, `SheafsLink.scheme` fall
+    back to Sheafs' own), so its widget reads its own app and its links open it.
   - `Reader/ScreenAwake` — "Keep screen awake" (`ReaderSettings.screenAwake`: Off, 2, 5 (default),
     10, 30 minutes). `ScreenAwake` sets `isIdleTimerDisabled` while the reader is in use and gives it
     back once that many minutes pass with no page turn (`onLocationChange`: taps, swipes, volume

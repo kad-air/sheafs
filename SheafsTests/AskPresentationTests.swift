@@ -132,72 +132,93 @@ struct AskPresentationTests {
     }
 }
 
-/// The pane's conversation: the turns in the exchanges' order (oldest first), each with its quoted
-/// passage; nothing in a turn is the on-device model's own. Built from exchanges directly, not from
-/// how a backend stores them (the saved history's order on disk is `scripts/check-ask-duo`'s).
+/// The pane's conversation: `AskTurn`s in the model's order (oldest first), each with its quoted
+/// passage; nothing in a turn is the on-device model's own, so either provider's turns draw the
+/// same. Built from turns directly, not from how a provider stores them (the saved history's order
+/// on disk is `scripts/check-ask-duo`'s).
 @MainActor
 struct AskThreadTests {
     static let limit = ReadingLimit(spineIndex: 2, textOffset: 4000)
 
-    /// An exchange from an earlier opening, as the saved history comes back.
-    static func saved(_ question: String, subject: String? = nil, answer: String, at seconds: TimeInterval) -> AskModel.Exchange {
-        var exchange = AskModel.Exchange(question: question, subject: subject, chapter: "Chapter II", limit: limit)
-        exchange.answer = answer
-        exchange.state = .done
-        exchange.askedAt = Date(timeIntervalSince1970: seconds)
-        exchange.sources = [AskModel.Source(location: ReadingLocation(spineIndex: 2, textOffset: 120), chapter: "Chapter II",
-                                            snippet: "Curiouser and curiouser")]
-        exchange.summaryCount = 1
-        exchange.restored = true
-        return exchange
+    /// A turn from an earlier opening, as the saved history comes back.
+    static func saved(_ question: String, subject: String? = nil, answer: String, at seconds: TimeInterval) -> AskTurn {
+        AskTurn(question: question, subject: subject, answer: answer, status: .done, askedAt: Date(timeIntervalSince1970: seconds),
+                limit: limit, chapter: "Chapter II",
+                sources: [AskTurn.Source(location: ReadingLocation(spineIndex: 2, textOffset: 120), chapter: "Chapter II",
+                                         snippet: "Curiouser and curiouser")],
+                summaryCount: 1, restored: true)
     }
 
     @Test func theThreadKeepsTheConversationsOrderWithItsPassages() {
-        var asking = AskModel.Exchange(question: "Why is Alice crying?", chapter: "Chapter II", limit: Self.limit)
-        asking.state = .answering
-        asking.answer = "She is too big"
-        let exchanges = [
+        let asking = AskTurn(question: "Why is Alice crying?", answer: "She is too big", status: .answering,
+                             limit: Self.limit, chapter: "Chapter II")
+        let turns = [
             Self.saved("Who is the White Rabbit?", answer: "A rabbit in a waistcoat Alice follows.", at: 1_000),
             Self.saved("What does this mean?", subject: "Curiouser and curiouser!", answer: "She is so surprised her English slips.", at: 2_000),
             asking,
         ]
-        let turns = AskThread.Turn.thread(exchanges)
         #expect(turns.map(\.question) == ["Who is the White Rabbit?", "What does this mean?", "Why is Alice crying?"])
-        #expect(turns.map(\.id) == exchanges.map(\.id))
-        #expect(turns.map(\.passage) == [nil, "Curiouser and curiouser!", nil])
+        #expect(turns.map(\.subject) == [nil, "Curiouser and curiouser!", nil])
         #expect(turns.map(\.status) == [.done, .done, .answering])
         // From an earlier opening: each says where and when it was asked, and keeps its passages.
         #expect(turns[0].caption?.hasPrefix("Chapter II · ") == true)
         #expect(turns[2].caption == nil, "asked in this opening")
-        #expect(turns[0].sources.map(\.location) == [ReadingLocation(spineIndex: 2, textOffset: 120)])
+        #expect(turns[0].citedSources.map(\.location) == [ReadingLocation(spineIndex: 2, textOffset: 120)])
         #expect(turns[0].sourcesTitle == "Found in 1 passage and 1 chapter summary")
         #expect(turns[2].answer == "She is too big")
     }
 
     @Test func aQuestionInFlightIsATurnWithoutAnAnswerYet() {
-        var exchange = AskModel.Exchange(question: "What does this mean?", subject: "We’re all mad here.",
-                                         chapter: "Chapter VI", limit: Self.limit)
-        exchange.sources = [AskModel.Source(location: ReadingLocation(spineIndex: 6, textOffset: 10), chapter: "Chapter VI", snippet: "mad")]
-        var turn = AskThread.Turn(exchange)
-        #expect(turn.passage == "We’re all mad here.")
+        var turn = AskTurn(question: "What does this mean?", subject: "We’re all mad here.",
+                           status: .waiting(note: AskModel.lookingUp), limit: Self.limit, chapter: "Chapter VI")
+        turn.sources = [AskTurn.Source(location: ReadingLocation(spineIndex: 6, textOffset: 10), chapter: "Chapter VI", snippet: "mad")]
+        #expect(turn.subject == "We’re all mad here.")
         #expect(turn.caption == nil, "asked in this opening")
         guard case .waiting = turn.status else {
             Issue.record("looking up reads as \(turn.status)")
             return
         }
-        #expect(turn.sources.isEmpty, "the lookups are not the answer's passages yet")
+        #expect(turn.citedSources.isEmpty, "the lookups are not the answer's passages yet")
 
-        exchange.state = .answering
-        exchange.answer = "The Cat"
-        turn = AskThread.Turn(exchange)
+        turn.status = .answering
+        turn.answer = "The Cat"
         #expect(turn.status == .answering && turn.answer == "The Cat")
+        #expect(turn.citedSources.isEmpty)
 
-        exchange.state = .failed("Stopped.")
-        #expect(AskThread.Turn(exchange).status == .failed("Stopped."))
+        turn.status = .failed("Stopped.")
+        #expect(turn.citedSources.isEmpty)
 
-        exchange.state = .done
-        turn = AskThread.Turn(exchange)
-        #expect(turn.sources.map(\.chapter) == ["Chapter VI"])
+        turn.status = .done
+        #expect(turn.citedSources.map(\.chapter) == ["Chapter VI"])
         #expect(turn.sourcesTitle == "Found in 1 passage")
     }
+
+    /// A question asked through the model starts as #89 showed it: waiting, looking through
+    /// what's been read, until the provider writes.
+    @Test func aNewQuestionWaitsLookingThroughTheBook() async throws {
+        let url = try #require(Bundle(for: AskThreadBundleMarker.self).url(forResource: "alice-epub3", withExtension: "epub"))
+        let session = BookSession(book: Book(title: "Alice", author: nil, language: "en", fileSize: 1, partialMD5: nil, hasCover: false), fileURL: url)
+        await session.load()
+        final class Silent: AskProvider {
+            var availability = AskAvailability.available
+            var about: String? { nil }
+            var notice: String? { nil }
+            func refresh() async {}
+            func conversation() async -> [AskTurn] { [] }
+            func answer(_ question: AskQuestion, report: (AskUpdate) -> Void) async {
+                while !Task.isCancelled { try? await Task.sleep(for: .milliseconds(10)) }
+            }
+            func keep(_ turns: [AskTurn]) async {}
+            func clear() async {}
+            func readerMoved(to spine: Int) {}
+        }
+        let model = AskModel(session: session, bookID: UUID()) { _ in Silent() }
+        model.limit = Self.limit
+        model.ask("Who is late?")
+        #expect(model.turns.last?.status == .waiting(note: "Looking through what you’ve read…"))
+        #expect(model.turns.last?.limit == Self.limit && model.turns.last?.restored == false)
+        model.cancel()
+    }
 }
+
+private final class AskThreadBundleMarker {}

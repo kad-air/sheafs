@@ -16,7 +16,9 @@ nonisolated struct RecentBook: Codable, Equatable, Sendable {
 
 /// The app group folder both processes share: `recent-book.json` plus `recent-cover.jpg`.
 nonisolated struct RecentBookShelf: Sendable {
-    static let appGroup = "group.io.sheafs.reader"
+    /// Sheafs' group, unless the bundle's Info.plist names another (`SheafsAppGroup`): a build
+    /// under bundle ids of its own sets it in both bundles, so its widget reads its own app.
+    static let appGroup = Bundle.main.object(forInfoDictionaryKey: "SheafsAppGroup") as? String ?? "group.io.sheafs.reader"
     /// The widget kind, for `WidgetCenter.reloadTimelines(ofKind:)`.
     static let widgetKind = "ContinueReading"
     /// The control kind, for `ControlCenter.reloadControls(ofKind:)` (its label is the book's title).
@@ -57,7 +59,8 @@ nonisolated struct RecentBookShelf: Sendable {
 /// `sheafs://open?book=<uuid>`: the widget's tap target. The scheme is declared in the app's
 /// Info.plist (`CFBundleURLTypes` in project.yml).
 nonisolated enum SheafsLink {
-    static let scheme = "sheafs"
+    /// `sheafs`, unless the Info.plist names another (`SheafsURLScheme`, beside `SheafsAppGroup`).
+    static let scheme = Bundle.main.object(forInfoDictionaryKey: "SheafsURLScheme") as? String ?? "sheafs"
 
     static func open(_ id: UUID) -> URL {
         var parts = URLComponents()

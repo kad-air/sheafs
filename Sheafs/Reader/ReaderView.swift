@@ -376,7 +376,7 @@ struct ReaderView: View {
                     guard let new else { return }
                     let pages = asking.pages(layout).pageFrames.map { $0.offsetBy(dx: bookFrame.minX, dy: bookFrame.minY) }
                     print("[ask] presentation \(new.isBeside ? "beside" : "floating") window=\(full) book=\(bookFrame) pages=\(pages) "
-                        + "location=\(session.location.spineIndex):\(session.location.textOffset) turns=\(ask?.exchanges.count ?? 0)")
+                        + "location=\(session.location.spineIndex):\(session.location.textOffset) turns=\(ask?.turns.count ?? 0)")
                 }
             }
         }
@@ -1180,13 +1180,13 @@ struct ReaderView: View {
             openAsk()
             guard let ask else { return }
             print("[ask] availability: \(ask.availability) limit: \(ask.limit.spineIndex):\(ask.limit.textOffset) "
-                + "saved: \(ask.exchanges.count)")
-            for exchange in ask.exchanges {
-                print("[ask] saved: \(exchange.question) (\(exchange.caption), \(exchange.sources.count) sources)")
+                + "saved: \(ask.turns.count)")
+            for turn in ask.turns {
+                print("[ask] saved: \(turn.question) (\(turn.caption ?? ""), \(turn.sources.count) sources)")
             }
             if !question.isEmpty { ask.ask(question) }
             await report(ask)
-            guard let last = ask.exchanges.last else { return }
+            guard let last = ask.turns.last else { return }
             let pick = defaults.integer(forKey: "SheafsAskSource")
             if pick > 0, pick <= last.sources.count, let session {
                 let location = last.sources[pick - 1].location
@@ -1198,7 +1198,7 @@ struct ReaderView: View {
 
     private static var askArgumentConsumed = false
 
-    /// Waits (up to two minutes) for the question being answered, then prints the newest exchange
+    /// Waits (up to two minutes) for the question being answered, then prints the newest turn
     /// as `[ask]` lines: its subject, state, answer and sources.
     private func report(_ ask: AskModel) async {
         var waited = 0
@@ -1206,10 +1206,10 @@ struct ReaderView: View {
             try? await Task.sleep(for: .milliseconds(100))
             waited += 1
         }
-        guard let last = ask.exchanges.last else { return print("[ask] no exchange") }
+        guard let last = ask.turns.last else { return print("[ask] no turn") }
         if let subject = last.subject { print("[ask] about: \(subject)") }
         print("[ask] question: \(last.question)")
-        print("[ask] state: \(last.state)")
+        print("[ask] state: \(last.status)")
         print("[ask] answer: \(last.answer)")
         for source in last.sources {
             print("[ask] source \(source.location.spineIndex):\(source.location.textOffset) \(source.chapter): \(source.snippet.prefix(80))")

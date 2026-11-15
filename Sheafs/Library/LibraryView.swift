@@ -23,6 +23,8 @@ struct LibraryView: View {
     @State private var searchText = ""
     @State private var sort: LibrarySort = .recent
     @State private var pendingDelete: Book?
+    /// A plugin's screen opened from the toolbar or a book's menu (`SheafsPlugin`).
+    @State private var pluginScreen: PluginScreen?
 
     private var visibleBooks: [Book] {
         let filtered = searchText.isEmpty ? books : books.filter {
@@ -71,7 +73,15 @@ struct LibraryView: View {
                     }
                     .pickerStyle(.menu)
                 }
+                if let screens = Plugins.current?.libraryScreens, !screens.isEmpty {
+                    ToolbarItemGroup(placement: .topBarLeading) {
+                        ForEach(screens) { screen in
+                            Button(screen.title, systemImage: screen.systemImage) { pluginScreen = screen }
+                        }
+                    }
+                }
             }
+            .sheet(item: $pluginScreen) { PluginSheet(screen: $0) }
             .fileImporter(isPresented: $showImporter, allowedContentTypes: [.epub], allowsMultipleSelection: true) { result in
                 guard case .success(let urls) = result else { return }
                 Task {
@@ -132,6 +142,18 @@ struct LibraryView: View {
             book.xpointer = nil
             book.finishedAt = nil
             library.save()
+        }
+        let actions = Plugins.current?.bookActions(for: book) ?? []
+        if !actions.isEmpty {
+            Divider()
+            ForEach(actions) { action in
+                Button(action.title, systemImage: action.systemImage) {
+                    switch action.kind {
+                    case .perform(let run): run()
+                    case .screen(let screen): pluginScreen = screen
+                    }
+                }
+            }
         }
         Divider()
         Button("Delete", systemImage: "trash", role: .destructive) { pendingDelete = book }

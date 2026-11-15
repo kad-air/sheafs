@@ -6,17 +6,22 @@ struct SheafsApp: App {
     @State private var library: LibraryStore
     @State private var settings = ReaderSettings()
     @State private var navigation: AppNavigation
-    @State private var sync = SyncService()
+    @State private var sync: SyncService
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
-        let library = LibraryStore(), navigation = AppNavigation()
+        let library = LibraryStore(), navigation = AppNavigation(), sync = SyncService()
         _library = State(initialValue: library)
         _navigation = State(initialValue: navigation)
+        _sync = State(initialValue: sync)
         // The control's intent runs in this process (foreground mode) once the app is up.
         ContinueReading.handler = { navigation.openMostRecentBook(in: library) }
         // The Apple Watch remote: a message from the watch may be what launched the app.
         WatchLink.shared.activate()
+#if SHEAFS_PLUGIN
+        // A build with a plugin compiles its sources in and sets this condition (`SheafsPlugin`).
+        Plugins.current = makeSheafsPlugin(PluginHost(library: library, sync: sync))
+#endif
     }
 
     var body: some Scene {

@@ -132,6 +132,6 @@ struct AskSelectionTests {
         encoder.dateEncodingStrategy = .iso8601
         let back = try decoder.decode(AskHistoryStore.Entry.self, from: encoder.encode(entry))
         #expect(back == entry)
-        #expect(AskModel.Exchange(back).subject == "Twinkle, twinkle, little bat!")
+        #expect(AskTurn(back).subject == "Twinkle, twinkle, little bat!")
     }
 }
