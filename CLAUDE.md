@@ -525,7 +525,12 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     (confirmed on the Duo, keep it there). `ReaderView.volumeButtonsArmed` runs it only while the
     scene is active, the book is ready, the regions are known and no sheet is up (SwiftUI sheets, and the pager's UIKit share sheet and Look Up), and arming
     RETRIES until the pager is in a window (it appears after the regions; arming once gave up
-    silently). Stop restores the user's volume. `VolumeButtonTests` replays the device's log. The
+    silently). For 1 s after arming (`PressReader.settle`) a reading that isn't a put-back's landing
+    re-reads the user's volume instead of being a press (back from another app the first
+    `outputVolume` can be the old level; reading the new one as a press snapped it back). Stop
+    restores the user's volume only when the app moved it (the end clamp), and its deferred session
+    deactivation is skipped if the buttons were re-armed meanwhile. `VolumeButtonTests` replays the
+    device's log. The
     simulator can't press the buttons (and setting the hidden slider there changes nothing: no
     volume route), so `scripts/check-volume-device` runs on the phone. Every step (arming
     decisions with each condition, session state, the volume view's subview tree, each reading
