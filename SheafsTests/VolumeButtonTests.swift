@@ -141,3 +141,50 @@ extension VolumeButtonTests {
         #expect(reader.reference == 0.3)
     }
 }
+
+extension VolumeButtonTests {
+    /// 🔴 Back from another app where the volume went from 0.5 to 0.2: the arming read 0.5 (stale),
+    /// then the device reported 0.2. That reading is the user's volume, not a press: no page turns
+    /// and nothing is put back to 0.5. The next press reads from 0.2.
+    @Test func aStaleStartIsResyncedNotAPress() {
+        var reader = PressReader(previous: 0.5, reference: 0.5)
+        reader.settle(from: 10)
+        #expect(reader.read(0.2, at: 10.3) == nil)
+        #expect(reader.resynced)
+        #expect(reader.reference == 0.2)
+        #expect(!reader.needsPutBack)
+        #expect(reader.read(0.25, at: 12) == .up)
+        #expect(!reader.resynced)
+        #expect(reader.reference == 0.2)
+    }
+
+    /// A resync to the bottom of the range keeps the usual room for a down press (put back to 0.1).
+    @Test func aResyncToTheEndKeepsTheMargin() {
+        var reader = PressReader(previous: 0.5, reference: 0.5)
+        reader.settle(from: 10)
+        #expect(reader.read(0.0, at: 10.2) == nil)
+        #expect(reader.resynced)
+        #expect(reader.reference == 0.1)
+        #expect(reader.needsPutBack)
+    }
+
+    /// The settle window closes: a reading after it is a press again.
+    @Test func aReadingAfterTheSettleWindowIsAPress() {
+        var reader = PressReader(previous: 0.5, reference: 0.5)
+        reader.settle(from: 10)
+        #expect(reader.read(0.55, at: 11.5) == .up)
+        #expect(!reader.resynced)
+    }
+
+    /// Arming at 0.0 puts the volume back to 0.1; that landing is still the landing inside the settle
+    /// window, not a resync, and the reference becomes where it landed.
+    @Test func theArmingPutBacksLandingIsNotAResync() {
+        var reader = PressReader(previous: 0.0, reference: 0.1)
+        reader.settle(from: 10)
+        reader.didPutBack(at: 10)
+        #expect(reader.read(0.15, at: 10.05) == nil)
+        #expect(!reader.resynced)
+        #expect(reader.reference == 0.15)
+        #expect(!reader.needsPutBack)
+    }
+}

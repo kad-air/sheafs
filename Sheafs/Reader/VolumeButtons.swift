@@ -86,6 +86,7 @@ final class VolumeButtonPager {
             originalVolume = session.outputVolume
             let reference = PressReader.reference(for: originalVolume)
             reader = PressReader(previous: originalVolume, reference: reference)
+            reader.settle(from: ProcessInfo.processInfo.systemUptime)
             VolumeLog.shared.note("start: category=\(session.category.rawValue) otherAudio=\(session.isOtherAudioPlaying) volume=\(self.originalVolume) reference=\(reference) slider=\(self.slider != nil) view=\(self.volumeView.map(Self.tree) ?? "nil")")
             observation = session.observe(\.outputVolume, options: [.new]) { [weak self] _, change in
                 guard let volume = change.newValue else { return }
@@ -122,15 +123,27 @@ final class VolumeButtonPager {
         isRunning = false
         observation?.invalidate()
         observation = nil
-        VolumeLog.shared.note("stop: restoring volume=\(self.originalVolume)")
-        slider?.value = originalVolume
+        // Only a level the app itself moved (the reference clamp) is put back; a volume already at the
+        // user's own level is left alone, so a stale reading is never forced on them.
+        if abs(reader.previous - originalVolume) > PressReader.tolerance {
+            VolumeLog.shared.note("stop: restoring volume=\(self.originalVolume) from \(self.reader.previous)")
+            slider?.value = originalVolume
+        } else {
+            VolumeLog.shared.note("stop: volume left at \(self.reader.previous)")
+        }
         let view = volumeView
         volumeView = nil
         madeSlider = nil
         onPress = nil
-        // Let the slider's restore reach the system before the view (and the session) go.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+        // Let the slider's restore reach the system before the view (and the session) go. If the
+        // buttons were armed again meanwhile (a stop and a start within 0.2 s), the new arming owns
+        // the session: deactivating it now would leave the buttons dead until the next arming.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
             view?.removeFromSuperview()
+            guard self?.isRunning != true else {
+                VolumeLog.shared.note("stop: re-armed meanwhile, session kept active")
+                return
+            }
             try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         }
     }
@@ -138,7 +151,13 @@ final class VolumeButtonPager {
     private func volumeChanged(_ volume: Float) {
         guard isRunning else { return }
         let press = reader.read(volume, at: ProcessInfo.processInfo.systemUptime)
-        VolumeLog.shared.note("outputVolume=\(volume) press=\(press.map { "\($0)" } ?? "none") reference=\(self.reader.reference)")
+        VolumeLog.shared.note("outputVolume=\(volume) press=\(press.map { "\($0)" } ?? "none") reference=\(self.reader.reference)\(self.reader.resynced ? " (resynced: the user's volume)" : "")")
+        if reader.resynced {
+            // The level the user set while away: it is theirs, and what stop restores.
+            originalVolume = volume
+            putBack()
+            return
+        }
         guard let press else { return }
         putBack()
         onPress?(press)
@@ -167,6 +186,12 @@ final class VolumeButtonPager {
 /// landing as a press and turned pages at random. A put-back to a value the device itself
 /// reported lands on it exactly (0.25 → 0.25 in the same log), so once the reference is a landing
 /// every later put-back is clean. `VolumeButtonTests` replays the device's log.
+///
+/// 🔴 Just after arming, the first reading can be stale. On TestFlight 0.3 a volume changed in
+/// another app snapped back to the old level on return to the book: the likeliest path is that
+/// `outputVolume` still gave the level from before, then reported the new one, which read as a
+/// press (a page turned) and was put back to the old level. So for `settleWindow` after arming, a
+/// reading that is not a put-back's landing re-reads the user's volume (`resynced`), not a press.
 struct PressReader {
     nonisolated static let tolerance: Float = 0.01
     /// How long after a put-back its reading may arrive.
@@ -174,10 +199,15 @@ struct PressReader {
     /// The reference stays at least this far inside the range, so a press either way moves the
     /// volume (at 0 a down press changes nothing and goes unseen).
     nonisolated static let margin: Float = 0.1
+    /// How long after arming a reading re-reads the user's volume rather than being a press.
+    nonisolated static let settleWindow: TimeInterval = 1.0
 
     private(set) var previous: Float
     private(set) var reference: Float
     private var putBackAt: TimeInterval?
+    private var settleUntil: TimeInterval?
+    /// Whether the last reading re-read the user's volume (inside the settle window, it moved).
+    private(set) var resynced = false
 
     nonisolated init(previous: Float, reference: Float) {
         self.previous = previous
@@ -198,8 +228,14 @@ struct PressReader {
         putBackAt = time
     }
 
+    /// Armed at `time`: readings in the next `settleWindow` re-read the user's volume.
+    nonisolated mutating func settle(from time: TimeInterval) {
+        settleUntil = time + Self.settleWindow
+    }
+
     nonisolated mutating func read(_ volume: Float, at time: TimeInterval) -> VolumeButtonPager.Press? {
         defer { previous = volume }
+        resynced = false
         if let putBackAt {
             let landing = time - putBackAt < Self.putBackWindow
                 && abs(volume - reference) + Self.tolerance < abs(previous - reference)
@@ -208,6 +244,16 @@ struct PressReader {
                 reference = volume
                 return nil
             }
+        }
+        if let settleUntil {
+            if time < settleUntil {
+                if abs(volume - previous) > Self.tolerance {
+                    reference = Self.reference(for: volume)
+                    resynced = true
+                }
+                return nil
+            }
+            self.settleUntil = nil
         }
         if volume > previous + Self.tolerance { return .up }
         if volume < previous - Self.tolerance { return .down }
