@@ -2,12 +2,12 @@ import Foundation
 import Observation
 import SheafsKit
 
-/// "Ask about the book": questions answered by Apple's on-device model from the text up to the
-/// reader's place. Owned by `ReaderView` for the reader's life, so the passage index stays while
-/// the panel comes and goes; finished answers are kept per book (`AskHistoryStore`) and come back
-/// the next time the book is open. Each question: look the read part up (search words from the
-/// model, cut to names the text has), gather passages and chapter summaries within the model's
-/// small context (`AskContextBuilder`), stream the answer.
+/// "Ask about the book": the panel's side of Ask. Owned by `ReaderView` for the reader's life, so
+/// the provider's passage index stays while the panel comes and goes. It holds the conversation
+/// (`exchanges`, oldest first): the provider's saved one, asked for once when the model is made,
+/// then each question asked here, its answer streaming in. Who answers and keeps the conversation
+/// is the `AskProvider`: Apple's on-device model (`OnDeviceAskProvider`, finished answers kept per
+/// book in `AskHistoryStore`), unless this build's plugin supplies another for the book.
 @Observable
 @MainActor
 final class AskModel {
@@ -38,6 +38,8 @@ final class AskModel {
         var chapter = ""
         /// What the answer was made within.
         var limit: ReadingLimit
+        /// How far the reader had read, in words of the book, when the provider counts so.
+        var wordsRead: Int?
         /// Asked while the book was open before: shown, but not followed up on (`ask`).
         var restored = false
 
@@ -48,28 +50,24 @@ final class AskModel {
             self.limit = limit
         }
 
-        init(_ entry: AskHistoryStore.Entry) {
-            question = entry.question
-            subject = entry.subject
-            answer = entry.answer
+        /// A turn of the provider's saved conversation.
+        init(_ turn: AskTurn) {
+            question = turn.question
+            subject = turn.subject
+            answer = turn.answer
             state = .done
-            sources = entry.sources.map {
-                Source(location: ReadingLocation(spineIndex: $0.spineIndex, textOffset: $0.textOffset),
-                       chapter: $0.chapter, snippet: $0.snippet)
-            }
-            summaryCount = entry.summaryCount
-            askedAt = entry.askedAt
-            chapter = entry.chapter
-            limit = ReadingLimit(spineIndex: entry.limitSpine, textOffset: entry.limitOffset)
+            sources = turn.sources
+            summaryCount = turn.summaryCount
+            askedAt = turn.askedAt
+            chapter = turn.chapter
+            limit = turn.limit ?? ReadingLimit(spineIndex: 0, textOffset: 0)
+            wordsRead = turn.wordsRead
             restored = true
         }
 
-        var entry: AskHistoryStore.Entry {
-            AskHistoryStore.Entry(question: question, subject: subject, answer: answer,
-                                  sources: sources.map { .init(spineIndex: $0.location.spineIndex, textOffset: $0.location.textOffset,
-                                                               chapter: $0.chapter, snippet: $0.snippet) },
-                                  summaryCount: summaryCount, askedAt: askedAt, chapter: chapter,
-                                  limitSpine: limit.spineIndex, limitOffset: limit.textOffset)
+        var turn: AskTurn {
+            AskTurn(question: question, subject: subject, answer: answer, askedAt: askedAt, limit: limit,
+                    wordsRead: wordsRead, chapter: chapter, sources: sources, summaryCount: summaryCount)
         }
     }
 
@@ -83,29 +81,61 @@ final class AskModel {
     static let subjectQuestion = "What does this mean?"
 
     let session: BookSession
-    let recaps: RecapBuilder
-    private let history: AskHistoryStore
+    /// Apple's on-device model for this book: the provider, unless a plugin's is (which may hand
+    /// it questions).
+    let onDevice: OnDeviceAskProvider
+    /// Who answers and keeps the conversation.
+    let provider: any AskProvider
+    /// The on-device model's chapter summaries (written only while it is answering this book).
+    var recaps: RecapBuilder { onDevice.recaps }
     var draft = ""
     /// The passage the next question is about (the selection menu's Ask), quoted in the panel.
     private(set) var subject: Subject?
-    private(set) var exchanges: [Exchange]
-    private(set) var availability = AskEngine.availability
+    private(set) var exchanges: [Exchange] = []
+    private(set) var availability: AskAvailability
     /// The end of what the reader has read: set by the reader when the panel opens, and moved on
     /// as they turn pages with it open.
     var limit = ReadingLimit(spineIndex: 0, textOffset: 0)
-    private var indexed: (limit: ReadingLimit, index: PassageIndex)?
     private var answering: Task<Void, Never>?
 
-    init(session: BookSession, bookID: UUID) {
+    /// `provider`: makes the provider from the on-device one; nil asks this build's plugin
+    /// (`SheafsPlugin.askProvider(for:)`), and without one the on-device model answers.
+    init(session: BookSession, bookID: UUID, provider makeProvider: ((AskProviderContext) -> (any AskProvider)?)? = nil) {
         self.session = session
-        recaps = RecapBuilder(session: session, store: RecapStore(bookID: bookID))
-        history = AskHistoryStore(bookID: bookID)
-        exchanges = history.entries.map(Exchange.init)
+        let onDevice = OnDeviceAskProvider(session: session, bookID: bookID)
+        self.onDevice = onDevice
+        let context = AskProviderContext(book: session.book, session: session, onDevice: onDevice)
+        provider = (makeProvider ?? { Plugins.current?.askProvider(for: $0) })(context) ?? onDevice
+        availability = provider.availability
+        if provider === onDevice {
+            // On this device it is at hand: there from the start, as before providers.
+            exchanges = onDevice.savedTurns.map(Exchange.init)
+        } else {
+            Task { await loadConversation() }
+        }
     }
 
     var isBusy: Bool { answering != nil }
 
-    func refreshAvailability() { availability = AskEngine.availability }
+    /// Where answers come from, when it isn't the on-device model (`AskProvider.about`).
+    var about: String? { provider.about }
+    /// What the reader should know about the next answer (`AskProvider.notice`).
+    var notice: String? { provider.notice }
+
+    /// The panel opened: ask the provider again whether it can answer.
+    func refreshAvailability() {
+        availability = provider.availability
+        Task {
+            await provider.refresh()
+            availability = provider.availability
+        }
+    }
+
+    /// The provider's saved conversation, before anything asked since the model was made.
+    private func loadConversation() async {
+        let saved = await provider.conversation()
+        exchanges = saved.map(Exchange.init) + exchanges.filter { !$0.restored }
+    }
 
     /// Attaches a passage picked in the book as the subject of the next question, and starts the
     /// draft with `subjectQuestion`. 🔴 Its text is cut to the current limit like everything else
@@ -126,13 +156,13 @@ final class AskModel {
         subject = nil
     }
 
-    /// The reader moved: summarise chapters finished since.
-    func readerMoved(to spine: Int) { recaps.start(before: spine) }
+    /// The reader moved (the on-device model summarises chapters finished since).
+    func readerMoved(to spine: Int) { provider.readerMoved(to: spine) }
 
     func ask(_ text: String? = nil) {
         let question = (text ?? draft).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !question.isEmpty, answering == nil else { return }
-        refreshAvailability()
+        availability = provider.availability
         guard availability.isAvailable else { return }
         draft = ""
         // The attached passage goes with this question, cut to the limit again as it is now.
@@ -149,11 +179,15 @@ final class AskModel {
         let chapter = session.chapterTitle(for: limit.spineIndex) ?? "Chapter \(limit.spineIndex + 1)"
         exchanges.append(Exchange(question: question, subject: subject, chapter: chapter, limit: limit))
         let id = exchanges[exchanges.count - 1].id
+        let request = AskQuestion(text: question, subject: subject, earlier: earlier, limit: limit)
         answering = Task {
-            recaps.pause()
-            await answer(question, subject: subject, earlier: earlier, id: id)
-            recaps.resume()
+            await provider.answer(request) { apply($0, to: id) }
+            // A provider that returned without finishing was stopped, or let the question go.
+            if let exchange = exchanges.first(where: { $0.id == id }), exchange.state == .lookingUp || exchange.state == .answering {
+                update(id) { $0.state = .failed(Task.isCancelled ? "Stopped." : "No answer came back.") }
+            }
             answering = nil
+            if exchanges.contains(where: { $0.id == id && $0.state == .done }) { await keepConversation() }
         }
     }
 
@@ -165,7 +199,7 @@ final class AskModel {
     func clear() {
         cancel()
         exchanges.removeAll()
-        history.save([])
+        Task { await provider.clear() }
     }
 
     /// Moves the limit on (never back) while the panel is open and the reader turns pages.
@@ -178,8 +212,8 @@ final class AskModel {
         other.spineIndex < limit.spineIndex || (other.spineIndex == limit.spineIndex && other.textOffset <= limit.textOffset)
     }
 
-    private func saveHistory() {
-        history.save(exchanges.filter { $0.state == .done && !$0.answer.isEmpty }.map(\.entry))
+    private func keepConversation() async {
+        await provider.keep(exchanges.filter { $0.state == .done && !$0.answer.isEmpty }.map(\.turn))
     }
 
     private func update(_ id: UUID, _ change: (inout Exchange) -> Void) {
@@ -187,85 +221,22 @@ final class AskModel {
         change(&exchanges[index])
     }
 
-    private func answer(_ question: String, subject: String?, earlier: (question: String, answer: String)?, id: UUID) async {
-        let limit = self.limit
-        let index = await passageIndex(for: limit)
-        guard !Task.isCancelled else { return update(id) { $0.state = .failed("Stopped.") } }
-
-        // Search words: the model's (names, other names of the same people, key words) kept to the
-        // ones the read text has, then the question's own words.
-        let suggested = await AskEngine.searchTerms(question: question, earlier: earlier?.question, subject: subject,
-                                                    names: index.topNames(150))
-        let terms = index.presentTerms(suggested + PassageIndex.words(question))
-        AskEngine.log.info("ask: terms \(terms.joined(separator: ", "), privacy: .private)")
-
-        let chapters = session.chapters.count
-        var labels: [Int: String] = [:]
-        for spine in 0 ..< chapters { labels[spine] = session.chapterTitle(for: spine) ?? "Chapter \(spine + 1)" }
-        let summaries = recaps.recaps(before: limit.spineIndex)
-        let earlierLength = earlier.map { $0.question.count + min(400, $0.answer.count) } ?? 0
-        var budget = AskEngine.contextBudget(question: question, earlier: earlierLength, subject: subject?.utf16.count ?? 0)
-
-        func source(for excerpt: AskContext.Excerpt) -> Source {
-            Source(location: ReadingLocation(spineIndex: excerpt.passage.spineIndex, textOffset: excerpt.passage.range.lowerBound),
-                   chapter: labels[excerpt.passage.spineIndex] ?? "",
-                   snippet: String(excerpt.passage.text.prefix(160)))
-        }
-
-        for attempt in 0 ..< 2 {
-            let context = AskContextBuilder.build(index: index, terms: terms, recaps: summaries, limit: limit,
-                                                  budget: budget, chapterLabel: { labels[$0] ?? "Chapter \($0 + 1)" })
-            update(id) {
-                $0.state = .answering
-                $0.answer = ""
-                $0.summaryCount = context.recaps.count
-                $0.sources = context.excerpts.filter { $0.kind == .found }.prefix(8).map(source(for:))
-            }
-            if context.excerpts.isEmpty && context.recaps.isEmpty {
-                return update(id) { $0.state = .failed("There’s nothing read yet to answer from.") }
-            }
-            let prompt = AskEngine.answerPrompt(question: question, context: context.text, names: index.topNames(15),
-                                                earlier: earlier, subject: subject)
-            do {
-                for try await partial in AskEngine.answer(prompt: prompt) {
-                    update(id) { $0.answer = partial }
-                }
-                if Task.isCancelled { return update(id) { $0.state = .failed("Stopped.") } }
-                update(id) { exchange in
-                    exchange.state = .done
-                    // Cite what the answer drew on (recent passages included), not every match; an
-                    // answer that shares nothing with them keeps the matches it was looked up in.
-                    let cited = context.citations(for: exchange.answer, question: question)
-                    if !cited.isEmpty { exchange.sources = cited.map(source(for:)) }
-                }
-                return saveHistory()
-            } catch {
-                switch AskEngine.classify(error) {
-                case .contextTooLong where attempt == 0:
-                    AskEngine.log.notice("ask: context too long at \(budget), retrying smaller")
-                    budget = budget * 3 / 5
-                case .declined:
-                    return update(id) { $0.state = .failed("The on-device model declined to answer this one.") }
-                case .contextTooLong, .other:
-                    AskEngine.log.error("ask failed: \(error)")
-                    return update(id) { $0.state = .failed(Task.isCancelled ? "Stopped." : "Couldn’t answer: \(error.localizedDescription)") }
-                }
+    private func apply(_ progress: AskUpdate, to id: UUID) {
+        update(id) { exchange in
+            switch progress {
+            case .answering(let sources, let summaryCount):
+                exchange.state = .answering
+                exchange.answer = ""
+                exchange.summaryCount = summaryCount
+                exchange.sources = sources
+            case .text(let text):
+                exchange.answer = text
+            case .done(let sources):
+                exchange.state = .done
+                if let sources { exchange.sources = sources }
+            case .failed(let message):
+                exchange.state = .failed(message)
             }
         }
-    }
-
-    /// The read part's passages and index, built off the main actor and kept until the reader moves.
-    private func passageIndex(for limit: ReadingLimit) async -> PassageIndex {
-        if let indexed, indexed.limit == limit { return indexed.index }
-        let chapters = session.chapters
-        let index = await Task.detached(priority: .userInitiated) {
-            // Title pages and half-titles (a line or two) match every question about the hero named
-            // in the title and tell the model nothing; leave such short chapters out.
-            let passages = ReadSoFar.passages(chapters: chapters, limit: limit)
-                .filter { chapters[$0.spineIndex].textLength >= 400 }
-            return PassageIndex(passages: passages)
-        }.value
-        indexed = (limit, index)
-        return index
     }
 }

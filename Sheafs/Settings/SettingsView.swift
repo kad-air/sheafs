@@ -34,6 +34,22 @@ struct SettingsView: View {
                     Text("Spoiler-free answers about plot and characters from Apple’s on-device model.")
                 }
 
+                if let screens = Plugins.current?.settingsScreens, !screens.isEmpty {
+                    Section {
+                        ForEach(screens) { screen in
+                            NavigationLink {
+                                screen.content().navigationTitle(screen.title)
+                            } label: {
+                                LabeledContent {
+                                    Text(screen.value ?? "")
+                                } label: {
+                                    Label(screen.title, systemImage: screen.systemImage)
+                                }
+                            }
+                        }
+                    }
+                }
+
                 Section("Library") {
                     NavigationLink {
                         LibrarySettingsView()

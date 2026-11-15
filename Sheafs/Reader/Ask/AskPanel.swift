@@ -71,6 +71,12 @@ struct AskPanel: View {
                 subjectQuote(subject.text)
                     .onGeometryChange(for: CGFloat.self) { $0.size.height + 10 } action: { subjectHeight = $0 }
             }
+            // The provider's word on the next answer (`AskProvider.notice`).
+            if let notice = model.notice {
+                Label(notice, systemImage: "info.circle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             inputBar
         }
         .font(.subheadline)
@@ -149,7 +155,7 @@ struct AskPanel: View {
                         .disabled(model.isBusy)
                 }
             }
-            Text("Answers come from Apple’s on-device model and use only the text up to the end of this page, so they can’t give away what happens next. Nothing leaves your device. \(recapLine)")
+            Text(model.about ?? "Answers come from Apple’s on-device model and use only the text up to the end of this page, so they can’t give away what happens next. Nothing leaves your device. \(recapLine)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
