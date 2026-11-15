@@ -412,8 +412,9 @@ shots_duo() {
   shot duo-cover/cover-portrait-4-flip.png       cover portrait          0 "$COVER"   -SheafsOpen Pride -SheafsGoTo 0.05 \
     -SheafsFlipAuto forward -SheafsFlipFreeze 0.5 -SheafsFlipGrab 0.9
   shot duo-cover/cover-portrait-5-appearance.png cover portrait          0 "$COVER"   -SheafsOpen Gatsby -SheafsGoTo II -SheafsAppearance quick
-  # Ask over the spread: the panel keeps to the left page, which holds about 340 characters of answer
-  # with the passages line still showing. The Lowood answers ran 370-530, so the Duo asks something
+  # Ask over the spread: the pane runs the left page's side, full height, beside the book (it held about
+  # 340 characters of answer with the passages line when it floated over the left page's bottom half;
+  # ASK_MAX keeps that measure). The Lowood answers ran 370-530, so the Duo asks something
   # narrower, early (chapter V: Jane about to leave for Lowood). Of about 40 questions and places tried
   # on the Duo and the iPhone (2026-10-30), this was one of the few both short and right; the rest got
   # details wrong ("Who is Miss Temple?" called her a teacher, not the superintendent; Bessie was put

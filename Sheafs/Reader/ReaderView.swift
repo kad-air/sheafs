@@ -129,7 +129,9 @@ struct ReaderView: View {
                 .persistentSystemOverlays(chromeVisible ? .automatic : .hidden)
                 .safeAreaInset(edge: .bottom) {
                     if chromeVisible, let session, session.isReady, geometry.reading?.division.map({ $0.width < $0.height }) ?? true {
+                        // Beside Ask, over the book's side only.
                         progressStrip(session)
+                            .padding(.leading, askPaneWidth ?? 0)
                     }
                 }
         }
@@ -144,8 +146,10 @@ struct ReaderView: View {
                 .frame(maxWidth: quickPanelWidth ?? .infinity)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             } else if showAsk {
+                // Beside the book (the Duo's inner display), the left of the fold, full height;
+                // otherwise floating over the bottom of the page (`AskPresentation`).
                 askPanel
-                    .frame(maxWidth: quickPanelWidth ?? .infinity)
+                    .frame(maxWidth: askPaneWidth ?? quickPanelWidth ?? .infinity, maxHeight: askPaneWidth == nil ? nil : .infinity)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
@@ -283,8 +287,11 @@ struct ReaderView: View {
                                              margin: settings.margin, fontSize: settings.fontSize, allowSpread: true,
                                              fullBleed: true)
                 let layout = PageLayout.compute(geometry.input(for: fresh))
+                // Ask beside the book: the pager takes the right page's side alone (`AskPresentation`).
+                let asking = showAsk ? AskPresentation.choose(for: layout, division: fresh.division, window: full) : .floating
+                let bookFrame = asking.bookFrame(in: full)
                 ZStack(alignment: .topLeading) {
-                    ReaderPager(session: session, layout: layout, style: style, palette: palette,
+                    ReaderPager(session: session, layout: asking.pages(layout), style: style, palette: palette,
                                 location: session.location, tapTurnsPages: settings.tapToTurn,
                                 marks: annotations.map(\.mark) + foundMarks, bookmarks: bookmarks.map(\.mark), sketches: sketches.compactMap(\.mark), highlightColor: settings.highlightColor, pageTurn: settings.pageTurn, proxy: pagerProxy,
                                 offersAsk: settings.askEnabled,
@@ -306,6 +313,8 @@ struct ReaderView: View {
                                 onSelectionAction: handle(selection:),
                                 onSystemSheet: { pagerSheet = $0 },
                                 onSketchEdits: { library.apply($0, for: book) })
+                        .frame(width: bookFrame.width, height: bookFrame.height)
+                        .padding(.leading, bookFrame.minX)
                     if let deck = layout.deckFrame {
                         ReaderDeck(session: session, proxy: pagerProxy,
                                    showContents: $showContents, showAppearance: $showQuickAppearance,
@@ -360,6 +369,15 @@ struct ReaderView: View {
                           "holding=\(geometry.isHolding(new))")
                 }
                 .animation(.smooth, value: layout.deckFrame != nil)
+                // `[ask] presentation …` whenever Ask opens or moves between floating and beside
+                // (a fold, unfold or rotation with it up): the pages in window coordinates, the
+                // position and the conversation's length, which a fold must keep.
+                .onChange(of: showAsk ? asking : nil) { _, new in
+                    guard let new else { return }
+                    let pages = asking.pages(layout).pageFrames.map { $0.offsetBy(dx: bookFrame.minX, dy: bookFrame.minY) }
+                    print("[ask] presentation \(new.isBeside ? "beside" : "floating") window=\(full) book=\(bookFrame) pages=\(pages) "
+                        + "location=\(session.location.spineIndex):\(session.location.textOffset) turns=\(ask?.exchanges.count ?? 0)")
+                }
             }
         }
         .background {
@@ -554,7 +572,7 @@ struct ReaderView: View {
         case .center:
             if showQuickAppearance {
                 withAnimation(.snappy) { showQuickAppearance = false }
-            } else if showAsk {
+            } else if showAsk, askPaneWidth == nil {
                 closeAsk()
             } else {
                 withAnimation(.snappy) { chromeVisible.toggle() }
@@ -714,6 +732,16 @@ struct ReaderView: View {
         return max(0, division.minX - (geometry.reading?.safeArea.leading ?? 0))
     }
 
+    /// Ask beside the book (`AskPresentation.beside`): the pane's width, from the leading safe edge
+    /// to the left page's right edge; nil while Ask floats (or is closed). From the locked layout
+    /// input, as the pages are laid out (a spread's frames don't depend on the text settings).
+    private var askPaneWidth: CGFloat? {
+        guard showAsk, let input = geometry.reading,
+              case .beside(let pane, _) = AskPresentation.choose(for: PageLayout.compute(input), division: input.division,
+                                                                 window: input.size) else { return nil }
+        return max(0, pane.maxX - input.safeArea.leading)
+    }
+
     /// The bars would cover the text being adjusted, so they make way for the panel.
     private func openQuickAppearance() {
         withAnimation(.snappy) {
@@ -793,7 +821,7 @@ struct ReaderView: View {
     @ViewBuilder
     private var askPanel: some View {
         if let ask, let session {
-            AskPanel(model: ask, maxHeight: askPanelHeight,
+            AskPanel(model: ask, maxHeight: askPanelHeight, fillsHeight: askPaneWidth != nil,
                      backLabel: trail.isEmpty ? nil : trail.lastPage.map { "Back to page \($0)" } ?? "Back",
                      onBack: goBack,
                      onGo: { location in
@@ -839,6 +867,7 @@ struct ReaderView: View {
     }
 
     private func closeAsk() {
+        print("[ask] closed")
         withAnimation(.snappy) { showAsk = false }
     }
 
@@ -856,10 +885,12 @@ struct ReaderView: View {
     private func openSearch() {
         guard let session, session.isReady else { return }
         if search == nil { search = BookSearchModel(session: session) }
+        // Beside the book Ask stays: the result lands on the book's side.
+        let keepsAsk = askPaneWidth != nil
         withAnimation(.snappy) {
             chromeVisible = false
             showQuickAppearance = false
-            showAsk = false
+            if !keepsAsk { showAsk = false }
         }
         showSearch = true
     }

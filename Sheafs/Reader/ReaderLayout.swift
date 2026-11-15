@@ -123,6 +123,45 @@ struct PageLayout: Equatable {
     }
 }
 
+/// Where the Ask pane goes while it is up. Over a VERTICAL fold laid out as a spread (the Duo's inner
+/// display, flat or in book pose) Ask takes the left page's side and the book stays live on the
+/// right as ONE page: the spread's right page, the one holding the reading position, in the same
+/// place at the same size. So opening or closing Ask (or unfolding with it up) moves no text and
+/// keeps the spread's pagination; pages then turn one at a time. Neither side reaches into the fold:
+/// the spread's frames already keep clear of it. Everywhere else (the cover display, inner portrait,
+/// tabletop, iPhone, an iPad's fold-less spread) Ask floats over the bottom of the page.
+enum AskPresentation: Equatable {
+    case floating
+    /// `pane`: the left page's side of the window, to its frame's right edge, full height. `book`:
+    /// the pager's frame, from the right page's left edge to the window's right edge.
+    case beside(pane: CGRect, book: CGRect)
+
+    static func choose(for layout: PageLayout, division: CGRect?, window: CGSize) -> AskPresentation {
+        guard layout.isSpread, let fold = division, fold.height > fold.width else { return .floating }
+        let left = layout.pageFrames[0], right = layout.pageFrames[1]
+        guard left.maxX <= fold.minX, right.minX >= fold.maxX, right.minX < window.width else { return .floating }
+        return .beside(pane: CGRect(x: 0, y: 0, width: left.maxX, height: window.height),
+                       book: CGRect(x: right.minX, y: 0, width: window.width - right.minX, height: window.height))
+    }
+
+    var isBeside: Bool { if case .beside = self { true } else { false } }
+
+    /// The pager's frame in the window: all of it, or the book's side of the fold.
+    func bookFrame(in window: CGSize) -> CGRect {
+        if case .beside(_, let book) = self { return book }
+        return CGRect(origin: .zero, size: window)
+    }
+
+    /// The pages as the pager lays them out in its own frame (`bookFrame`): beside Ask, the spread's
+    /// right page alone, where it was in the window. Same size, so the same pagination.
+    func pages(_ layout: PageLayout) -> PageLayout {
+        guard case .beside(_, let book) = self, layout.isSpread else { return layout }
+        var single = layout
+        single.pageFrames = [layout.pageFrames[1].offsetBy(dx: -book.minX, dy: -book.minY)]
+        return single
+    }
+}
+
 /// Where the iPhone Duo's cover-display camera hole is, written down rather than read from the
 /// system: the OCCLUSION reserved regions also carry the status-bar cluster and Live Activities (on
 /// both displays, coming and going while reading) with nothing to tell them from hardware, which
