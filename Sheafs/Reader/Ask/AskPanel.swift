@@ -5,7 +5,9 @@ import SwiftUI
 /// the window's full height on the left of the fold (`fillsHeight`). It shows the running
 /// conversation about this book (`AskThread`, from `AskModel.turns`): the saved questions and this
 /// opening's, oldest first, scrolled to the newest. Tapping an answer's passage turns to its page
-/// with the panel still up, and "Back to page N" returns.
+/// with the panel still up, and "Back to page N" returns. The KEYBOARD goes away without closing
+/// the panel: drag the conversation (it follows the finger, as in Messages), tap it, or send the
+/// question (the answer then streams into the whole pane); edge taps on the book still turn pages.
 struct AskPanel: View {
     @Bindable var model: AskModel
     /// The tallest the conversation may grow before it scrolls (floating only).
@@ -22,6 +24,8 @@ struct AskPanel: View {
     /// The attached passage's quote: the answer area gives up that much height to it.
     @State private var subjectHeight: CGFloat = 0
     @FocusState private var fieldFocused: Bool
+    /// The conversation is not being dragged, flung or scrolled.
+    @State private var scrollIdle = true
 
     /// What the panel adds around the answer: the header and input bar rows (40 each), the
     /// spacing between the three rows, the padding inside the glass and the gap under it.
@@ -57,8 +61,21 @@ struct AskPanel: View {
                     }
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
                 }
-                .scrollBounceBehavior(.basedOnSize)
+                // A drag on the conversation takes the keyboard down with it; while it is up the
+                // conversation always drags, however short, so that works from the first question.
+                .scrollDismissesKeyboard(.interactively)
+                .scrollBounceBehavior(fieldFocused ? .always : .basedOnSize)
+                // A tap on it, an answer's text included (buttons and passages still do their own thing too).
+                .simultaneousGesture(TapGesture().onEnded(dismissKeyboard), including: fieldFocused ? .all : .subviews)
                 .defaultScrollAnchor(.bottom)
+                // The keyboard coming up (or the question growing a line) shrinks the conversation:
+                // the newest turn stays in view, as in Messages. 🔴 Only while it is not being
+                // touched and only as it shrinks: scrolling it during the drag that takes the
+                // keyboard down (the pane grows with it) stopped the keyboard halfway.
+                .onScrollPhaseChange { _, phase in scrollIdle = phase == .idle }
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { old, new in
+                    if fieldFocused, scrollIdle, new < old { reader.scrollTo(Self.end, anchor: .bottom) }
+                }
                 .onAppear { reader.scrollTo(Self.end, anchor: .bottom) }
                 .onChange(of: turns.last.map { [$0.id.uuidString, $0.answer, "\($0.status)"] }) {
                     reader.scrollTo(Self.end, anchor: .bottom)
@@ -87,6 +104,7 @@ struct AskPanel: View {
         .padding(.top, fillsHeight ? 10 : 0)
         .padding(.bottom, 6)
         .onAppear { model.refreshAvailability() }
+        .task { await focusFromLaunchArgument() }
         // `[ask] thread: …` for scripts (`scripts/check-ask-duo`): how many turns the pane holds, in order.
         .onChange(of: turns.map(\.id), initial: true) {
             print("[ask] thread: \(turns.count) turns, oldest first: \(turns.map(\.question).joined(separator: " | "))")
@@ -94,6 +112,32 @@ struct AskPanel: View {
         .confirmationDialog("Delete all questions about this book?", isPresented: $confirmClear, titleVisibility: .visible) {
             Button("Delete Questions", role: .destructive) { model.clear() }
         }
+    }
+
+    /// `-SheafsAskFocus <s>` (a launch argument, with `-SheafsAskOpen`): the question field takes
+    /// focus that long after the panel first appears, keyboard up, as a tap on it would (simctl can't
+    /// tap). Once per launch.
+    private func focusFromLaunchArgument() async {
+        let delay = UserDefaults.standard.double(forKey: "SheafsAskFocus")
+        guard delay > 0, !Self.focusArgumentConsumed else { return }
+        Self.focusArgumentConsumed = true
+        try? await Task.sleep(for: .seconds(delay))
+        print("[ask] focusing the question field (launch argument)")
+        fieldFocused = true
+    }
+
+    private static var focusArgumentConsumed = false
+
+    /// Asks, and puts the keyboard away so the answer has the pane.
+    private func send(_ question: String? = nil) {
+        model.ask(question)
+        dismissKeyboard()
+    }
+
+    private func dismissKeyboard() {
+        guard fieldFocused else { return }
+        print("[ask] keyboard dismissed")
+        fieldFocused = false
     }
 
     private var header: some View {
@@ -148,7 +192,7 @@ struct AskPanel: View {
             // Questions about the whole book; not while a passage is attached (it would go with them).
             if model.subject == nil {
                 ForEach(Self.suggestions, id: \.self) { suggestion in
-                    Button(suggestion) { model.ask(suggestion) }
+                    Button(suggestion) { send(suggestion) }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
                         .background(.fill.tertiary, in: Capsule())
@@ -177,7 +221,7 @@ struct AskPanel: View {
                 .lineLimit(1 ... 3)
                 .focused($fieldFocused)
                 .submitLabel(.send)
-                .onSubmit { model.ask() }
+                .onSubmit { send() }
                 .disabled(!model.availability.isAvailable)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
@@ -188,7 +232,7 @@ struct AskPanel: View {
                     .frame(width: 40, height: 40)
                     .background(.fill.tertiary, in: Circle())
             } else {
-                Button("Ask", systemImage: "arrow.up") { model.ask() }
+                Button("Ask", systemImage: "arrow.up") { send() }
                     .labelStyle(.iconOnly)
                     .fontWeight(.semibold)
                     .frame(width: 40, height: 40)

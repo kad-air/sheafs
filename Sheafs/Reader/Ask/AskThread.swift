@@ -44,7 +44,8 @@ extension AskTurn {
     }
 }
 
-/// One turn of the thread: the question as a bubble on the trailing side, the answer under it.
+/// One turn of the thread: the question as a bubble on the trailing side, the answer under it,
+/// its markdown drawn (`AskAnswerText`).
 private struct AskTurnView: View {
     let turn: AskTurn
     var onGo: (ReadingLocation) -> Void
@@ -120,13 +121,11 @@ private struct AskTurnView: View {
         case .answering where turn.answer.isEmpty:
             ProgressView()
         case .failed(let message):
-            if !turn.answer.isEmpty { Text(turn.answer) }
+            if !turn.answer.isEmpty { AskAnswerText(markdown: turn.answer) }
             Label(message, systemImage: "exclamationmark.triangle")
                 .foregroundStyle(.secondary)
         default:
-            Text(turn.answer)
-                .font(.body)
-                .textSelection(.enabled)
+            AskAnswerText(markdown: turn.answer, streaming: turn.status == .answering)
         }
     }
 }

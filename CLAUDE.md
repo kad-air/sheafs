@@ -65,6 +65,13 @@ scripts/check-ask-duo             # end to end on a simulator (SIM="iPhone Duo";
                                   #   history's order (the JSON on disk), fold shut → floating / open →
                                   #   beside with the same position and turns, a centre tap: bars beside,
                                   #   closes Ask on the cover (OUT=/tmp/sheafs-ask-duo); NO_BUILD=1
+scripts/check-ask-keyboard        # end to end on a simulator (SIM="iPhone Duo"; Apple Intelligence on this
+                                  #   Mac): Ask's KEYBOARD never moves the book. The keyboard up (UIKit's
+                                  #   frame) through book pose → flat, on the cover, and unfolding; Ask
+                                  #   closed with it up: every `[layout]` line keeps the no-Ask reference's
+                                  #   page heights, the spread/cover page is the reference's pixels, text
+                                  #   below the keyboard's old top after folding and unfolding
+                                  #   (OUT=/tmp/sheafs-ask-keyboard); NO_BUILD=1
 scripts/check-volume-device       # on the PHONE (unlocked; DEVICE=<udid>, BOOK=<title>, APP=<built .app> or
                                   #   ASC_KEY_* to build): probes the volume one step at a time like presses
                                   #   and asserts each read, turned the right way (landed location) and was
@@ -301,7 +308,16 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     `AskSubject` is a passage the reader picked (the selection menu's Ask): 🔴 `text(in:limit:)` is
     the spoiler wall for it, its display text up to the limit only (cut back to a whole word, nil
     if it starts at or past it), cleaned like a passage, at most 1200 units.
-    `CompanionTests`.
+    `CompanionTests`. `AnswerMarkdown` parses an ANSWER's markdown (models write it; the hub's too)
+    into blocks of styled runs for the pane (`AskAnswerText`): paragraphs (a single line break stays
+    a break), "-"/"*"/"+"/"•" bullets and "1."/"1)" items nested by indent, "#" headings, "> "
+    quotes, rules dropped; `**bold**`, `*italic*`, `_x_` (not inside a word), `***both***`,
+    `` `code` ``, escapes; a mark with no partner stays as typed. 🔴 `streaming:` the end of an
+    answer still arriving never shows a mark raw that later turns into style: an opened emphasis
+    styles what has come, a mark at the very end and a last line that is only a marker ("1.",
+    "-", "##") wait for the next characters. `AnswerMarkdownTests` replays two real on-device
+    answers one character at a time and requires every prefix to show the start of the final
+    answer, character, style and block.
   - `Text/BookSearch` — find-in-book. `BookSearchIndex(chapters:)` folds each chapter's text ONCE
     (case, diacritics, width, NFKC, curly → straight quotes, whitespace runs → one space, soft
     hyphens and other default-ignorables dropped; one character at a time, the query the same way)
@@ -524,9 +540,26 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     still turn pages, and turning on moves the limit on, never back: `AskModel.extendLimit`.
     `[ask] presentation beside|floating … pages=… location=… turns=…` is printed whenever it opens
     or moves, `[ask] closed` when it closes; `AskPresentationTests`, `scripts/check-ask-duo`.
+    THE KEYBOARD goes away with the panel staying up: dragging the conversation (interactive, it
+    follows the finger as in Messages; while the field has focus the conversation always drags,
+    however short), a tap on it (an answer's text too: the pane's simultaneous tap fires over the
+    text view), or sending (the button, Return or a suggestion: the answer then has the pane).
+    `[ask] keyboard dismissed`. As the keyboard comes up the newest turn stays in view (scrolled to
+    when the conversation SHRINKS while it isn't being touched, `onScrollPhaseChange`): 🔴 scrolling
+    it on every height change scrolled it during the drag that takes the keyboard down (the pane
+    grows with it), and the keyboard stopped halfway. 🔴 The keyboard never moves the BOOK: the pages' geometry reader
+    ignores the keyboard's safe area (`.ignoresSafeArea(.keyboard)` in `ReaderView.pages`), only
+    the panel (an overlay) avoids it. It used to be a reading inset: a fold, unfold or book pose ↔
+    flat while it was up let `SteadyPageGeometry` learn and LOCK its 264 pt, so closing Ask left
+    the spread cut off where the keyboard's top had been (folios mid-screen) until the next fold.
+    `[keyboard] will change to <frame>` lines; `scripts/check-ask-keyboard`.
     THE CONVERSATION: the panel shows the RUNNING thread for the book (`AskThread`), oldest first,
     scrolled to the newest (and kept there while an answer streams): each turn's quoted passage and
-    question as a bubble, then its answer and the passages it came from (`AskContext.citations`: the context's
+    question as a bubble, then its answer, its markdown DRAWN (`AskAnswerText`: a read-only
+    `UITextView` over `AnswerMarkdown`, body style at the reader's text size, items in a hanging
+    indent, a break inside a block a U+2028 line separator so the spacing stays between blocks;
+    real text selection across the answer, Copy gives the text as read, no asterisks;
+    `AskAnswerTextTests`), and the passages it came from (`AskContext.citations`: the context's
     excerpts, recent ones included, scored by the answer's words they share);
     tapping one jumps there with the panel up, and the panel carries "Back to page N" (it can
     cover the folio's). 🔴 The thread is drawn from `AskTurn`s only, the ONE turn type
@@ -572,7 +605,9 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     against `AskHistoryStore`).
     `-SheafsAsk <question>` (with `-SheafsOpen`) asks once and prints `[ask]` lines;
     `-SheafsAskOpen 1` opens the panel and prints the saved questions; `-SheafsAskSource <n>`
-    then opens the answer's nth passage. Not on the tabletop deck.
+    then opens the answer's nth passage; `-SheafsAskFocus <s>` focuses the question field that long
+    after the panel appears (the keyboard up, as a tap would) and `-SheafsAskCloseAfter <s>` closes
+    the panel that long after it opened, as ✕ does. Not on the tabletop deck.
   - `Plugins/SheafsPlugin.swift` — the seam for a build that adds features of its own (Sheafs has
     none: `Plugins.current` is nil and nothing below shows). Such a build compiles its sources into
     the Sheafs target and sets the compile condition `SHEAFS_PLUGIN`; `SheafsApp.init` then calls
@@ -873,7 +908,9 @@ rect, which carries the trailing line/paragraph spacing: otherwise the last line
 🔴 Nothing but the display itself moves the text (`SteadyPageGeometry`, `SteadyPageGeometryTests`).
 The bars change the safe areas, so they are learned per display state (window size + fold
 position/activity + camera) during the first 1.5 s, then LOCKED: later changes on the same display
-are ignored, and the bars overlay the page. A fold, unfold, rotation or book pose is a new display
+are ignored, and the bars overlay the page. It cannot tell a reading inset from anything else the
+safe area carries in that window, so nothing else may reach it: the KEYBOARD is ignored at the
+pages' reader (Ask above; it was learned and locked when a fold came while it was up). A fold, unfold, rotation or book pose is a new display
 state and is followed at once; a size change while the bars are up hides them first.
 🔴 The window size is the reader's proxy size PLUS its insets, SNAPPED to whole pixels
 (`PageLayout.windowSize`), and only a change of a point or more is a new window with the bars up
