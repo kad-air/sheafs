@@ -6,7 +6,9 @@ the EPUB parser. For each EPUB fixture it records what Python's zipfile and
 ElementTree/html.parser make of the file: the central directory (sizes, CRC-32,
 compression method, and the CRC-32 of the first 4096 decompressed bytes of every
 entry, which proves the Swift inflater byte for byte against zlib), the package
-metadata, manifest/spine, cover, and the flattened table of contents. Everything is
+metadata, manifest/spine, cover, the flattened table of contents, and the page list (the
+print edition's page markers: label, target, and the first words of body text after the
+target element, which pins where the Swift side resolves each marker to). Everything is
 computed with the Python standard library only, never with SheafsKit code.
 
 Run from the repo root:
@@ -469,6 +471,146 @@ def read_toc(archive, items, spine_toc_id):
     return []
 
 
+# --------------------------------------------------------------------------- page list
+
+TEXT_AFTER_LENGTH = 24
+
+
+class PageListNavParser(html.parser.HTMLParser):
+    """The links of <nav epub:type="page-list">, nested lists flattened, in document order."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.depth = 0  # >0 while inside the page-list nav (counts nested navs)
+        self.link = None  # [href, parts] while inside an <a>
+        self.entries = []
+
+    def handle_starttag(self, tag, attrs):
+        values = dict(attrs)
+        if tag == "nav":
+            if self.depth:
+                self.depth += 1
+            elif "page-list" in (values.get("epub:type") or "").split():
+                self.depth = 1
+        elif tag == "a" and self.depth and self.link is None:
+            self.link = [values.get("href"), []]
+
+    def handle_data(self, data):
+        if self.link is not None:
+            self.link[1].append(data)
+
+    def handle_endtag(self, tag):
+        if tag == "a" and self.link is not None:
+            self.entries.append((collapse("".join(self.link[1])), self.link[0]))
+            self.link = None
+        elif tag == "nav" and self.depth:
+            self.depth -= 1
+
+
+def parse_page_list_nav(data):
+    parser = PageListNavParser()
+    parser.feed(data.decode("utf-8", errors="replace"))
+    parser.close()
+    return parser.entries or None
+
+
+def parse_page_list_ncx(data):
+    root = ET.fromstring(data)
+    page_list = first_child(root, "pageList")
+    if local(root.tag) != "ncx" or page_list is None:
+        return None
+    entries = []
+    for target in (e for e in page_list.iter() if local(e.tag) == "pageTarget"):
+        label = first_child(target, "navLabel")
+        text = next((e for e in label.iter() if local(e.tag) == "text"), None) if label is not None else None
+        content = first_child(target, "content")
+        entries.append((text_of(text) if text is not None else (attr(target, "value") or ""),
+                        attr(content, "src") if content is not None else None))
+    return entries or None
+
+
+class TextAfterParser(html.parser.HTMLParser):
+    """The body text that follows the start tag of the element with this id (or <a name>), as
+    a reader would see it: script/style/head skipped, whitespace collapsed."""
+
+    SKIP = {"head", "script", "style"}
+
+    def __init__(self, fragment):
+        super().__init__(convert_charrefs=True)
+        self.fragment = fragment
+        self.found = fragment is None
+        self.skipping = 0
+        self.parts = []
+
+    def handle_starttag(self, tag, attrs):
+        values = dict(attrs)
+        if tag in self.SKIP:
+            self.skipping += 1
+        if not self.found and (values.get("id") == self.fragment
+                               or (tag == "a" and values.get("name") == self.fragment)):
+            self.found = True
+
+    def handle_startendtag(self, tag, attrs):
+        self.handle_starttag(tag, attrs)
+        if tag in self.SKIP:
+            self.skipping -= 1
+
+    def handle_endtag(self, tag):
+        if tag in self.SKIP and self.skipping:
+            self.skipping -= 1
+
+    def handle_data(self, data):
+        if self.found and not self.skipping:
+            self.parts.append(data)
+
+
+def text_after(archive, path, fragment):
+    try:
+        data = archive.read(path)
+    except KeyError:
+        return None
+    parser = TextAfterParser(fragment)
+    parser.feed(data.decode("utf-8", errors="replace"))
+    parser.close()
+    if not parser.found:
+        return None
+    return collapse("".join(parser.parts))[:TEXT_AFTER_LENGTH]
+
+
+def read_page_list(archive, items, spine_toc_id):
+    """Nav document first, then the NCX, like the table of contents."""
+    found, base = None, None
+    nav_item = next((i for i in items if "nav" in i["properties"]), None)
+    if nav_item is not None:
+        try:
+            found, base = parse_page_list_nav(archive.read(nav_item["path"])), nav_item["path"]
+        except KeyError:
+            found = None
+    if not found:
+        candidates = []
+        if spine_toc_id:
+            candidates += [i for i in items if i["id"] == spine_toc_id]
+        candidates += [i for i in items if i["mediaType"] == NCX_MEDIA_TYPE]
+        for ncx in candidates:
+            try:
+                found, base = parse_page_list_ncx(archive.read(ncx["path"])), ncx["path"]
+            except (KeyError, ET.ParseError):
+                continue
+            if found:
+                break
+    rows = []
+    for label, href in found or []:
+        path, fragment = None, None
+        href = (href or "").strip()
+        if href and not is_external(href):
+            raw_path, _, raw_fragment = href.partition("#")
+            path = resolve(raw_path, base)
+            fragment = urllib.parse.unquote(raw_fragment) or None
+        rows.append({"label": label, "path": path, "fragment": fragment,
+                     "textAfter": text_after(archive, path, fragment) if path else None})
+    return rows
+
+
 # --------------------------------------------------------------------------- per fixture
 
 
@@ -522,6 +664,7 @@ def reference_for(name):
                 "spine": spine_rows,
                 "coverPath": cover["path"] if cover is not None else None,
                 "toc": read_toc(archive, items, spine_toc_id),
+                "pageList": read_page_list(archive, items, spine_toc_id),
             }
         )
         return result
@@ -543,6 +686,17 @@ def check_known_facts(references):
     # The synthetic fixture lists an NCX in its manifest but does not ship it: no TOC.
     assert references["hub-fixture.epub"]["toc"] == []
     assert references["hub-fixture.epub"]["series"] == "Fixtures"
+    # Pride (Project Gutenberg's EPUB 2) lists 453 print pages in its NCX, from {vii} to {476};
+    # the other two have no page list.
+    pride_pages = references["pride-epub2.epub"]["pageList"]
+    assert len(pride_pages) == 453, len(pride_pages)
+    assert (pride_pages[0]["label"], pride_pages[-1]["label"]) == ("{vii}", "{476}")
+    # Every marker's element is found; four end their document (the page begins in the next
+    # file), so nothing follows them there.
+    assert all(row["textAfter"] is not None for row in pride_pages), "a Pride page marker not found"
+    assert sum(1 for row in pride_pages if row["textAfter"] == "") == 4
+    assert references["alice-epub3.epub"]["pageList"] == []
+    assert references["hub-fixture.epub"]["pageList"] == []
     assert references["hub-fixture.epub"]["seriesIndex"] == 3.0
 
 

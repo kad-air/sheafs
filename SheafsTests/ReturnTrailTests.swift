@@ -18,14 +18,14 @@ struct ReturnTrailTests {
         #expect(trail.back() == nil)
     }
 
-    /// The label keeps the number the folio showed when you left, even if pages are re-cut later.
+    /// The label keeps the folio its page showed when you left (a reference page, so a roman one too).
     @Test func eachStopKeepsThePageNumberItWasLeftFrom() {
         var trail = ReturnTrail()
-        trail.leave(loc(3, 1250), page: 10, for: loc(9, 40), samePage: samePage)
-        trail.leave(loc(9, 40), page: 195, for: loc(1, 0), samePage: samePage)
-        #expect(trail.lastPage == 195)
+        trail.leave(loc(3, 1250), page: "xii", for: loc(9, 40), samePage: samePage)
+        trail.leave(loc(9, 40), page: "195", for: loc(1, 0), samePage: samePage)
+        #expect(trail.lastPage == "195")
         _ = trail.back()
-        #expect(trail.lastPage == 10)
+        #expect(trail.lastPage == "xii")
     }
 
     @Test func hopsRetraceInReverse() {

@@ -9,9 +9,11 @@
 #     line there that the flip's textures don't have (the block's view began at the fold's half
 #     pixel), so the line vanished at every turn and came back when the leaf landed;
 #   - that row has the page's edge line in both (darker than the paper above it);
-#   - the turn counts on by one: the folio of the page the leaf lands on is the turning page's plus
-#     one (`[flip] turn … folio X → Y`). 🔴 It was summed afresh from estimates that moved when
-#     the neighbouring chapters were laid out: 531 → 518 on the phone.
+#   - the folios either side of the turn (`[flip] turn … folio X → Y`) are pages of Pride's PRINT
+#     edition (its NCX page list, read here by Python, not by the app), and the turn never counts
+#     back: Y is X or X + 1 (one half-display page holds less than a print page). 🔴 They were
+#     once screen-page counts summed from estimates that moved when the neighbouring chapters were
+#     laid out: 531 → 518 on the phone.
 #   SIM="iPhone Duo" (default), DERIVED_DATA=/tmp/sheafs-derived (builds there, incrementally),
 #   NO_BUILD=1 (installs the last build), OUT=/tmp/sheafs-tabletop-check (screenshots, kept)
 set -euo pipefail
@@ -161,8 +163,17 @@ TURN=$(grep -a '^\[flip\] turn forward folio' "$OUT/turning-console.log" | head 
 echo "  $TURN"
 read -r FROM TO <<<"$(sed -E 's/.*folio ([0-9]+) → ([0-9]+).*/\1 \2/' <<<"$TURN")"
 [[ $FROM =~ ^[0-9]+$ && $TO =~ ^[0-9]+$ ]] || fail "cannot read the folios from: $TURN"
-(( TO == FROM + 1 )) || fail "a forward turn from page $FROM lands on page $TO, not $((FROM + 1))"
-echo "  ok: the turn counts on by one ($FROM → $TO)"
+PRINT_PAGES=$(unzip -p "$EPUB" OEBPS/toc.ncx | python3 -I -c '
+import sys, xml.etree.ElementTree as ET
+labels = [e.text.strip() for t in ET.parse(sys.stdin).iter() if t.tag.endswith("pageTarget")
+          for e in t.iter() if e.tag.endswith("text") and e.text]
+print(" ".join(l.strip("{}") for l in labels))')
+for folio in "$FROM" "$TO"; do
+  [[ " $PRINT_PAGES " == *" $folio "* ]] || fail "folio $folio is not a page of Pride's print edition (its NCX page list)"
+done
+(( TO >= FROM )) || fail "a forward turn from page $FROM lands on page $TO: it counted back"
+(( TO <= FROM + 1 )) || fail "a forward turn of one page went from print page $FROM to $TO"
+echo "  ok: print pages either side of the turn, never counting back ($FROM → $TO)"
 
 "$HINGE" -d "$UDID" orient portrait
 "$HINGE" -d "$UDID" 0

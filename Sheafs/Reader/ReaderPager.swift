@@ -352,7 +352,21 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
         let spread = makeSpread(anchoredAt: PageSlot(spineIndex: location.spineIndex, page: page))
         displayedLocation = spread.location
         pager.setViewControllers([spread], direction: direction, animated: animated)
+        logFolios("shown")
         session.prefetch(around: location.spineIndex)
+    }
+
+    /// `[folio] … pages=[spine:first=folio …] strip="…"`: the folio each page of the spread on screen
+    /// shows (from its first character) and the strip's label for the position, with the text size
+    /// and type, so an end-to-end run can tell the folio held across a fold or a font change.
+    private func logFolios(_ reason: String) {
+        guard let spread = currentSpread else { return }
+        let pages = spread.slots.map { slot -> String in
+            guard let slot, let chapter = session.laidOutChapter(slot.spineIndex) else { return "blank" }
+            return "\(slot.spineIndex):\(chapter.range(ofPage: slot.page).location)=\(session.folio(of: chapter, page: slot.page) ?? "-")"
+        }
+        let strip = spread.location.map { session.progressLabel(at: $0) } ?? "-"
+        print("[folio] \(reason) pages=[\(pages.joined(separator: " "))] strip=\"\(strip)\" text=\(Int(session.textSize.width))x\(Int(session.textSize.height)) font=\(session.style.map { "\($0.fontSize)" } ?? "-")")
     }
 
     /// In a spread the reading position is the right-hand page, like a book open to where you are:
@@ -389,6 +403,7 @@ final class PagerController: UIViewController, UIPageViewControllerDataSource, U
     /// Reports a landed turn's location (saves the position) and lays out the neighbours.
     func announce(location: ReadingLocation) {
         onLocationChange?(location)
+        logFolios("landed")
         session.prefetch(around: location.spineIndex)
     }
 
@@ -1043,10 +1058,12 @@ final class SpreadViewController: UIViewController {
                 pageView.chapter = chapter
                 pageView.page = slot.page
                 // Running heads like a printed book: book title on a left page, chapter on a right
-                // or single page; the folio is the book-wide page number.
+                // or single page; the folio is the reference page its first character falls in
+                // (the print edition's page, else a page per 1,024 characters), none before a page
+                // list's first marker.
                 let chapterTitle = session.chapterTitle(for: slot.spineIndex) ?? session.book.title
                 pageView.head = (layout.isSpread && index == 0) ? session.book.title : chapterTitle
-                pageView.folio = "\(session.bookPages(spineIndex: slot.spineIndex, page: slot.page).page)"
+                pageView.folio = session.folio(of: chapter, page: slot.page) ?? ""
             }
             view.addSubview(pageView)
             pageViews.append(pageView)

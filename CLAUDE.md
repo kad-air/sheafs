@@ -33,12 +33,21 @@ scripts/check-image-viewer        # end to end on a simulator (SIM="iPhone Duo")
 scripts/check-tabletop            # end to end on a simulator (SIM="iPhone Duo", tabletop): Pride halfway,
                                   #   lying and with a forward turn frozen at 0.1; the row where the page
                                   #   meets the block must read the same in both, with the edge line, and
-                                  #   the turn must count on by one (`[flip] turn … folio X → Y`); NO_BUILD=1
+                                  #   the folios either side of the turn (`[flip] turn … folio X → Y`) must
+                                  #   be Pride's PRINT pages (its NCX, read by Python) and never count
+                                  #   back (Y = X or X + 1); NO_BUILD=1
+scripts/check-page-numbers        # end to end on a simulator (SIM="iPhone Duo"): Pride (print page list) and
+                                  #   Alice (none: synthetic) opened halfway on the cover display, unfolded,
+                                  #   then at 27 pt on the spread, folded: the page holding the position must
+                                  #   start at the `[goto]` offset and show ONE folio and "N of M" in all four
+                                  #   (`[folio]` lines + screenshots, OUT=/tmp/sheafs-page-numbers); Pride's
+                                  #   folio a print page and M its last, from the NCX by Python; NO_BUILD=1
 scripts/check-watch-remote        # end to end on a simulator (SIM="iPhone Duo"), no watch needed: Pride
                                   #   halfway, `-SheafsWatchCommands status,next,next,previous,status` on
                                   #   the cover display and a spread; each turn must be the page FLIP, start
                                   #   from the page the watch was told and tell it the folio the leaf landed
-                                  #   on; previous comes back to the page before; NO_BUILD=1
+                                  #   on (next may keep the folio, never go back); previous comes back to the
+                                  #   page before; NO_BUILD=1
 scripts/check-screen-awake        # end to end on a simulator (SIM="iPhone Duo"): the screen is held on while
                                   #   pages turn and let go 6 s (`-SheafsAwakeSeconds 6`) after the last one,
                                   #   held again on the next turn, never with the setting Off; read off
@@ -175,6 +184,8 @@ Running on a real Duo, headless: the same `xcodebuild` with `-destination 'platf
 device install app --device <udid> <Build/Products/Debug-iphoneos/Sheafs.app>`. `xcrun devicectl
 device process launch --console --device <udid> io.sheafs.reader` streams the app's `print` output:
 the reader logs a `[layout] …` line (size, safe area, regions, page frames) on every geometry change,
+a `[folio] shown|landed pages=[spine:first=folio …] strip="…" text=WxH font=N` line for every spread
+it shows (`PagerController.logFolios`) and `[pages] pageList|synthetic: …` once per book opened,
 and `GeometryProbe` logs the raw reserved regions. The simulator is not the device for reserved
 regions (see Duo behaviour below), so check layout changes on the phone.
 
@@ -183,8 +194,24 @@ regions (see Duo behaviour below), so check layout changes on the phone.
 - `Packages/SheafsKit` (Foundation + Compression + CryptoKit; builds on macOS so tests are fast):
   - `Zip/ZipArchive` — read-only ZIP (ZIP64, data descriptors, CRC-verified raw DEFLATE via Compression).
   - `EPUB/EPUBBook` — container.xml → OPF (metadata incl. calibre/EPUB3 series, manifest, full spine,
-    cover) → TOC (EPUB3 nav first, NCX fallback). `EPUBPath.resolve/split` for hrefs. Lenient XML
-    retry through an entity sanitizer.
+    cover) → TOC (EPUB3 nav first, NCX fallback) and PAGE LIST (`EPUB/PageList`: the nav's
+    `epub:type="page-list"`, else the NCX's `<pageList>`, unresolved `PageListEntry`s, the print
+    edition's page markers). `EPUBPath.resolve/split` for hrefs. Lenient XML retry through an
+    entity sanitizer.
+  - `Text/ReferencePages` — the BOOK's page numbers, for the folio and "N of M" (Duo section
+    below): the page list resolved to (spine, UTF-16 offset) through `Chapter.anchorOffsets`
+    (every element id, the offsets contract), labels as given minus ONE enclosing pair of
+    brackets (Gutenberg writes "{475}"); else SYNTHETIC, a page per 1,024 units of each chapter's
+    converted text, every spine item a new page (at least one), numbered 1… (Adobe RMSDK /
+    Readium's convention, on our text, so no typesetting). 🔴 A page list is used only if ≥ 90 %
+    of its labelled entries (and ≥ 2) resolve and no resolved entry lies before the previous one
+    (equal is fine: a blank page); otherwise synthetic, with `rejection` saying why (logged as
+    `[pages] …` on open). `page(spineIndex:offset:)` = the last page starting at or before it,
+    nil before the first marker. `total` (M) = the highest whole-number label (roman front
+    matter doesn't count), else the entry count; synthetic: the page count.
+    `ReferencePagesTests`: `epub-reference.json` (`scripts/gen_epub_reference.py`) records each
+    fixture's page list and the first words of body text after each target, and all 453 of
+    Pride's print pages must resolve to exactly that text.
   - `Text/XHTMLConverter` → `Chapter` of `Block`s (`Block.swift` is the contract). Tolerant hand-rolled
     tokenizer, NOT XMLParser. Every block records a CREngine `elementPath` (`/body/section[1]/p[3]`,
     1-based among same-tag siblings, void elements don't count) — the exact algorithm validated
@@ -706,8 +733,9 @@ regions (see Duo behaviour below), so check layout changes on the phone.
   in the app's `Watch/` folder by the Sheafs target's dependency; no extension, no entitlements) —
   the Apple Watch page-turn REMOTE: one big Next Page button marked
   `.handGestureShortcut(.primaryAction)`, so the watch's double tap presses it, a small Previous
-  Page button, the book's title and "136 of 594" (`WatchStatus.pageLabel`, a percentage until the
-  page is laid out), a click/failure haptic on each reply. `Shared/WatchMessages.swift` (app +
+  Page button, the book's title and "136 of 594" (`WatchStatus.pageLabel`: the folio, a LABEL
+  string ("xiv" too), of the reference pages' M; a percentage before a page list's first marker),
+  a click/failure haptic on each reply. `Shared/WatchMessages.swift` (app +
   watch, NOT the widget) is the WatchConnectivity contract: `WatchCommand` (next/previous/status),
   `WatchStatus` (reading / noBook / inBackground + title, page, total, progress) and `WatchReply`
   (turned + the status after it), all property-list dictionaries. The phone's end
@@ -726,7 +754,7 @@ regions (see Duo behaviour below), so check layout changes on the phone.
   app is reachable, plus `updateApplicationContext` for its next launch, only when changed) is for
   moves made on the phone. Don't gate the live push on `isWatchAppInstalled`: the simulator
   reports it false at times while the watch app is up and reachable. The page number is
-  the folio of the page holding the position, from `laidOutChapter` (never lays one out). The
+  the folio of the page holding the position (`BookSession.folio(showing:)`, never lays one out). The
   watch asks for `.status` whenever it comes on screen. Concurrency: WatchConnectivity calls
   delegates and handlers on its own queue and its headers carry no Sendable annotations, so every
   handler is `nonisolated` or an explicit `@Sendable` closure that decodes to Sendable values
@@ -804,9 +832,19 @@ parts: each part is ONE tall container cut into pages at line-fragment boundarie
 the anchor is cut BACKWARD from it so its short page lands at the chapter start, not right before
 the position), so the line that was at the top of the cover page is the first line of the right
 page after unfolding, and vice versa. Margins like Books: running head at the top (book title on a
-left page, chapter title on a right or single page), the book-wide page number centred at the
-bottom (`BookSession.bookPages`: exact for laid-out chapters, estimated by text length for the
-rest), and the chrome strip says "136 of 594 · 18 pages left in chapter".
+left page, chapter title on a right or single page), the folio centred at the bottom, and the
+chrome strip says "136 of 594 · 18 pages left in chapter" (`BookSession.progressLabel`).
+🔴 The folio and "N of M" are REFERENCE pages (`ReferencePages` in SheafsKit), never counts of
+screen pages: a screen page shows the reference page its FIRST character falls in
+(`BookSession.folio(of:page:)`; each page of a spread its own; none before a page list's first
+marker), the strip, the watch and "Back to page N" the folio of the page holding the position
+(`folio(showing:)`). So a position shows the same number folded, unfolded, in tabletop and at any
+font, and it is known (with the total) from the moment the chapters are converted. Consecutive
+screen pages can share a folio or skip one (a screen page holds more or less than a print page
+or 1,024 characters). "N pages left in chapter" stays in SCREEN pages, exact from the laid-out
+chapter. While scrubbing, the strip shows the reference page the slider would land on. Nothing
+stores a page number: positions, highlights, bookmarks, kosync and the widget are offsets,
+pointers and progress; the trail keeps its label in memory only.
 🔴 Geometry comes from a GeometryReader that does NOT ignore the safe area (inside one that does,
 `proxy.safeAreaInsets` is all zeros and the pages ran under the vertical bar): the layout works in
 window coordinates (`proxy.size` + insets, regions shifted by the insets) and the pager is a full-
@@ -935,14 +973,13 @@ come out exact, so it never reproduced there): not confirmed on the phone yet, w
   screenshot` comes out in the interface orientation, at App Store Connect's sizes as is. The
   system's own `tabletopPose` stays "Ambiguous" (it wants gravity input we cannot send), but the
   reserved regions do report the active horizontal fold, which is all `PageLayout` reads.
-- 🔴 Page numbers of chapters not laid out yet are estimates (`BookSession.bookPages`: their text
-  length at the laid-out chapters' characters per page), and that estimate moves with every chapter
-  laid out. Summing every number afresh made the folio jump under the reader (a forward turn from
-  531 landed on 518 deep in a book; `scripts/check-tabletop` saw 482 → 472). So a chapter's first
-  number is KEPT once given (`PageNumbering`, reset on a new layout): a neighbour's comes from it by
-  the exact page count between them, so turns count by one; only a chapter reached by a jump starts
-  from the estimate, then keeps it. Numbers can disagree slightly with a fresh layout's estimate
-  (reading back across many chapters after a jump); the total still settles as you read.
-  `PageNumberingTests`.
+- 🔴 Page numbers once counted SCREEN pages, estimated by text length for chapters not laid out
+  yet; the estimate moved with every chapter laid out (a forward turn from 531 landed on 518,
+  `scripts/check-tabletop` saw 482 → 472), and every fold or font change renumbered the book. They
+  are now reference pages, a function of the offset alone (`ReferencePages`). Don't bring back a
+  number derived from `PaginatedChapter` page indices or `pageCount` outside "pages left in
+  chapter". `PageNumberingTests` lays a position out anchored at five displays/fonts and requires
+  one folio, Pride's print page as Python reads it; a turn can now keep its folio, so the e2e
+  scripts require "never counts back", not "+1".
 - kosync `progress` strings from other devices are treated as opaque for comparison
   (`book.lastSyncedPointer`) and only *resolved* via `XPointer`; never rewrite them.

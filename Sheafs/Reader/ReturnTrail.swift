@@ -4,22 +4,22 @@ import SwiftUI
 /// position), so "Back to page N" can return there. A stack: following a link from an endnote and
 /// going back twice retraces both hops. Page turns never add to it.
 struct ReturnTrail: Equatable {
-    /// A place left, with the book-wide page number its folio showed then ("Back to page 136").
+    /// A place left, with the folio its page showed then ("Back to page 136", "Back to page xii").
     struct Stop: Equatable {
         var location: ReadingLocation
-        var page: Int?
+        var page: String?
     }
 
     private(set) var stops: [Stop] = []
     static let limit = 20
 
     var last: ReadingLocation? { stops.last?.location }
-    var lastPage: Int? { stops.last?.page }
+    var lastPage: String? { stops.last?.page }
     var isEmpty: Bool { stops.isEmpty }
 
     /// Remembers `from` before a jump to `to`. A jump that stays on the same page is not a place
     /// to come back from, and neither is the place already on top of the trail.
-    mutating func leave(_ from: ReadingLocation, page: Int? = nil, for to: ReadingLocation,
+    mutating func leave(_ from: ReadingLocation, page: String? = nil, for to: ReadingLocation,
                         samePage: (ReadingLocation, ReadingLocation) -> Bool) {
         guard !samePage(from, to) else { return }
         if let last, samePage(last, from) { return }

@@ -58,6 +58,15 @@ struct EPUBReference: Decodable, Sendable {
         let fragment: String?
     }
 
+    /// A page-list entry, plus the first 24 characters of body text after its target element
+    /// (whitespace collapsed; "" when the element ends its document).
+    struct PageListRow: Decodable, Sendable {
+        let label: String
+        let path: String?
+        let fragment: String?
+        let textAfter: String?
+    }
+
     let entries: [Entry]
     let opfPath: String
     let version: String?
@@ -74,6 +83,7 @@ struct EPUBReference: Decodable, Sendable {
     let spine: [SpineRow]
     let coverPath: String?
     let toc: [TOCRow]
+    let pageList: [PageListRow]
 }
 
 // MARK: - Synthetic archives

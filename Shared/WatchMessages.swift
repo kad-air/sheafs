@@ -59,8 +59,9 @@ nonisolated struct WatchStatus: Equatable, Sendable {
 
     var state: State
     var title: String?
-    /// The book-wide page number the folio shows (the right-hand page of a spread), and the total.
-    var page: Int?
+    /// The folio of the page holding the position (the right-hand page of a spread): the book's
+    /// reference page, a label ("212", "xiv"), and the M of "N of M".
+    var page: String?
     var pageCount: Int?
     /// 0…1 through the book, for when the page isn't laid out yet.
     var progress: Double?
@@ -83,7 +84,7 @@ nonisolated struct WatchStatus: Equatable, Sendable {
         return message
     }
 
-    init(state: State, title: String? = nil, page: Int? = nil, pageCount: Int? = nil, progress: Double? = nil) {
+    init(state: State, title: String? = nil, page: String? = nil, pageCount: Int? = nil, progress: Double? = nil) {
         self.state = state
         self.title = title
         self.page = page
@@ -93,7 +94,7 @@ nonisolated struct WatchStatus: Equatable, Sendable {
 
     init?(message: [String: Any]) {
         guard let raw = message["state"] as? String, let state = State(rawValue: raw) else { return nil }
-        self.init(state: state, title: message["title"] as? String, page: message["page"] as? Int,
+        self.init(state: state, title: message["title"] as? String, page: message["page"] as? String,
                   pageCount: message["pageCount"] as? Int, progress: message["progress"] as? Double)
     }
 }
