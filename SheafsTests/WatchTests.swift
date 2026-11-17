@@ -30,7 +30,7 @@ struct WatchTests {
     }
 
     @Test func statusAndReplyRoundTrip() {
-        let reading = WatchStatus(state: .reading, title: "Pride and Prejudice", page: 136, pageCount: 594, progress: 0.23)
+        let reading = WatchStatus(state: .reading, title: "Pride and Prejudice", page: "136", pageCount: 594, progress: 0.23)
         #expect(WatchStatus(message: reading.message) == reading)
         #expect(isPropertyList(reading.message))
         #expect(reading.pageLabel == "136 of 594")
@@ -65,7 +65,7 @@ struct WatchTests {
     }
 
     @Test func commandsTurnTheReaderOnlyWhileReading() {
-        let page = WatchStatus(state: .reading, title: "Emma", page: 10, pageCount: 400)
+        let page = WatchStatus(state: .reading, title: "Emma", page: "10", pageCount: 400)
         let reader = FakeReader(page)
         #expect(WatchLink.answer(.next, reader: reader.handle) == WatchReply(turned: true, status: page))
         #expect(WatchLink.answer(.previous, reader: reader.handle) == WatchReply(turned: true, status: page))
@@ -76,7 +76,7 @@ struct WatchTests {
         #expect(WatchLink.answer(.next, reader: nil) == WatchReply(turned: false, status: .noBook))
 
         // The reader is up but Sheafs is in the background: never turn behind the user's back.
-        reader.status = WatchStatus(state: .inBackground, title: "Emma", page: 10, pageCount: 400)
+        reader.status = WatchStatus(state: .inBackground, title: "Emma", page: "10", pageCount: 400)
         #expect(WatchLink.answer(.next, reader: reader.handle).turned == false)
         #expect(reader.turns == [true, false])
 
@@ -96,24 +96,25 @@ struct WatchTests {
     /// turns nothing is answered at once.
     @Test func turnRepliesCarryThePageLandedOn() async throws {
         let link = WatchLink()
-        let reader = FakeReader(WatchStatus(state: .reading, title: "Emma", page: 10, pageCount: 400))
+        let reader = FakeReader(WatchStatus(state: .reading, title: "Emma", page: "10", pageCount: 400))
         link.attach(reader.handle)
         var replies: [WatchReply] = []
         link.receive(.status) { replies.append($0) }
-        #expect(replies.map(\.status.page) == [10])
+        #expect(replies.map(\.status.page) == ["10"])
         link.receive(.next) { replies.append($0) }
         #expect(replies.count == 1, "answered before the turn landed")
-        reader.status.page = 11
+        reader.status.page = "11"
         link.attach(reader.handle)          // the reader moved: what `WatchRemote` does on landing
         #expect(replies.last == WatchReply(turned: true, status: reader.status))
         // A turn that never lands (the last page) is answered after the timeout, unchanged.
         link.receive(.next) { replies.append($0) }
         try await Task.sleep(for: WatchLink.landingTimeout + .milliseconds(500))
-        #expect(replies.count == 3 && replies.last?.status.page == 11)
+        #expect(replies.count == 3 && replies.last?.status.page == "11")
     }
 
-    /// The status of a real reader: the book's first page is page 1 once laid out, a percentage
-    /// before, the title alone while it opens; a reader behind another app is in the background.
+    /// The status of a real reader: the book's first page is page 1 of its reference pages (Alice
+    /// has no page list: a page per 1,024 characters, known without laying anything out), the title
+    /// alone while it opens; a reader behind another app is in the background.
     @Test func statusOfARealReader() async throws {
         #expect(WatchRemote.status(session: nil, title: "Alice", active: true) == WatchStatus(state: .reading, title: "Alice"))
         #expect(WatchRemote.status(session: nil, title: "Alice", active: false).state == .inBackground)
@@ -123,15 +124,18 @@ struct WatchTests {
         let session = BookSession(book: book, fileURL: url)
         await session.load()
         #expect(session.isReady)
+        let expectedTotal = session.chapters.reduce(0) { $0 + max(1, Int((Double($1.textLength) / 1024).rounded(.up))) }
         let before = WatchRemote.status(session: session, title: "Alice", active: true)
         #expect(before.state == .reading && before.title == "Alice")
-        #expect(before.page == nil && before.progress == 0)
+        #expect(before.page == "1" && before.pageCount == expectedTotal && before.progress == 0)
+        #expect(before.pageLabel == "1 of \(expectedTotal)")
 
         session.configure(style: ReaderEngineTests.style, textSize: CGSize(width: 300, height: 480))
         _ = try #require(session.paginatedChapter(session.location.spineIndex))
         let laidOut = WatchRemote.status(session: session, title: "Alice", active: true)
-        #expect(laidOut.page == 1)
-        #expect((laidOut.pageCount ?? 0) > 10, "Alice is longer than ten pages")
+        #expect(laidOut.page == "1")
+        #expect(laidOut.pageCount == expectedTotal, "the total doesn't depend on the layout")
+        #expect(expectedTotal > 100, "Alice is longer than a hundred 1,024-character pages")
         #expect(WatchRemote.status(session: session, title: "Alice", active: false).state == .inBackground)
     }
 

@@ -82,6 +82,10 @@ public final class EPUBBook: Sendable {
     public let spine: [EPUBSpineItem]
     /// Nested table of contents; empty when the book has none or it cannot be read.
     public let toc: [TOCEntry]
+    /// The print edition's page markers (the navigation document's page list, else the NCX's), in
+    /// the order the book lists them; empty when there are none. Unresolved: `ReferencePages`
+    /// resolves them against the converted chapters and decides whether they are usable.
+    public let pageList: [PageListEntry]
     /// The cover image, if one could be identified.
     public let coverItem: EPUBManifestItem?
 
@@ -124,6 +128,7 @@ public final class EPUBBook: Sendable {
         }
 
         let toc = EPUBBook.loadTOC(package: package, archive: archive)
+        let pageList = EPUBBook.loadPageList(package: package, archive: archive)
 
         self.url = url
         self.archive = archive
@@ -133,6 +138,7 @@ public final class EPUBBook: Sendable {
         self.manifest = manifest
         self.spine = package.spine
         self.toc = toc
+        self.pageList = pageList
         self.coverItem = package.findCover { try? archive.data(at: $0.path) }
         self.manifestByPath = manifestByPath
         self.spineIndexByPath = spineIndexByPath
@@ -190,19 +196,39 @@ public final class EPUBBook: Sendable {
             return entries
         }
 
-        // spine@toc names the NCX; otherwise take whatever is typed as one.
-        var candidates: [EPUBManifestItem] = []
-        if let id = package.spineTocID, let item = package.manifest.first(where: { $0.id == id }) {
-            candidates.append(item)
-        }
-        candidates.append(contentsOf: package.manifest.filter { $0.mediaType == "application/x-dtbncx+xml" })
-        for ncx in candidates {
+        for ncx in ncxCandidates(package) {
             if let data = try? archive.data(at: ncx.path),
                let entries = TOCParser.parseNCX(data, path: ncx.path), !entries.isEmpty {
                 return entries
             }
         }
         return []
+    }
+
+    /// The page list, from the same files as the table of contents and in the same order: the
+    /// EPUB 3 navigation document, then the NCX.
+    private static func loadPageList(package: OPFPackage, archive: ZipArchive) -> [PageListEntry] {
+        if let nav = package.manifest.first(where: { $0.properties.contains("nav") }),
+           let data = try? archive.data(at: nav.path),
+           let entries = PageListParser.parseNavDocument(data, path: nav.path) {
+            return entries
+        }
+        for ncx in ncxCandidates(package) {
+            if let data = try? archive.data(at: ncx.path), let entries = PageListParser.parseNCX(data, path: ncx.path) {
+                return entries
+            }
+        }
+        return []
+    }
+
+    /// spine@toc names the NCX; otherwise whatever is typed as one.
+    private static func ncxCandidates(_ package: OPFPackage) -> [EPUBManifestItem] {
+        var candidates: [EPUBManifestItem] = []
+        if let id = package.spineTocID, let item = package.manifest.first(where: { $0.id == id }) {
+            candidates.append(item)
+        }
+        candidates.append(contentsOf: package.manifest.filter { $0.mediaType == "application/x-dtbncx+xml" })
+        return candidates
     }
 
     private static func flatten(_ entries: [TOCEntry]) -> [TOCEntry] {

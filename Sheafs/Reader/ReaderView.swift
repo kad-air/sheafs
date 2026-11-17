@@ -493,18 +493,14 @@ struct ReaderView: View {
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 
-    /// "136 of 594 · 18 pages left in chapter", like Books; a percentage while scrubbing.
+    /// "136 of 594 · 18 pages left in chapter" (`BookSession.progressLabel`); while scrubbing, the
+    /// reference page the slider would land on ("212 of 594"), else its percentage.
     private func progressLabel(_ session: BookSession) -> String {
-        if isScrubbing { return sliderValue.formatted(.percent.precision(.fractionLength(0))) }
-        let location = session.location
-        guard let chapter = session.paginatedChapter(location.spineIndex) else {
-            return session.progress(for: location).formatted(.percent.precision(.fractionLength(0)))
+        if isScrubbing {
+            return session.pageLabel(showing: session.location(forProgress: sliderValue))
+                ?? sliderValue.formatted(.percent.precision(.fractionLength(0)))
         }
-        let page = chapter.pageIndex(containing: location.textOffset)
-        let (number, total) = session.bookPages(spineIndex: location.spineIndex, page: page)
-        let left = max(0, chapter.pageCount - page - 1)
-        let leftText = left == 1 ? "1 page left in chapter" : "\(left) pages left in chapter"
-        return "\(number) of \(total) · \(leftText)"
+        return session.progressLabel(at: session.location)
     }
 
     // MARK: Actions
@@ -920,11 +916,9 @@ struct ReaderView: View {
         }
     }
 
-    /// The book-wide number the folio shows for `location`, from the layout on screen (never lays
-    /// one out: see `BookSession.laidOutChapter`).
-    private func folio(of location: ReadingLocation, session: BookSession) -> Int? {
-        guard let chapter = session.laidOutChapter(location.spineIndex) else { return nil }
-        return session.bookPages(spineIndex: location.spineIndex, page: chapter.pageIndex(containing: location.textOffset)).page
+    /// The folio of the page holding `location` (`BookSession.folio(showing:)`; never lays one out).
+    private func folio(of location: ReadingLocation, session: BookSession) -> String? {
+        session.folio(showing: location)
     }
 
     private func persist(_ location: ReadingLocation) {

@@ -122,7 +122,7 @@ final class WatchLink: NSObject, WCSessionDelegate {
     }
 
     nonisolated static func describe(_ status: WatchStatus) -> String {
-        "\(status.state.rawValue) \"\(status.title ?? "")\" page \(status.page.map(String.init) ?? "?") of \(status.pageCount.map(String.init) ?? "?")"
+        "\(status.state.rawValue) \"\(status.title ?? "")\" page \(status.page ?? "?") of \(status.pageCount.map(String.init) ?? "?")"
     }
 
     // MARK: WCSessionDelegate (called on WatchConnectivity's queue)
@@ -216,8 +216,9 @@ struct WatchRemote: ViewModifier {
             })
     }
 
-    /// The status for the reader as it is: the folio of the page holding the position, from the
-    /// layout on screen (never lays one out: `BookSession.laidOutChapter`), else the percentage.
+    /// The status for the reader as it is: the folio of the page holding the position
+    /// (`BookSession.folio(showing:)`, never lays one out) of `pageTotal`, else (before a page
+    /// list's first marker) the percentage.
     /// While the book is still opening, the title alone; a book that failed to open is no book.
     static func status(session: BookSession?, title: String, active: Bool) -> WatchStatus {
         if case .failed = session?.state { return active ? .noBook : WatchStatus(state: .inBackground) }
@@ -225,10 +226,9 @@ struct WatchRemote: ViewModifier {
         guard let session, session.isReady else { return WatchStatus(state: state, title: title) }
         let location = session.location
         var status = WatchStatus(state: state, title: title, progress: session.progress(for: location))
-        if let chapter = session.laidOutChapter(location.spineIndex) {
-            let pages = session.bookPages(spineIndex: location.spineIndex, page: chapter.pageIndex(containing: location.textOffset))
-            status.page = pages.page
-            status.pageCount = pages.total
+        if let folio = session.folio(showing: location) {
+            status.page = folio
+            status.pageCount = session.pageTotal
         }
         return status
     }

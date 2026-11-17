@@ -170,6 +170,11 @@ targets:
         buildPhase: resources
       - path: Packages/SheafsKit/Tests/SheafsKitTests/Fixtures/alice-epub3-edited.epub
         buildPhase: resources
+      # Page numbers: Pride's print page list, and Python's reading of it (scripts/gen_epub_reference.py).
+      - path: Packages/SheafsKit/Tests/SheafsKitTests/Fixtures/pride-epub2.epub
+        buildPhase: resources
+      - path: Packages/SheafsKit/Tests/SheafsKitTests/Fixtures/epub-reference.json
+        buildPhase: resources
     dependencies:
       - target: Sheafs
     settings:

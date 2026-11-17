@@ -7,6 +7,12 @@ import os
 /// destination spread when the leaf has landed. One turn is in flight at a time; a new request
 /// finishes the current one on the spot.
 final class PageFlipDriver: NSObject {
+    /// A folio for the `[flip]` line: "-" when the page has none (before a page list's first marker).
+    nonisolated static func logged(_ folio: String?) -> String {
+        guard let folio, !folio.isEmpty else { return "-" }
+        return folio
+    }
+
     private unowned let host: PagerController
     private var flipView: PageFlipView?
     private var textures: [PageSlot: MTLTexture] = [:]
@@ -250,9 +256,9 @@ final class PageFlipDriver: NSObject {
         }
         let ms = (CFAbsoluteTimeGetCurrent() - started) * 1000
         log.debug("prepared \(forward ? "forward" : "backward") turn in \(ms, format: .fixed(precision: 1)) ms")
-        // The folios either side of the turn (the right page of a spread): `scripts/check-tabletop`
-        // holds a turn to counting on by one.
-        print("[flip] turn \(forward ? "forward" : "back") folio \(current.pageViews.last?.folio ?? "?") → \(destination.pageViews.last?.folio ?? "?")")
+        // The folios either side of the turn (the right page of a spread; "-" for a page with
+        // none): `scripts/check-tabletop` and `scripts/check-watch-remote` read them.
+        print("[flip] turn \(forward ? "forward" : "back") folio \(Self.logged(current.pageViews.last?.folio)) → \(Self.logged(destination.pageViews.last?.folio))")
         return Turn(origin: current, originLocation: originLocation, destination: destination, location: location,
                     forward: forward, reversed: reversed, scene: scene, amount: reversed ? 1 : 0,
                     grabY: grabY ?? scene.leafFrame.midY)

@@ -1,0 +1,251 @@
+#!/usr/bin/env bash
+# End-to-end check of the folio on the iPhone Duo simulator: a reading position must show the SAME
+# page number folded (the cover display, one page), unfolded (the inner display, a spread) and at a
+# bigger font, because the folio is the book's reference page (`ReferencePages`), not a count of
+# the screen pages that every fold and font change cuts anew. Two fixtures:
+#   - Pride and Prejudice (Project Gutenberg, EPUB 2), which carries its print edition's page list
+#     in the NCX: the folio must be one of its print pages and M its last printed page, both read
+#     here from the NCX by Python, not by the app;
+#   - Alice's Adventures in Wonderland (EPUB 3, no page list): synthetic pages, a page per 1,024
+#     characters.
+# Each book is opened halfway (`-SheafsGoTo 0.5`) at the default type on the cover display and then
+# unfolded flat, and opened again at 27 pt on the inner display and then folded shut. The reader
+# prints `[folio] … pages=[spine:first=folio …] strip="…" text=WxH font=N` for every spread it shows;
+# fails loudly unless, in all four states,
+#   - the page holding the position starts at the same offset (the layout stayed anchored there),
+#   - it shows the same folio, and the strip says the same "N of M" (left of " · "),
+#   - the four states really differ (two text sizes, two fonts; one page folded, two unfolded),
+#   - each page of the spread shows its own folio, the left page's never past the right's.
+#   SIM="iPhone Duo" (default), DERIVED_DATA=/tmp/sheafs-derived (builds there, incrementally),
+#   NO_BUILD=1 (installs the last build), OUT=/tmp/sheafs-page-numbers (screenshots + consoles, kept)
+set -euo pipefail
+cd "$(dirname "$0")/.."
+fail() { echo "PAGE NUMBERS CHECK FAILED: $*" >&2; exit 1; }
+SIM=${SIM:-iPhone Duo}
+DD=${DERIVED_DATA:-/tmp/sheafs-derived}
+OUT=${OUT:-/tmp/sheafs-page-numbers}
+HINGE=scripts/hinge/hinge
+FIX=Packages/SheafsKit/Tests/SheafsKitTests/Fixtures
+WORK=$(mktemp -d)
+CONSOLE_PID=""
+mkdir -p "$OUT"
+
+UDID=$(xcrun simctl list devices available -j | python3 -I -c '
+import json, sys
+name = sys.argv[1]
+for runtime in json.load(sys.stdin)["devices"].values():
+    for d in runtime:
+        if d["name"] == name: print(d["udid"]); sys.exit()
+' "$SIM")
+[[ -n $UDID ]] || fail "no simulator named \"$SIM\""
+xcrun simctl boot "$UDID" >/dev/null 2>&1 || true
+xcrun simctl bootstatus "$UDID" -b >/dev/null
+finish() {
+  [[ -n $CONSOLE_PID ]] && { kill "$CONSOLE_PID" >/dev/null 2>&1 || true; }
+  CONSOLE_PID=""
+  xcrun simctl terminate "$UDID" io.sheafs.reader >/dev/null 2>&1 || true
+}
+cleanup() {
+  local status=$?
+  finish
+  rm -rf "$WORK"
+  exit "$status"
+}
+trap cleanup EXIT
+
+if [[ -z ${NO_BUILD:-} ]]; then
+  [[ -f Config/Signing.xcconfig ]] || cp Config/Signing.example.xcconfig Config/Signing.xcconfig
+  xcodegen generate --quiet
+  xcodebuild -project Sheafs.xcodeproj -scheme Sheafs -destination "platform=iOS Simulator,id=$UDID" \
+    -derivedDataPath "$DD" -quiet build >"$WORK/build.log" 2>&1 || { tail -n 30 "$WORK/build.log" >&2; fail "build"; }
+fi
+xcrun simctl install "$UDID" "$DD/Build/Products/Debug-iphonesimulator/Sheafs.app"
+finish
+DATA=$(xcrun simctl get_app_container "$UDID" io.sheafs.reader data)
+PREFS=$DATA/Library/Preferences/io.sheafs.reader.plist
+mkdir -p "$DATA/Documents"
+cp "$FIX/pride-epub2.epub" "$FIX/alice-epub3.epub" "$DATA/Documents/"
+xcrun simctl launch "$UDID" io.sheafs.reader >/dev/null            # imports Documents/ (dedupes)
+sleep 4
+finish
+"$HINGE" -d "$UDID" orient portrait   # device portrait: the cover display folded, a spread unfolded
+
+# The reader's settings at this text size (the app's container copy outranks `defaults write`).
+type_size() {
+  finish
+  [[ -f $PREFS ]] && plutil -remove 'reader\.settings\.v1' "$PREFS" >/dev/null 2>&1 || true
+  local json='{"theme":"paper","font":"newYork","fontSize":'$1',"lineHeight":1.4,"margin":24,"justified":true,"hyphenate":true,"paragraphStyle":"indented","keepScreenAwake":true,"tapToTurn":true}'
+  xcrun simctl spawn "$UDID" defaults write io.sheafs.reader reader.settings.v1 -data "$(printf '%s' "$json" | xxd -p | tr -d '\n')"
+}
+
+lines_now() { wc -l <"$WORK/console.log" | tr -d ' '; }
+
+# Waits for a `[folio] shown` line (a spread on screen after a layout) after console line N.
+wait_shown_after() {
+  local from=$1
+  for _ in $(seq 1 60); do
+    (( $(tail -n +"$((from + 1))" "$WORK/console.log" | grep -ac '^\[folio\] shown' || true) >= 1 )) && return 0
+    sleep 0.5
+  done
+  return 1
+}
+
+# open <book> <tag>: opens the book halfway, waits for the jump (`[goto]`) and a spread after it;
+# retried (simctl sometimes never attaches the console after an install).
+open_book() {
+  local book=$1 tag=$2 attempt goto
+  for attempt in 1 2 3; do
+    : >"$WORK/console.log"
+    xcrun simctl launch --console-pty "$UDID" io.sheafs.reader -SheafsOpen "$book" -SheafsGoTo 0.5 \
+      >"$WORK/console.log" 2>&1 &
+    CONSOLE_PID=$!
+    for _ in $(seq 1 40); do grep -aq '^\[goto\]' "$WORK/console.log" && break; sleep 0.5; done
+    goto=$(grep -an '^\[goto\]' "$WORK/console.log" | head -1 | cut -d: -f1)
+    [[ -n $goto ]] && wait_shown_after "$goto" && return 0
+    cp "$WORK/console.log" "$OUT/$tag-console-attempt$attempt.log"
+    echo "  (no [folio] line in 30 s, attempt $attempt; relaunching)"
+    finish
+  done
+  fail "$tag: the reader never jumped halfway and showed it (console: $OUT/$tag-console-attempt3.log)"
+}
+
+shot() {   # shot <file> <display>: after the page has settled
+  sleep 2.5
+  xcrun simctl io "$UDID" screenshot --display="$2" "$OUT/$1.png" >/dev/null 2>&1 || fail "screenshot $1"
+}
+
+# A book through the four states; the consoles of both openings are kept as $OUT/<tag>-*.log.
+run_book() {
+  local book=$1 tag=$2
+  echo "== $book: cover display, 19 pt, then unfolded"
+  type_size 19
+  "$HINGE" -d "$UDID" 0 >/dev/null
+  sleep 1
+  open_book "$book" "$tag-19"
+  shot "$tag-1-cover-19pt" primary
+  cp "$WORK/console.log" "$OUT/$tag-19-before.log"   # the state on screen: its last [folio] line
+  local moved
+  moved=$(lines_now)
+  "$HINGE" -d "$UDID" 180 >/dev/null
+  wait_shown_after "$moved" || { cp "$WORK/console.log" "$OUT/$tag-19-console.log"; fail "$tag: no new spread after unfolding (console: $OUT/$tag-19-console.log)"; }
+  shot "$tag-2-spread-19pt" primary-1
+  cp "$WORK/console.log" "$OUT/$tag-19-console.log"
+  finish
+
+  echo "== $book: inner display, 27 pt, then folded"
+  type_size 27
+  open_book "$book" "$tag-27"
+  shot "$tag-3-spread-27pt" primary-1
+  cp "$WORK/console.log" "$OUT/$tag-27-before.log"
+  moved=$(lines_now)
+  "$HINGE" -d "$UDID" 0 >/dev/null
+  wait_shown_after "$moved" || { cp "$WORK/console.log" "$OUT/$tag-27-console.log"; fail "$tag: no new spread after folding (console: $OUT/$tag-27-console.log)"; }
+  shot "$tag-4-cover-27pt" primary
+  cp "$WORK/console.log" "$OUT/$tag-27-console.log"
+  finish
+}
+
+run_book Pride pride
+run_book Alice alice
+type_size 19
+"$HINGE" -d "$UDID" 0 >/dev/null
+
+python3 -I - "$OUT" "$FIX/pride-epub2.epub" <<'PY' || exit 1
+import re, sys, zipfile, xml.etree.ElementTree as ET
+out, pride_epub = sys.argv[1], sys.argv[2]
+def fail(message):
+    sys.exit(f"PAGE NUMBERS CHECK FAILED: {message}")
+
+# Pride's print pages from its NCX, by Python: labels without Gutenberg's braces, and the highest
+# whole number, the M the strip must show.
+with zipfile.ZipFile(pride_epub) as archive:
+    ncx = ET.fromstring(archive.read("OEBPS/toc.ncx"))
+print_pages = [e.text.strip().strip("{}") for t in ncx.iter() if t.tag.endswith("pageTarget")
+               for e in t.iter() if e.tag.endswith("text") and e.text]
+if len(print_pages) != 453:
+    fail(f"Pride's NCX lists {len(print_pages)} print pages, not 453")
+last_printed = max(int(p) for p in print_pages if p.isdigit())
+
+folio_re = re.compile(r'^\[folio\] shown pages=\[([^\]]*)\] strip="([^"]*)" text=(\d+)x(\d+) font=([\d.]+)')
+pages_re = re.compile(r'^\[pages\] (\w+): (\d+) pages, M=(\d+)')
+goto_re = re.compile(r'^\[goto\] \S+ → (\d+):(\d+)')
+
+def read(path):
+    return [l.strip("\r\n") for l in open(path, encoding="utf-8", errors="replace")]
+
+def states(tag):
+    """Each opening's spread on screen before the hinge moved (the last one shown after the jump,
+    when the screenshot was taken) and after it (the last one shown since)."""
+    found, targets = [], set()
+    for opening in ("19", "27"):
+        before, lines = read(f"{out}/{tag}-{opening}-before.log"), read(f"{out}/{tag}-{opening}-console.log")
+        source = next((m for l in lines if (m := pages_re.match(l))), None)
+        goto = next(((i, m) for i, l in enumerate(lines) if (m := goto_re.match(l))), None)
+        if source is None or goto is None:
+            fail(f"{tag}: no [pages] or [goto] line in {out}/{tag}-{opening}-console.log")
+        targets.add((int(goto[1].group(1)), int(goto[1].group(2))))
+        a = [m for l in before[goto[0]:] if (m := folio_re.match(l))]
+        b = [m for l in lines[len(before):] if (m := folio_re.match(l))]
+        if not a or not b:
+            fail(f"{tag}: {len(a)} [folio] lines before the hinge moved and {len(b)} after ({out}/{tag}-{opening}-console.log)")
+        found += [(source, a[-1]), (source, b[-1])]
+    if len(targets) != 1:
+        fail(f"{tag}: the two openings jumped to {sorted(targets)}")
+    states.target = targets.pop()
+    names = ["cover 19 pt", "spread 19 pt", "spread 27 pt", "cover 27 pt"]
+    result = []
+    for name, (source, m) in zip(names, found):
+        pages = [p for p in m.group(1).split(" ") if p]
+        slots = []
+        for p in pages:
+            if p == "blank":
+                slots.append(None)
+                continue
+            where, folio = p.split("=")
+            spine, offset = map(int, where.split(":"))
+            slots.append((spine, offset, folio))
+        result.append(dict(name=name, slots=slots, strip=m.group(2), size=(int(m.group(3)), int(m.group(4))),
+                           font=float(m.group(5)), source=source.group(1), total=int(source.group(3))))
+    return result
+
+def check(tag, expect_source):
+    rows = states(tag)
+    for row in rows:
+        right = row["slots"][-1]
+        print(f"  {tag} {row['name']:>12}: position {right[0]}:{right[1]} folio {right[2]:>4} "
+              f"strip \"{row['strip']}\" text {row['size'][0]}x{row['size'][1]} font {row['font']:g} "
+              f"pages {[s[2] if s else None for s in row['slots']]}")
+    if {r["source"] for r in rows} != {expect_source}:
+        fail(f"{tag}: reference pages from {[r['source'] for r in rows]}, expected {expect_source}")
+    # The four states really differ: one page folded, two unfolded; two text sizes; two fonts.
+    if [len(r["slots"]) for r in rows] != [1, 2, 2, 1]:
+        fail(f"{tag}: pages per spread {[len(r['slots']) for r in rows]}, expected cover 1, spread 2")
+    if len({r["size"] for r in rows}) != 2 or rows[0]["size"] != rows[3]["size"] or {r["font"] for r in rows} != {19.0, 27.0}:
+        fail(f"{tag}: the states did not differ: sizes {[r['size'] for r in rows]}, fonts {[r['font'] for r in rows]}")
+    positions = {r["slots"][-1][:2] for r in rows}
+    if positions != {states.target}:
+        fail(f"{tag}: the page holding the position starts at {[r['slots'][-1][:2] for r in rows]}, "
+             f"the jump went to {states.target}: not anchored")
+    folios = {r["slots"][-1][2] for r in rows}
+    if len(folios) != 1 or "-" in folios:
+        fail(f"{tag}: the position's folio was {[r['slots'][-1][2] for r in rows]} (cover, spread, spread 27 pt, cover 27 pt)")
+    folio = folios.pop()
+    labels = {r["strip"].split(" · ")[0] for r in rows}
+    if labels != {f"{folio} of {rows[0]['total']}"}:
+        fail(f"{tag}: the strip said {sorted(labels)}, expected \"{folio} of {rows[0]['total']}\"")
+    for r in rows:
+        if r["slots"][0] and len(r["slots"]) == 2 and r["slots"][0][2].isdigit() and folio.isdigit() \
+                and int(r["slots"][0][2]) > int(folio):
+            fail(f"{tag} {r['name']}: the left page shows {r['slots'][0][2]}, past the right page's {folio}")
+    return folio, rows[0]["total"]
+
+folio, total = check("pride", "pageList")
+if folio not in print_pages:
+    fail(f"Pride's folio {folio} is not a page of its print edition (the NCX page list)")
+if total != last_printed:
+    fail(f"Pride's M is {total}, its last printed page is {last_printed}")
+print(f"  ok: Pride shows print page {folio} of {total} in all four states")
+folio, total = check("alice", "synthetic")
+print(f"  ok: Alice shows page {folio} of {total} (1,024 characters a page) in all four states")
+PY
+echo "PAGE NUMBERS CHECK OK (screenshots and consoles in $OUT)"

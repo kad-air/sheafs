@@ -10,7 +10,8 @@
 #   - after each turn the watch is told the page the leaf landed on, in the reply (which waits for
 #     the landing) and in a pushed status (`[watch] reply/status … page Y`),
 #     the folio the flip read off the page itself, not a number of our own;
-#   - next goes forward, and previous comes back to exactly the page before;
+#   - next never goes back (a screen page can hold less than a print page, so the folio may stay),
+#     and previous comes back to exactly the page before;
 #   - the closing status agrees with the last page pushed.
 # The watch app itself (its buttons, double tap, WatchConnectivity) needs a paired watch.
 #   SIM="iPhone Duo" (default), DERIVED_DATA=/tmp/sheafs-derived (builds there, incrementally),
@@ -111,6 +112,7 @@ def fail(message):
 lines = [l.strip("\r\n") for l in open(path, encoding="utf-8", errors="replace")]
 # One window of console lines per command: from its `[watch] command` line to the next one's.
 command_re = re.compile(r'^\[watch\] command (\w+)\b')
+# Folios are the book's reference pages (Pride: its print pages); labels, numeric halfway through.
 reply_re = re.compile(r'^\[watch\] reply turned=(true|false) (\w+) ".*" page (\d+|\?) of (\d+|\?)')
 flip_re = re.compile(r'^\[flip\] turn (forward|back) folio (\d+) → (\d+)')
 status_re = re.compile(r'^\[watch\] status (\w+) ".*" page (\d+|\?) of (\d+|\?)')
@@ -165,8 +167,9 @@ for command, window in windows:
     # The reply waits for the landing: it carries the new page too.
     if told != str(landed):
         fail(f"{command}: the reply says page {told}, the leaf landed on page {landed}")
-    if command == "next" and landed <= origin:
-        fail(f"next went from page {origin} to {landed}")
+    # A screen page can hold less than a print page: next may show the same folio, never an earlier one.
+    if command == "next" and landed < origin:
+        fail(f"next went from page {origin} back to {landed}")
     if command == "previous":
         if len(history) < 2 or landed != history[-2]:
             fail(f"previous went from page {origin} to {landed}, not back to the page before")

@@ -31,6 +31,10 @@ final class BookSession {
     /// Cumulative plain-text offsets of each chapter's start; `chapterStarts[count] == totalLength`.
     private(set) var chapterStarts: [Int] = []
     private(set) var totalLength: Int = 0
+    /// The book's own page numbers (`ReferencePages`: the print edition's page list, else a page
+    /// per 1,024 characters), for the folio and "N of M". Known once the chapters are converted,
+    /// the same at every display, pose and font.
+    private(set) var referencePages = ReferencePages(chapterLengths: [])
     var location: ReadingLocation
     /// The book's highlights, for the pages to paint (kept here so every spread sees the same list).
     var marks: [HighlightMark] = []
@@ -42,9 +46,6 @@ final class BookSession {
     private(set) var style: TypesetStyle?
     private(set) var textSize: CGSize = .zero
     private var paginated: [Int: PaginatedChapter] = [:]
-    /// Book-wide page numbers, kept per chapter once given until the layout changes. Not observed:
-    /// views number pages while they draw, and a number once given never changes.
-    @ObservationIgnored private var numbering = PageNumbering()
     private var images: [Int: ChapterImages] = [:]
     private let log = Logger(subsystem: "io.sheafs.reader", category: "session")
 
@@ -61,6 +62,7 @@ final class BookSession {
     struct Loaded: Sendable {
         var epub: EPUBBook
         var chapters: [Chapter]
+        var pages: ReferencePages
     }
 
     func load() async {
@@ -83,10 +85,11 @@ final class BookSession {
                     for await (index, chapter) in group { result[index] = chapter }
                     return result
                 }
-                return Loaded(epub: epub, chapters: chapters)
+                return Loaded(epub: epub, chapters: chapters, pages: ReferencePages(book: epub, chapters: chapters))
             }.value
             epub = loaded.epub
             chapters = loaded.chapters
+            referencePages = loaded.pages
             toc = loaded.epub.toc
             flatTOC = loaded.epub.flattenedTOC
             var starts: [Int] = []
@@ -102,6 +105,11 @@ final class BookSession {
             reanchorPosition()
             state = .ready
             log.info("opened \(self.book.title, privacy: .public): \(self.chapters.count) chapters, \(total) chars")
+            let pages = loaded.pages
+            let note = "[pages] \(pages.source.rawValue): \(pages.pages.count) pages, M=\(pages.total), first \(pages.pages.first.map { "\($0.label) at \($0.spineIndex):\($0.offset)" } ?? "-")"
+                + (pages.rejection.map { "; page list not used: \($0)" } ?? "")
+            print(note)
+            log.info("\(note, privacy: .public)")
         } catch {
             log.error("open failed: \(error)")
             state = .failed(error.localizedDescription)
@@ -263,7 +271,6 @@ final class BookSession {
         self.style = style
         self.textSize = textSize
         paginated.removeAll()
-        numbering.reset()
     }
 
     /// The paginated chapter for the current style and size, laid out on demand. The first layout
@@ -299,25 +306,45 @@ final class BookSession {
     /// a view is drawn: an unanchored layout there would re-cut the pages around the position.
     func laidOutChapter(_ spineIndex: Int) -> PaginatedChapter? { paginated[spineIndex] }
 
-    /// Book-wide page numbers like Books shows them: exact for chapters already laid out at this
-    /// size, estimated from their text length for the rest (so the total settles as you read).
-    /// 🔴 A chapter's first number is kept once given (`PageNumbering`): recomputing it from the
-    /// estimates on every call made the folio jump back on a forward turn.
-    func bookPages(spineIndex: Int, page: Int) -> (page: Int, total: Int) {
-        guard !chapters.isEmpty else { return (1, 1) }
-        var laidOutChars = 0, laidOutPages = 0
-        for (index, chapter) in paginated {
-            laidOutChars += chapters[index].textLength
-            laidOutPages += chapter.pageCount
-        }
-        let perPage = laidOutPages > 0 ? max(200, Double(laidOutChars) / Double(laidOutPages)) : 1500
-        func estimate(_ index: Int) -> Int { max(1, Int((Double(chapters[index].textLength) / perPage).rounded(.up))) }
-        func count(_ index: Int) -> Int { paginated[index]?.pageCount ?? estimate(index) }
-        let index = min(max(0, spineIndex), chapters.count - 1)
-        let start = numbering.start(of: index, exact: { [paginated] in paginated[$0]?.pageCount }, estimate: estimate)
-        let number = start + page + 1
-        let total = start + (index ..< chapters.count).reduce(0) { $0 + count($1) }
-        return (number, max(total, number))
+    // MARK: Page numbers
+
+    /// The reference page `location` falls in (`ReferencePages`); nil before a page list's first marker.
+    func folio(at location: ReadingLocation) -> String? {
+        referencePages.page(spineIndex: location.spineIndex, offset: location.textOffset)?.label
+    }
+
+    /// The folio a screen page shows: the reference page its FIRST character falls in. Each page of
+    /// a spread shows its own. 🔴 Not a count of screen pages: those are cut anew at every fold and
+    /// font change (anchored at the position), and their numbers moved with them.
+    func folio(of chapter: PaginatedChapter, page: Int) -> String? {
+        folio(at: ReadingLocation(spineIndex: chapter.spineIndex, textOffset: chapter.range(ofPage: page).location))
+    }
+
+    /// The folio of the page holding `location` in the layout on screen (the right page of a
+    /// spread, for the position), or of the location itself when its chapter isn't laid out. Never
+    /// lays one out (see `laidOutChapter`).
+    func folio(showing location: ReadingLocation) -> String? {
+        guard let chapter = laidOutChapter(location.spineIndex) else { return folio(at: location) }
+        return folio(of: chapter, page: chapter.pageIndex(containing: location.textOffset))
+    }
+
+    /// The M of "N of M" (`ReferencePages.total`).
+    var pageTotal: Int { referencePages.total }
+
+    /// "136 of 594" for the page holding `location`; nil before a page list's first marker.
+    func pageLabel(showing location: ReadingLocation) -> String? {
+        folio(showing: location).map { "\($0) of \(pageTotal)" }
+    }
+
+    /// The chrome strip's "136 of 594 · 18 pages left in chapter", like Books: the reference page of
+    /// the page holding `location`, and the SCREEN pages after it in its chapter, exact from the
+    /// layout on screen (left out while the chapter isn't laid out; never lays one out). Before a
+    /// page list's first marker the percentage stands in for "N of M".
+    func progressLabel(at location: ReadingLocation) -> String {
+        let pages = pageLabel(showing: location) ?? progress(for: location).formatted(.percent.precision(.fractionLength(0)))
+        guard let chapter = laidOutChapter(location.spineIndex) else { return pages }
+        let left = max(0, chapter.pageCount - chapter.pageIndex(containing: location.textOffset) - 1)
+        return "\(pages) · " + (left == 1 ? "1 page left in chapter" : "\(left) pages left in chapter")
     }
 
     /// Lays out the neighbours of `spineIndex` soon, so page turns don't wait.
