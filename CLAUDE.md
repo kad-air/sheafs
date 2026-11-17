@@ -32,7 +32,9 @@ scripts/check-image-viewer        # end to end on a simulator (SIM="iPhone Duo")
                                   #   screenshots, OUT=/tmp/sheafs-image-viewer)
 scripts/check-tabletop            # end to end on a simulator (SIM="iPhone Duo", tabletop): Pride halfway,
                                   #   lying and with a forward turn frozen at 0.1; the row where the page
-                                  #   meets the block must read the same in both, with the edge line, and
+                                  #   meets the block must read the same in both, with the edge line; that
+                                  #   line is the pixel row of the MIDDLE of the system's fold and the folio's
+                                  #   ink is in the fold's upper half (read off the screenshot); and
                                   #   the folios either side of the turn (`[flip] turn … folio X → Y`) must
                                   #   be Pride's PRINT pages (its NCX, read by Python) and never count
                                   #   back (Y = X or X + 1); NO_BUILD=1
@@ -829,10 +831,16 @@ display and inner-landscape), `toolbarVisibility(_:for: .statusBar)`, `ToolbarOv
   (455.5, 0, 40 × 669) flat and folded, only `isActive` changes, and a pose-dependent pad (14 vs
   2 pt) made the pages 441 vs 453 pt wide, so every line re-broke on unfolding;
 - tabletop/laptop (active horizontal division) → the page on the upper half, `ReaderDeck` (progress,
-  prev/next, contents, text size, appearance) on the lower half. The page STANDS on a surface
+  prev/next, contents, text size, appearance) on the lower half, starting below the fold. 🔴 The page
+  runs down to the MIDDLE of the fold, not its top (the owner's call): its bottom edge, the line under
+  the folio, is on the crease's centreline (475.5 pt on the Duo simulator, whose hinge is (0, 455.5,
+  669 × 40)), the folio sits in the crease's upper half (caught a little in its curve, which is
+  fine) and the text is 20 pt taller (409.5 pt against 389.5); the block of pages still to read
+  hangs wholly below the centreline. The page STANDS on a surface
   (`Reader/TabletopBase.swift`): `TabletopBaseView` (in `PagerController`, above the pages, below the
   flip view) runs from the page's bottom edge (🔴 rounded down to a whole pixel,
-  `TabletopBaseView.top(pageBottom:scale:)`: the page ends at the fold's half pixel, 455.5 pt, and
+  `TabletopBaseView.top(pageBottom:scale:)`: the page ends on a half pixel, 475.5 pt (it was the fold's
+  top, 455.5 pt, when this bit), and
   the view begun there drew a dark row along its top on the live page only, so a line under the
   page vanished at every turn and came back when it landed) to the bottom of the window in `ReaderPalette.surface`
   (a shade under the paper; the deck has NO background of its own, it sits on this view), with the
@@ -982,7 +990,8 @@ come out exact, so it never reproduced there): not confirmed on the phone yet, w
   between frames of a slow drag, shade beside a lifted edge).
 - 🔴 A page texture is the page's bounds stretched onto the whole rounded pixel grid
   (`PageFlipView.texture(for:scale:device:)`), not drawn at the display scale: in tabletop the page
-  ends at the fold, 455.5 pt = 1366.5 px, and the half-painted last row (alpha 0.5, premultiplied)
+  ends on a half pixel (the fold's middle, 475.5 pt = 1426.5 px; then the fold's top, 455.5 pt =
+  1366.5 px), and the half-painted last row (alpha 0.5, premultiplied)
   drew a grey line across the display during every turn. `PageFlipEdgeTests`.
 - Page textures are cached per `PageSlot` and dropped on layout/palette/style changes; anything
   else that changes what a page draws (highlights, bookmark ribbons, selection) must call

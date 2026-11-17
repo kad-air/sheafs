@@ -4,7 +4,8 @@ import UIKit
 @testable import Sheafs
 
 /// The page textures the turning leaf and the page beneath are drawn from. In the tabletop pose the
-/// page ends at the fold, 455.5 pt down the Duo's inner display: 1366.5 px at 3×. The texture used
+/// page ends at the fold's middle, 475.5 pt down the Duo's inner display: 1426.5 px at 3× (it once
+/// ended at the fold's top, 455.5 pt = 1366.5 px, where this went wrong). The texture used
 /// to draw the page at 3× into 1367 rows, so its last row was half painted (alpha 0.5) and the
 /// shader, which reads the colour premultiplied, drew it as half-dark paper: a grey line across the
 /// whole display for as long as a page turned. Every row of a page texture must be the page, opaque.
@@ -28,7 +29,7 @@ struct PageFlipEdgeTests {
         }
     }
 
-    @Test(arguments: [455.5, 455.0, 455.333, 951.0])
+    @Test(arguments: [475.5, 455.5, 455.0, 455.333, 951.0])
     func everyRowIsOpaquePaper(pageHeight: Double) throws {
         for palette in [ReaderPalette.paper, .night] {
             var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
