@@ -236,6 +236,12 @@ struct ReaderView: View {
         .onChange(of: askRunning, initial: true) { _, running in
             runAsk(running)
         }
+        // `[keyboard]` lines: where the keyboard is headed (its frame in screen coordinates), next to
+        // the `[layout]` lines, which must not follow it.
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
+            let end = (note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue
+            print("[keyboard] will change to \(end.map { "\($0)" } ?? "?")")
+        }
         .onDisappear {
             ask?.recaps.stop()
             volumeButtons.stop()
@@ -380,6 +386,11 @@ struct ReaderView: View {
                 }
             }
         }
+        // 🔴 The keyboard (Ask's question field) is a safe-area region too, and it is not the book's:
+        // its 264 pt read as a reading inset, and with a fold, unfold or book pose ↔ flat while it was
+        // up `SteadyPageGeometry` learned and LOCKED it, so closing Ask left the pages cut off where
+        // the keyboard's top had been. The book never sees it; the Ask panel (an overlay) still does.
+        .ignoresSafeArea(.keyboard)
         .background {
             GeometryReader { window in
                 let fresh = WindowRegions(proxy: window)
@@ -1162,7 +1173,8 @@ struct ReaderView: View {
     /// setting says), printing the availability, the answer and its sources as `[ask]` lines, so a
     /// simulator or device run can be checked without typing. `-SheafsAskOpen 1` only opens the
     /// panel and prints how many saved questions it holds; `-SheafsAskSource <n>` then turns to the
-    /// answer's nth passage (1-based), the panel staying up.
+    /// answer's nth passage (1-based), the panel staying up. `-SheafsAskFocus <s>` (`AskPanel`) puts
+    /// the question field in focus, keyboard up, and `-SheafsAskCloseAfter <s>` closes the panel.
     private func askFromLaunchArgument() {
         guard !Self.askArgumentConsumed else { return }
         Self.askArgumentConsumed = true
@@ -1177,6 +1189,16 @@ struct ReaderView: View {
                 + "saved: \(ask.turns.count)")
             for turn in ask.turns {
                 print("[ask] saved: \(turn.question) (\(turn.caption ?? ""), \(turn.sources.count) sources)")
+            }
+            // `-SheafsAskCloseAfter <s>`: closes the panel that long after it opened, as ✕ does
+            // (with `-SheafsAskFocus` the keyboard is still up then).
+            let closeAfter = defaults.double(forKey: "SheafsAskCloseAfter")
+            if closeAfter > 0 {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(closeAfter))
+                    print("[ask] closing (launch argument)")
+                    closeAsk()
+                }
             }
             if !question.isEmpty { ask.ask(question) }
             await report(ask)

@@ -1,0 +1,301 @@
+#!/usr/bin/env bash
+# End-to-end check that Ask's KEYBOARD never changes the book's page geometry, on the iPhone Duo
+# simulator. A reader closed Ask with the keyboard up on the inner display and the spread was left cut
+# off where the keyboard's top had been, folios mid-screen, until the next fold: the keyboard was a
+# safe-area inset of the reader's geometry reader, and a display change while it was up (book pose ↔
+# flat, unfolding) let `SteadyPageGeometry` learn it and lock it in. Opens Alice (the fixture) at
+# -SheafsGoTo 0.3 with Ask's question field focused (`-SheafsAskFocus`, the keyboard up) and closes
+# Ask with it still up (`-SheafsAskCloseAfter`, as ✕), and fails loudly unless:
+#   1. spread    inner display, flat, no Ask: the reference (screenshot + the `[layout]` page frames).
+#   2. pose      inner display in BOOK POSE, Ask beside, the keyboard up (UIKit's own frame says so),
+#                flattened while it is up, Ask closed with it up: every `[layout]` line has the
+#                reference's page frames (the keyboard never shortened the pages) and the spread's
+#                PIXELS are the reference's (text right down to the folio, not paper below the
+#                keyboard's old top).
+#   3. cover     folded, the cover display's reference page, then Ask floating with the keyboard up,
+#                closed with it up: the same frames and the same pixels as that reference.
+#   4. unfold    folded, the keyboard up, UNFOLDED with it up, Ask closed: the spread's frames and
+#                text ink below where the keyboard was; folded again: the cover page's frames and
+#                ink; unfolded again: the spread's.
+# Needs Apple Intelligence on this Mac (without it the question field is disabled and no keyboard
+# comes up, which fails step 2). The simulator can't be tapped from a script: focus and close go
+# through the launch hooks (`AskPanel.focusFromLaunchArgument`, `ReaderView.askFromLaunchArgument`).
+#   SIM="iPhone Duo" (default), DERIVED_DATA=/tmp/sheafs-derived (builds there, incrementally),
+#   OUT=/tmp/sheafs-ask-keyboard (screenshots and consoles, kept), NO_BUILD=1 reuses the last build
+set -euo pipefail
+cd "$(dirname "$0")/.."
+fail() { echo "ASK KEYBOARD CHECK FAILED: $*" >&2; exit 1; }
+SIM=${SIM:-iPhone Duo}
+DD=${DERIVED_DATA:-/tmp/sheafs-derived}
+OUT=${OUT:-/tmp/sheafs-ask-keyboard}
+HINGE=scripts/hinge/hinge
+EPUB=Packages/SheafsKit/Tests/SheafsKitTests/Fixtures/alice-epub3.epub
+AT=0.3
+WORK=$(mktemp -d)
+CONSOLE_PID=""
+mkdir -p "$OUT"
+
+UDID=$(xcrun simctl list devices available -j | python3 -I -c '
+import json, sys
+name = sys.argv[1]
+for runtime in json.load(sys.stdin)["devices"].values():
+    for d in runtime:
+        if d["name"] == name: print(d["udid"]); sys.exit()
+' "$SIM")
+[[ -n $UDID ]] || fail "no simulator named \"$SIM\""
+xcrun simctl bootstatus "$UDID" -b >/dev/null
+cleanup() {
+  local status=$?
+  [[ -n $CONSOLE_PID ]] && { kill "$CONSOLE_PID" >/dev/null 2>&1 || true; }
+  xcrun simctl terminate "$UDID" io.sheafs.reader >/dev/null 2>&1 || true
+  "$HINGE" -d "$UDID" 180 >/dev/null 2>&1 || true
+  rm -rf "$WORK"
+  exit "$status"
+}
+trap cleanup EXIT
+
+if [[ -z ${NO_BUILD:-} ]]; then
+  [[ -f Config/Signing.xcconfig ]] || cp Config/Signing.example.xcconfig Config/Signing.xcconfig
+  xcodegen generate --quiet
+  xcodebuild -project Sheafs.xcodeproj -scheme Sheafs -destination "platform=iOS Simulator,id=$UDID" \
+    -derivedDataPath "$DD" -quiet build >"$WORK/build.log" 2>&1 || { tail -n 30 "$WORK/build.log" >&2; fail "build"; }
+fi
+APP="$DD/Build/Products/Debug-iphonesimulator/Sheafs.app"
+[[ -d $APP ]] || fail "no build at $APP"
+xcrun simctl install "$UDID" "$APP"
+xcrun simctl terminate "$UDID" io.sheafs.reader >/dev/null 2>&1 || true
+DATA=$(xcrun simctl get_app_container "$UDID" io.sheafs.reader data)
+SUPPORT="$DATA/Library/Application Support"
+mkdir -p "$DATA/Documents"
+cp "$EPUB" "$DATA/Documents/"
+xcrun simctl launch "$UDID" io.sheafs.reader >/dev/null            # imports Documents/ (dedupes)
+for _ in $(seq 1 30); do ls "$SUPPORT/Books/"*.epub >/dev/null 2>&1 && break; sleep 1; done
+xcrun simctl terminate "$UDID" io.sheafs.reader >/dev/null 2>&1 || true
+ls "$SUPPORT/Books/"*.epub >/dev/null 2>&1 || fail "Alice was not imported"
+rm -rf "$SUPPORT/Ask"                                              # an empty pane, no saved questions
+# Ask About the Book on (off by default), the rest the defaults. The app container's own copy
+# outranks `simctl spawn defaults`, so it goes first.
+PREFS="$DATA/Library/Preferences/io.sheafs.reader.plist"
+[[ -f $PREFS ]] && { plutil -remove 'reader\.settings\.v1' "$PREFS" >/dev/null 2>&1 || true; }
+SETTINGS='{"theme":"system","font":"newYork","fontSize":19,"lineHeight":1.4,"margin":24,"justified":false,"hyphenate":true,"paragraphStyle":"indented","keepScreenAwake":true,"tapToTurn":true,"askEnabled":true}'
+xcrun simctl spawn "$UDID" defaults write io.sheafs.reader reader.settings.v1 -data "$(printf '%s' "$SETTINGS" | xxd -p | tr -d '\n')"
+
+finish() {
+  xcrun simctl terminate "$UDID" io.sheafs.reader >/dev/null 2>&1 || true
+  [[ -n $CONSOLE_PID ]] && { kill "$CONSOLE_PID" >/dev/null 2>&1 || true; }
+  CONSOLE_PID=""
+}
+
+# launch <name> <args…>: the app with its console in $OUT/<name>-console.log ($LOG).
+launch() {
+  local name=$1 attempt; shift
+  LOG="$OUT/$name-console.log"
+  # A launch right after another sometimes never attaches (simctl prints nothing): retried once.
+  for attempt in 1 2; do
+    : >"$LOG"
+    xcrun simctl launch --console-pty "$UDID" io.sheafs.reader -SheafsOpen Alice -SheafsGoTo "$AT" "$@" >"$LOG" 2>&1 &
+    CONSOLE_PID=$!
+    for _ in $(seq 1 40); do [[ -s $LOG ]] && break; sleep 0.5; done
+    [[ -s $LOG ]] && return
+    echo "  (simctl launch printed nothing in 20 s, attempt $attempt; relaunching)"
+    finish
+  done
+  fail "$name: the app never printed anything"
+}
+
+# wait_for <regex> <seconds> [count]: until the console has `count` (default 1) lines matching.
+wait_for() {
+  local pattern=$1 seconds=$2 count=${3:-1} n
+  for _ in $(seq 1 $((seconds * 2))); do
+    n=$(grep -acE "$pattern" "$LOG" || true)
+    (( n >= count )) && return 0
+    sleep 0.5
+  done
+  return 1
+}
+
+shot() { xcrun simctl io "$UDID" screenshot "$1" "$2" >/dev/null 2>&1 || fail "screenshot $2"; }
+
+# pose <hinge°>: the device upright, the hinge at that angle (0 shut: the cover display; 180 flat).
+pose() {
+  "$HINGE" -d "$UDID" orient portrait >/dev/null
+  "$HINGE" -d "$UDID" "$1" >/dev/null
+  sleep 2
+}
+
+# pixels <mode> <a.png> [b.png] <x0 y0 x1 y1 in points>: every 3rd pixel (at 3x) of the rectangle.
+#   changed: the share that differ between a and b by more than 24 in some channel;
+#   ink:     the share of a's that differ from its paper (the top-left pixel) by more than 60.
+pixels() {
+  local mode=$1; shift
+  local a=$1 b=$1; shift
+  [[ $mode == changed ]] && { b=$1; shift; }
+  sips -s format bmp "$a" --out "$WORK/a.bmp" >/dev/null
+  sips -s format bmp "$b" --out "$WORK/b.bmp" >/dev/null
+  python3 -I - "$mode" "$WORK/a.bmp" "$WORK/b.bmp" "$@" <<'PY'
+import struct, sys
+def load(path):
+    data = open(path, "rb").read()
+    offset, = struct.unpack_from("<I", data, 10)
+    width, height = struct.unpack_from("<ii", data, 18)
+    bpp, = struct.unpack_from("<H", data, 28)
+    return data, offset, width, height, bpp // 8, (width * (bpp // 8) + 3) & ~3
+mode = sys.argv[1]
+a, b = load(sys.argv[2]), load(sys.argv[3])
+if a[2:4] != b[2:4]:
+    print("size-mismatch"); sys.exit()
+_, _, width, height, step, row = a
+x0, y0, x1, y1 = (int(float(v) * 3) for v in sys.argv[4:8])
+def pixel(img, x, y):
+    data, offset = img[0], img[1]
+    yy = (height - 1 - y) if height > 0 else y
+    i = offset + yy * row + x * step
+    return data[i:i + 3]
+paper = pixel(a, 3, 3)
+hits = total = 0
+for y in range(max(0, y0), min(abs(height), y1), 3):
+    for x in range(max(0, x0), min(width, x1), 3):
+        total += 1
+        p = pixel(a, x, y)
+        other, limit = (pixel(b, x, y), 24) if mode == "changed" else (paper, 60)
+        if max(abs(s - t) for s, t in zip(p, other)) > limit:
+            hits += 1
+print(f"{hits / max(1, total):.4f}")
+PY
+}
+at_most() { python3 -I -c "import sys; sys.exit(0 if sys.argv[1] != 'size-mismatch' and float(sys.argv[1]) <= float(sys.argv[2]) else 1)" "$1" "$2"; }
+at_least() { python3 -I -c "import sys; sys.exit(0 if sys.argv[1] != 'size-mismatch' and float(sys.argv[1]) >= float(sys.argv[2]) else 1)" "$1" "$2"; }
+
+# frames <window "w h"> <console>: every `[layout]` line's page frames for that window, one per line.
+# (Mid-fold the window passes through other sizes, 466 × 760 for one; the keyboard never changes it.)
+frames() {
+  python3 -I - "$1" "$2" <<'PY'
+import re, sys
+width, height = map(float, sys.argv[1].split())
+log = open(sys.argv[2], errors="replace").read()
+for w, h, pages in re.findall(r"^\[layout\] size=\(([\d.]+), ([\d.]+)\).*?→ pages=(\[.*?\]) textInsets", log, re.M):
+    if (float(w), float(h)) == (width, height):
+        print(pages)
+PY
+}
+
+# heights <frames>: the pages' heights, space-separated.
+heights() { python3 -I -c 'import re, sys; print(" ".join(h for *_, h in re.findall(r"\(([-\d.]+), ([-\d.]+), ([-\d.]+), ([-\d.]+)\)", sys.argv[1])))' "$1"; }
+
+# same_frames <name> <window "w h"> <reference frames>: EVERY `[layout]` line for that window has pages
+# of the reference's height (the keyboard's dimension; while a fold settles a line may have other
+# widths, the fold not read yet), and the last one, settled, is the reference exactly.
+same_frames() {
+  local name=$1 width=$2 reference=$3 seen line
+  seen=$(frames "$width" "$LOG" | sort | uniq -c | sed 's/^ *//')
+  [[ -n $seen ]] || fail "$name: no [layout] line for the $width window ($LOG)"
+  echo "  $width window, page frames seen (count frames): $(tr '\n' ';' <<<"$seen")"
+  while read -r line; do
+    [[ $(heights "$line") == "$(heights "$reference")" ]] \
+      || fail "$name: the pages lost height: $line, the reference is $reference ($LOG)"
+  done < <(frames "$width" "$LOG")
+  [[ $(frames "$width" "$LOG" | tail -1) == "$reference" ]] \
+    || fail "$name: settled on $(frames "$width" "$LOG" | tail -1), not the reference $reference ($LOG)"
+}
+
+# keyboard_up <name> <window height>: UIKit said the keyboard came up over the page (not a phantom).
+keyboard_up() {
+  python3 -I - "$LOG" "$2" <<'PY' || fail "$1: the keyboard never came up over the page (Apple Intelligence on this Mac?) ($LOG)"
+import re, sys
+frames = [tuple(map(float, f)) for f in re.findall(r"^\[keyboard\] will change to \(([-\d.e]+), ([-\d.e]+), ([-\d.e]+), ([-\d.e]+)\)", open(sys.argv[1], errors="replace").read(), re.M)]
+up = [f for f in frames if f[3] >= 150 and f[1] < float(sys.argv[2]) - 100]
+print(f"  keyboard frames from UIKit: {frames}")
+assert up, frames
+PY
+}
+
+# reference <window "w h">: the page frames of the first launch's `[layout]` line for that window.
+reference() { frames "$1" "$LOG" | head -1; }
+
+echo "• 1 spread (inner display, flat, no Ask): the reference"
+pose 180
+launch spread
+wait_for '^\[layout\] size=\(951' 60 || fail "spread: no inner-display layout ($LOG)"
+sleep 3
+shot --display=primary-1 "$OUT/1-spread.png"
+SPREAD=$(reference "951 669")
+[[ $(grep -o '(' <<<"$SPREAD" | wc -l | tr -d ' ') == 2 ]] || fail "spread: the inner display is not a spread: $SPREAD"
+BOTTOM=$(python3 -I -c 'import re, sys; print(max(float(y) + float(h) for _, y, _, h in re.findall(r"\(([-\d.]+), ([-\d.]+), ([-\d.]+), ([-\d.]+)\)", sys.argv[1])))' "$SPREAD")
+echo "  spread $SPREAD (pages end at y=$BOTTOM)"
+finish
+
+echo "• 2 book pose, Ask beside with the keyboard up, flattened with it up, Ask closed with it up"
+pose 150
+launch pose -SheafsAskOpen 1 -SheafsAskFocus 1 -SheafsAskCloseAfter 9
+wait_for '^\[keyboard\] will change to \([-0-9.e]+, [0-9.]+, [0-9.]+, [1-9][0-9][0-9]' 40 || fail "pose: the keyboard never came up ($LOG)"
+sleep 1.5
+shot --display=primary-1 "$OUT/2-pose-keyboard.png"
+"$HINGE" -d "$UDID" 180 >/dev/null                                  # a new display state, the keyboard up
+wait_for '^\[ask\] closed' 30 || fail "pose: Ask never closed ($LOG)"
+sleep 3
+shot --display=primary-1 "$OUT/2-pose-closed.png"
+grep -aE '^\[(ask|keyboard)\]' "$LOG" | grep -v '^\[ask\] thread' | cut -c1-160 | sed 's/^/  /'
+grep -aq '^\[ask\] presentation beside' "$LOG" || fail "pose: Ask was not beside the book"
+grep -aq '^\[layout\] .*active=true' "$LOG" || fail "pose: never laid out in book pose (the hinge at 150° reads active)"
+keyboard_up pose 669
+same_frames pose "951 669" "$SPREAD"
+SAME=$(pixels changed "$OUT/1-spread.png" "$OUT/2-pose-closed.png" 0 0 951 "$BOTTOM")
+at_most "$SAME" 0.005 || fail "pose: after closing Ask the spread is not the reference spread ($SAME of its pixels changed; $OUT/1-spread.png vs 2-pose-closed.png)"
+LOW=$(pixels ink "$OUT/2-pose-closed.png" 520 420 930 $((${BOTTOM%.*} - 40)))
+at_least "$LOW" 0.01 || fail "pose: no text below where the keyboard's top was ($LOW ink; $OUT/2-pose-closed.png)"
+echo "  ok: the pages never followed the keyboard; closed, the spread is the reference ($SAME changed), text down to the folio ($LOW ink)"
+finish
+
+echo "• 3 cover display: reference, then Ask floating with the keyboard up, closed with it up"
+pose 0
+launch cover
+wait_for '^\[layout\] size=\(466' 60 || fail "cover: no cover-display layout ($LOG)"
+sleep 3
+shot --display=primary "$OUT/3-cover.png"
+COVER=$(reference "466 678")
+COVER_BOTTOM=$(python3 -I -c 'import re, sys; print(max(float(y) + float(h) for _, y, _, h in re.findall(r"\(([-\d.]+), ([-\d.]+), ([-\d.]+), ([-\d.]+)\)", sys.argv[1])))' "$COVER")
+echo "  cover page $COVER"
+finish
+launch cover-ask -SheafsAskOpen 1 -SheafsAskFocus 1 -SheafsAskCloseAfter 6
+wait_for '^\[keyboard\] will change to \([-0-9.e]+, [0-9.]+, [0-9.]+, [1-9][0-9][0-9]' 40 || fail "cover: the keyboard never came up ($LOG)"
+sleep 1.5
+shot --display=primary "$OUT/3-cover-keyboard.png"
+wait_for '^\[ask\] closed' 30 || fail "cover: Ask never closed ($LOG)"
+sleep 3
+shot --display=primary "$OUT/3-cover-closed.png"
+grep -aq '^\[ask\] presentation floating' "$LOG" || fail "cover: Ask was not floating"
+keyboard_up cover 678
+same_frames cover "466 678" "$COVER"
+SAME=$(pixels changed "$OUT/3-cover.png" "$OUT/3-cover-closed.png" 0 0 466 "$COVER_BOTTOM")
+at_most "$SAME" 0.005 || fail "cover: after closing Ask the page is not the reference ($SAME changed; $OUT/3-cover.png vs 3-cover-closed.png)"
+echo "  ok: the cover page never followed the keyboard and is the reference after closing ($SAME changed)"
+finish
+
+echo "• 4 unfolded with the keyboard up, Ask closed; folded and unfolded again"
+launch unfold -SheafsAskOpen 1 -SheafsAskFocus 1 -SheafsAskCloseAfter 9
+wait_for '^\[keyboard\] will change to \([-0-9.e]+, [0-9.]+, [0-9.]+, [1-9][0-9][0-9]' 40 || fail "unfold: the keyboard never came up ($LOG)"
+keyboard_up unfold 678
+sleep 1
+"$HINGE" -d "$UDID" 180 >/dev/null                                  # unfolded, the keyboard up
+wait_for '^\[ask\] closed' 30 || fail "unfold: Ask never closed ($LOG)"
+sleep 3
+shot --display=primary-1 "$OUT/4-unfolded-closed.png"
+"$HINGE" -d "$UDID" 0 >/dev/null
+sleep 3
+shot --display=primary "$OUT/4-folded.png"
+"$HINGE" -d "$UDID" 180 >/dev/null
+sleep 3
+shot --display=primary-1 "$OUT/4-unfolded-again.png"
+grep -aE '^\[(ask|keyboard)\]' "$LOG" | grep -v '^\[ask\] thread' | cut -c1-160 | sed 's/^/  /'
+same_frames unfold "951 669" "$SPREAD"
+same_frames unfold "466 678" "$COVER"
+for shot in 4-unfolded-closed 4-unfolded-again; do
+  LOW=$(pixels ink "$OUT/$shot.png" 520 420 930 $((${BOTTOM%.*} - 40)))
+  at_least "$LOW" 0.01 || fail "unfold: no text below where the keyboard's top was ($LOW ink; $OUT/$shot.png)"
+done
+LOW=$(pixels ink "$OUT/4-folded.png" 24 420 440 $((${COVER_BOTTOM%.*} - 40)))
+at_least "$LOW" 0.01 || fail "unfold: folded again, no text low on the cover page ($LOW ink; $OUT/4-folded.png)"
+echo "  ok: unfolded with the keyboard up, then folded and unfolded: the reference frames throughout, text to the folio"
+finish
+pose 180
+echo "ASK KEYBOARD OK (screenshots and consoles in $OUT)"
