@@ -134,18 +134,54 @@ struct ReaderEngineTests {
                                     CGRect(x: 498, y: 0, width: 453, height: 635)])
     }
 
-    @Test func tabletopPosePutsThePageAboveTheFoldAndControlsBelow() throws {
+    /// Tabletop / laptop: the page on the upper half runs down to the MIDDLE of the fold, so its
+    /// bottom edge (the line under the folio) is on the crease's centreline, the folio just above
+    /// it in the crease's upper half and the text 20 pt taller than when the page stopped at the
+    /// fold's top; the block of pages still to read hangs below the centreline. The deck starts
+    /// below the fold, where it always did.
+    @Test func tabletopPosePutsThePageDownToTheFoldsMiddleAndControlsBelow() throws {
         let fold = CGRect(x: 0, y: 450, width: 669, height: 50)
         let layout = PageLayout.compute(.init(size: CGSize(width: 669, height: 951),
                                               safeArea: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0),
                                               division: fold, divisionIsActive: true, camera: nil,
                                               margin: 24, fontSize: 19, allowSpread: true))
         #expect(layout.pageFrames.count == 1)
-        #expect(layout.pageFrames[0].maxY <= fold.minY)
+        #expect(layout.pageFrames[0].maxY == fold.midY)
+        #expect(layout.pageFrames[0].minY == 59)
         let deck = try #require(layout.deckFrame)
         #expect(deck.minY == fold.maxY)
         let bottomLimit: CGFloat = 951 - 34
         #expect(deck.maxY <= bottomLimit)
+    }
+
+    /// The Duo simulator's tabletop as `[layout]` reports it (the 40 pt hinge at 455.5, full bleed,
+    /// 34 pt home indicator): the page is 475.5 pt tall, its text 409.5 pt (389.5 when the page
+    /// stopped at the fold's top, 455.5), the folio in the band just above the centreline and the
+    /// surface's first row (the page's edge line) the pixel row the centreline runs through.
+    /// Flat (an inactive fold) the same window is one tall page, as before.
+    @Test func duoTabletopPageEndsOnTheCreaseCentreline() throws {
+        let hinge = CGRect(x: 0, y: 455.5, width: 669, height: 40)
+        let layout = PageLayout.compute(.init(size: CGSize(width: 669, height: 951),
+                                              safeArea: EdgeInsets(top: 0, leading: 0, bottom: 34, trailing: 0),
+                                              division: hinge, divisionIsActive: true, camera: nil,
+                                              margin: 24, fontSize: 19, allowSpread: true, fullBleed: true))
+        #expect(layout.pageFrames == [CGRect(x: 0, y: 0, width: 669, height: 475.5)])
+        #expect(Double(layout.pageFrames[0].maxY) == TabletopEdgeTests.pageBottom)
+        #expect(layout.textSize.height == 475.5 - PageLayout.headerHeight - PageLayout.footerHeight)
+        #expect(layout.deckFrame == CGRect(x: 0, y: 495.5, width: 669, height: 951 - 34 - 495.5))
+        let folio = PageView.folioFrame(bounds: CGRect(origin: .zero, size: layout.pageViewSize),
+                                        textInsets: layout.textInsets, lineHeight: 18)
+        // The folio's line (453.5…471.5) is mostly in the crease's upper half, wholly above its middle.
+        #expect(folio.midY > hinge.minY, "the folio is not down in the crease: \(folio)")
+        #expect(folio.maxY <= hinge.midY, "the folio crosses the centreline: \(folio)")
+        let surface = TabletopBaseView.top(pageBottom: layout.pageFrames[0].maxY, scale: 3)
+        #expect(surface * 3 == (hinge.midY * 3).rounded(.down), "the page's edge is not on the centreline's pixel row")
+        let flat = PageLayout.compute(.init(size: CGSize(width: 669, height: 951),
+                                            safeArea: EdgeInsets(top: 0, leading: 0, bottom: 34, trailing: 0),
+                                            division: hinge, divisionIsActive: false, camera: nil,
+                                            margin: 24, fontSize: 19, allowSpread: true, fullBleed: true))
+        #expect(flat.pageFrames == [CGRect(x: 0, y: 0, width: 669, height: 917)])
+        #expect(flat.deckFrame == nil)
     }
 
     @Test func innerDisplayPortraitFlatIsOneTallPage() {

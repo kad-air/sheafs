@@ -18,8 +18,10 @@ import UniformTypeIdentifiers
 /// and the real surface to `<tmp>/sheafs-tabletop/` (the path is printed), to look at.
 @MainActor
 struct TabletopEdgeTests {
-    /// The Duo's inner display, portrait, folded into tabletop: the page ends at the fold.
-    static let width = 669.0, height = 951.0, pageBottom = 455.5
+    /// The Duo's inner display, portrait, folded into tabletop: the page ends at the MIDDLE of the
+    /// fold (the simulator's 40 pt hinge at 455.5, so 475.5 pt = 1426.5 px at 3×, a half pixel like
+    /// the fold's top was); `ReaderEngineTests` pins that this is what `PageLayout` gives.
+    static let width = 669.0, height = 951.0, pageBottom = 475.5
 
     final class Composer {
         let device: MTLDevice
@@ -215,13 +217,14 @@ struct TabletopEdgeTests {
     /// so the live view and the leaf show the same.
     @Test func surfaceStartsOnAPixelAndDrawsThePageEdge() throws {
         for scale in [2.0, 3.0] {
-            for bottom in [455.5, 455.0, 455.3333, 612.25] {
+            for bottom in [475.5, 455.5, 455.0, 455.3333, 612.25] {
                 let top = Double(TabletopBaseView.top(pageBottom: bottom, scale: scale))
                 #expect(abs((top * scale).rounded() - top * scale) < 1e-6, "\(bottom) at \(scale)x starts at \(top), not a pixel")
                 #expect(top <= bottom + 1e-9 && top > bottom - 1 / scale, "\(bottom) at \(scale)x starts at \(top)")
             }
         }
         #expect(abs(Double(TabletopBaseView.top(pageBottom: 455.5, scale: 3)) - 1366.0 / 3) < 1e-9)
+        #expect(abs(Double(TabletopBaseView.top(pageBottom: 475.5, scale: 3)) - 1426.0 / 3) < 1e-9)
 
         let base = TabletopBaseView(frame: CGRect(x: 0, y: 0, width: 40, height: 120))
         base.contentScaleFactor = 3

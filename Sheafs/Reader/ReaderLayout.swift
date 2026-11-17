@@ -7,7 +7,8 @@ struct PageLayout: Equatable {
     var pageFrames: [CGRect]
     /// Insets from a page view's edges to its text container.
     var textInsets: UIEdgeInsets
-    /// The region below a horizontal active fold (tabletop pose) left free for controls, if any.
+    /// The region below a horizontal active fold (tabletop pose) left free for controls, if any. The
+    /// page above it ends at the fold's middle, so the two meet only through the fold's lower half.
     var deckFrame: CGRect?
     /// The cover display's camera hole, in the reader's coordinate space (`CoverCamera`).
     var camera: CGRect?
@@ -85,8 +86,12 @@ struct PageLayout: Equatable {
         if let fold = input.division, fold.width >= fold.height, input.divisionIsActive,
            fold.minY > content.minY + 120, content.maxY - fold.maxY > 80 {
             // Tabletop / laptop pose: the page lives on the upper half, controls on the lower half.
+            // The page runs down to the MIDDLE of the fold, not its top: the folio sits in the upper
+            // half of the crease (caught a little in its curve, which is fine) so the text gets that
+            // much more height, and the block of pages still to read under the page's edge
+            // (`TabletopBaseView`) lies wholly below the centreline. The deck still starts below it.
             deck = CGRect(x: content.minX, y: fold.maxY, width: content.width, height: content.maxY - fold.maxY)
-            content = CGRect(x: content.minX, y: content.minY, width: content.width, height: fold.minY - content.minY)
+            content = CGRect(x: content.minX, y: content.minY, width: content.width, height: fold.midY - content.minY)
         }
 
         let wantsSpread: Bool

@@ -178,8 +178,8 @@ final class PageFlipView: MTKView {
     }
 
     /// 🔴 The page's bounds are stretched onto the WHOLE texture, not drawn at `scale`: a page
-    /// whose height is not a whole number of pixels (tabletop: the page ends at the fold, 455.5 pt
-    /// = 1366.5 px on the Duo) would leave the rounded-up last row half painted, alpha 0.5, and the
+    /// whose height is not a whole number of pixels (tabletop: the page ends at the fold's middle,
+    /// 475.5 pt = 1426.5 px on the Duo) would leave the rounded-up last row half painted, alpha 0.5, and the
     /// shader reads its premultiplied colour as half-dark paper: a line across the whole display
     /// under the leaf and the page beneath for as long as the turn lasts. `PageFlipEdgeTests`.
     static func texture(for page: UIView, scale: CGFloat, device: MTLDevice) -> MTLTexture? {

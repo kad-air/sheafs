@@ -23,7 +23,8 @@ final class TabletopBaseView: UIView {
     static let shadowDepth: CGFloat = 14
 
     /// Where the view starts for a page ending at `pageBottom`: on the whole pixel at or above it.
-    /// 🔴 The page ends at the fold, 455.5 pt = 1366.5 px on the Duo, and the view begun there came
+    /// 🔴 The page ends on a half pixel on the Duo (the fold's middle, 475.5 pt = 1426.5 px; it was the
+    /// fold's top, 455.5 pt = 1366.5 px, when this bit), and the view begun there came
     /// out with a dark row along its top (an opaque backing store a pixel taller than what it
     /// draws): a line under the live page that the flip's texture of this view doesn't have, so it
     /// vanished at every turn and came back when the leaf landed. Rounded down, the view covers the

@@ -9,6 +9,9 @@
 #     line there that the flip's textures don't have (the block's view began at the fold's half
 #     pixel), so the line vanished at every turn and came back when the leaf landed;
 #   - that row has the page's edge line in both (darker than the paper above it);
+#   - the page runs down to the MIDDLE of the fold the system reports (`[layout]` division): the
+#     edge line read off the screenshot is the centreline's pixel row and the folio's ink lies in
+#     the fold's upper half, above it (🔴 the page used to stop at the fold's top);
 #   - the folios either side of the turn (`[flip] turn … folio X → Y`) are pages of Pride's PRINT
 #     edition (its NCX page list, read here by Python, not by the app), and the turn never counts
 #     back: Y is X or X + 1 (one half-display page holds less than a print page). 🔴 They were
@@ -157,6 +160,58 @@ for name, g, paper in (("lying", a, paper_a), ("turning", b, paper_b)):
     if darkest > paper - 25:
         fail(f"{name}: no page edge line (darkest {darkest:.0f} against paper {paper:.0f})")
 print(f"  ok: the page's edge reads the same lying and turning (worst row {rows[worst]}: {abs(a[worst] - b[worst]):.1f})")
+
+# The page runs down to the MIDDLE of the fold, the folio just above it. The fold is the system's
+# (the `[layout]` line's division, not the app's page frame), the edge and the folio are read off
+# the screenshot's pixels. 🔴 The page used to stop at the fold's top (455.5 pt), the folio well
+# above the crease and its upper half unused.
+division = re.search(r"division=Optional\(\(([\d.]+), ([\d.]+), ([\d.]+), ([\d.]+)\)\)", layout)
+if not division:
+    fail(f"no fold in the layout line: {layout}")
+fold_top, fold_height = float(division.group(2)), float(division.group(4))
+centre = fold_top + fold_height / 2
+if abs(bottom - centre) > 0.01:
+    fail(f"the page ends at {bottom} pt, not the fold's middle {centre} pt (fold {fold_top} … {fold_top + fold_height}): {layout}")
+crease = list(range(int(fold_top * scale), int((fold_top + fold_height) * scale)))
+g = grey_rows(lying, column, crease)
+paper = grey_rows(lying, column, [int((fold_top - 3) * scale)])[0]  # the page, just above the fold
+found = next((row for row, value in zip(crease, g) if value < paper - 25), None)
+centre_row = int(centre * scale)
+if found is None or abs(found - centre_row) > 1:
+    fail(f"the page's edge line is at pixel row {found} ({found / scale if found else '-'} pt), not the fold's middle, "
+         f"row {centre_row} ({centre} pt); the fold's top is row {crease[0]} ({lying})")
+print(f"  ok: the page's edge is on the fold's centreline (row {found}, the fold {crease[0]} … {crease[-1]})")
+
+def ink_rows(png, x0, x1, rows):
+    bmp = f"{work}/{png.rsplit('/', 1)[1]}.bmp"
+    data = open(bmp, "rb").read()
+    offset, = struct.unpack_from("<I", data, 10)
+    width, bh = struct.unpack_from("<ii", data, 18)
+    step = struct.unpack_from("<H", data, 28)[0] // 8
+    stride = (width * step + 3) & ~3
+    out = []
+    for row in rows:
+        yy = (bh - 1 - row) if bh > 0 else row
+        darkest = 255
+        for xx in range(x0, x1):
+            i = offset + yy * stride + xx * step
+            b, g, r = data[i:i + 3]
+            darkest = min(darkest, 0.2126 * r + 0.7152 * g + 0.0722 * b)
+        out.append(darkest)
+    return out
+
+# The folio: ink in the middle of the page between 30 pt above the fold and its middle.
+mid = int((x + w / 2) * scale)
+band = list(range(int((fold_top - 30) * scale), centre_row))
+ink = [row for row, value in zip(band, ink_rows(lying, mid - 90, mid + 90, band)) if value < paper - 60]
+if not ink:
+    fail(f"no folio between {fold_top - 30} pt and the fold's middle ({lying})")
+first = len(ink) - 1  # the folio is the last run of ink rows (text may end above it)
+while first > 0 and ink[first - 1] >= ink[first] - 2:
+    first -= 1
+if ink[-1] <= crease[0]:
+    fail(f"the folio ends at row {ink[-1]}, above the fold (row {crease[0]}): it did not come down with the page")
+print(f"  ok: the folio is in the fold's upper half, above the centreline (rows {ink[first]} … {ink[-1]})")
 PY
 
 TURN=$(grep -a '^\[flip\] turn forward folio' "$OUT/turning-console.log" | head -1 | tr -d '\r')
