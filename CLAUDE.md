@@ -1056,6 +1056,12 @@ come out exact, so it never reproduced there): not confirmed on the phone yet, w
 - Simulator input: the iOS Simulator MCP's taps and rotation reach the inner display (coordinates in
   the lit screen's points); `-SheafsOpen` / launch args reach reader states and `scripts/hinge/hinge`
   sets poses. `xcrun simctl launch --console-pty <udid> io.sheafs.reader …` captures `print` output.
+  Xcode's device-interaction tool (`DeviceInteraction*`) sees and touches only the COVER display (its
+  inner-display captures come back black at 678×466): tap and scroll folded (hinge 0), then unfold
+  and screenshot with `simctl io`; the scene keeps its state (a sheet's scroll, a pushed screen).
+- Swift Testing: `#expect(width == 951 - 40)` with a `CGFloat` on the left FAILS on equal values
+  (the macro types the literal arithmetic alone, as `Int`; the same for `Double` vs `CGFloat`).
+  Give the right side a type (`CGFloat(951 - 40)`, `Double(PageLayout.headerHeight)`).
 - 🔴 Rotating the Duo simulator: `xcrun devicectl device orientation set` prints success and changes
   NOTHING (Safari on the cover stays portrait), and Xcode 27 has no Simulator.app. `hinge
   orient` works: it posts Device Hub's `orientation-picker-control` HID event (next to the hinge
