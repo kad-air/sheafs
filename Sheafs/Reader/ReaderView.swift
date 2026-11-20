@@ -343,8 +343,11 @@ struct ReaderView: View {
                     // The Ask panel carries its own "Back to page N" (it may cover the folio).
                     if !chromeVisible, !showQuickAppearance, !showAsk, !markingUp, let page = layout.pageFrames.last {
                         backButton(session)
-                            // Over the folio of the page that holds the position (the right page of a spread).
-                            .position(x: page.midX, y: page.maxY - PageLayout.footerHeight / 2 + 2)
+                            // Over the folio of the page that holds the position (the right page of a spread),
+                            // but a button stays out of the bottom 14 pt (the home indicator's strip, the
+                            // swipe home), where a spread's folio now sits (`spreadFootInset`): there the
+                            // 34 pt capsule rises a little and still covers the folio.
+                            .position(x: page.midX, y: min(page.maxY - PageLayout.footerHeight / 2 + 2, full.height - 31))
                             .transition(.opacity.combined(with: .scale(scale: 0.9)))
                     }
                 }

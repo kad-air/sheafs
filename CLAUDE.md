@@ -55,6 +55,11 @@ scripts/check-screen-awake        # end to end on a simulator (SIM="iPhone Duo")
                                   #   held again on the next turn, never with the setting Off; read off
                                   #   SpringBoard's log (the value it received + its idle-timer decision),
                                   #   turns via `-SheafsWatchCommands` (OUT=/tmp/sheafs-screen-awake); NO_BUILD=1
+scripts/check-folio-foot          # end to end on a simulator (SIM="iPhone Duo"): Pride halfway at 19 pt, read
+                                  #   off the screenshots: in book pose each page's folio ink ends 10…24 pt
+                                  #   above the bottom edge (it was 43), centred off the home indicator, the
+                                  #   text below 605 pt and ≥ 19 lines a page (it was 18); on the cover display
+                                  #   the folio stays above the 34 pt safe area (OUT=/tmp/sheafs-folio-foot); NO_BUILD=1
 scripts/check-cover-chrome        # end to end on a simulator (SIM="iPhone Duo"): a centre tap brings the
                                   #   bars up and they STAY up 2.5 s later on the cover display (portrait) and
                                   #   the inner display (flat, book pose): `[chrome]` lines + the screenshots'
@@ -909,9 +914,17 @@ it widens the folio band instead. The simulator does not rotate the cover displa
 can only be checked on the phone (`[layout] … camera=… orientation=…`); a window of that size without a fold is the
 cover display. The text starts 2 pt below the hole (Books runs right up to it), and the running head
 (`PageView.headFrame`) narrows symmetrically to stay clear of it. Don't bring occlusions back.
-Folio band 30 pt, the
-folio centred ~50 pt above the display's bottom edge, like Books; the page frame stops at the home
-indicator's zone. Page breaks are judged by a line's GLYPH bottom (`Paginator`), not its fragment
+Folio band 30 pt. On a SINGLE page
+the folio is centred ~50 pt above the display's bottom edge, like Books: the page frame stops at the
+bottom safe area, since the home indicator is right under the folio. 🔴 A SPREAD's pages run down to
+`PageLayout.spreadFootInset` (6 pt) above the window's bottom edge, not the safe area: the indicator
+is centred on the display, in the gutter (on the Duo, on the fold), under neither folio. They used to
+stop at the Duo's 34 pt safe area with the band on top, the folio's ink 43 pt above the edge over a
+band of empty page; now it ends ~15 pt above it, as far as the running head's ink begins below the
+top, and the text is 28 pt taller (Pride at 19 pt: 19 lines a page, not 18). So the bottom inset no
+longer changes a spread's pages (book pose 34 pt, flat 20 pt: the same 663 pt). The "Back to page N"
+capsule keeps out of the bottom 14 pt (`min(…, window − 31)`), rising a little over a spread's
+folio. `scripts/check-folio-foot` reads both off the pixels. Page breaks are judged by a line's GLYPH bottom (`Paginator`), not its fragment
 rect, which carries the trailing line/paragraph spacing: otherwise the last line that fits is dropped.
 🔴 Nothing but the display itself moves the text (`SteadyPageGeometry`, `SteadyPageGeometryTests`).
 The bars change the safe areas, so they are learned per display state (window size + fold

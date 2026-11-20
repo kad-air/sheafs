@@ -1,0 +1,187 @@
+#!/usr/bin/env bash
+# End-to-end check of the page's foot on the iPhone Duo simulator, read off the screenshots' pixels:
+#   - book pose (a spread over the active fold): the folio sits at the foot of each page, its ink
+#     ending 10…24 pt above the display's bottom edge (🔴 it ended 43 pt above it, under a band of
+#     empty page, while the pages stopped at the 34 pt bottom safe area with the 30 pt folio band on
+#     top), centred on its page, far beside the home indicator (centred on the display, i.e. on the
+#     fold); the text runs below where it used to end (605 pt) and each page holds at least 19 lines
+#     of Pride at 19 pt (it held 18); the folio's ink stays clear of the last line's;
+#   - the cover display (one page, the home indicator right under its folio): the folio's ink stays
+#     above the bottom safe area (34 pt), where it always was.
+# Pride and Prejudice halfway, Night theme, New York 19 pt.
+#   SIM="iPhone Duo" (default), DERIVED_DATA=/tmp/sheafs-derived (builds there, incrementally),
+#   NO_BUILD=1 (installs the last build), OUT=/tmp/sheafs-folio-foot (screenshots + consoles, kept)
+set -euo pipefail
+cd "$(dirname "$0")/.."
+fail() { echo "FOLIO FOOT CHECK FAILED: $*" >&2; exit 1; }
+SIM=${SIM:-iPhone Duo}
+DD=${DERIVED_DATA:-/tmp/sheafs-derived}
+OUT=${OUT:-/tmp/sheafs-folio-foot}
+HINGE=scripts/hinge/hinge
+FIX=Packages/SheafsKit/Tests/SheafsKitTests/Fixtures
+WORK=$(mktemp -d)
+CONSOLE_PID=""
+mkdir -p "$OUT"
+
+UDID=$(xcrun simctl list devices available -j | python3 -I -c '
+import json, sys
+name = sys.argv[1]
+for runtime in json.load(sys.stdin)["devices"].values():
+    for d in runtime:
+        if d["name"] == name: print(d["udid"]); sys.exit()
+' "$SIM")
+[[ -n $UDID ]] || fail "no simulator named \"$SIM\""
+xcrun simctl boot "$UDID" >/dev/null 2>&1 || true
+xcrun simctl bootstatus "$UDID" -b >/dev/null
+finish() {
+  [[ -n $CONSOLE_PID ]] && { kill "$CONSOLE_PID" >/dev/null 2>&1 || true; }
+  CONSOLE_PID=""
+  xcrun simctl terminate "$UDID" io.sheafs.reader >/dev/null 2>&1 || true
+}
+cleanup() {
+  local status=$?
+  finish
+  rm -rf "$WORK"
+  exit "$status"
+}
+trap cleanup EXIT
+
+if [[ -z ${NO_BUILD:-} ]]; then
+  [[ -f Config/Signing.xcconfig ]] || cp Config/Signing.example.xcconfig Config/Signing.xcconfig
+  xcodegen generate --quiet
+  xcodebuild -project Sheafs.xcodeproj -scheme Sheafs -destination "platform=iOS Simulator,id=$UDID" \
+    -derivedDataPath "$DD" -quiet build >"$WORK/build.log" 2>&1 || { tail -n 30 "$WORK/build.log" >&2; fail "build"; }
+fi
+xcrun simctl install "$UDID" "$DD/Build/Products/Debug-iphonesimulator/Sheafs.app"
+finish
+DATA=$(xcrun simctl get_app_container "$UDID" io.sheafs.reader data)
+PREFS=$DATA/Library/Preferences/io.sheafs.reader.plist
+mkdir -p "$DATA/Documents"
+cp "$FIX/pride-epub2.epub" "$DATA/Documents/"
+xcrun simctl launch "$UDID" io.sheafs.reader >/dev/null            # imports Documents/ (dedupes)
+sleep 4
+finish
+# The settings (the app's container copy outranks `defaults write`).
+[[ -f $PREFS ]] && plutil -remove 'reader\.settings\.v1' "$PREFS" >/dev/null 2>&1 || true
+json='{"theme":"night","font":"newYork","fontSize":19,"lineHeight":1.4,"margin":24,"justified":true,"hyphenate":true,"paragraphStyle":"indented","keepScreenAwake":true,"tapToTurn":true}'
+xcrun simctl spawn "$UDID" defaults write io.sheafs.reader reader.settings.v1 -data "$(printf '%s' "$json" | xxd -p | tr -d '\n')"
+"$HINGE" -d "$UDID" orient portrait >/dev/null   # device portrait: the cover display folded, a spread unfolded
+
+# shoot <tag> <hinge angle> <display>: Pride halfway, a screenshot once a spread is shown and settled.
+shoot() {
+  local tag=$1 angle=$2 display=$3 attempt
+  "$HINGE" -d "$UDID" "$angle" >/dev/null
+  sleep 1
+  for attempt in 1 2 3; do
+    : >"$OUT/$tag.log"
+    xcrun simctl launch --console-pty "$UDID" io.sheafs.reader -SheafsOpen Pride -SheafsGoTo 0.5 >"$OUT/$tag.log" 2>&1 &
+    CONSOLE_PID=$!
+    for _ in $(seq 1 60); do grep -aq '^\[folio\] shown' "$OUT/$tag.log" && break; sleep 0.5; done
+    if grep -aq '^\[folio\] shown' "$OUT/$tag.log"; then
+      sleep 3
+      xcrun simctl io "$UDID" screenshot --display="$display" "$OUT/$tag.png" >/dev/null 2>&1 || fail "screenshot $tag"
+      finish
+      return 0
+    fi
+    echo "  (no [folio] line in 30 s, attempt $attempt; relaunching)"
+    finish
+  done
+  fail "$tag: the reader never showed Pride (console: $OUT/$tag.log)"
+}
+
+echo "== book pose: a spread"
+shoot book 110 primary-1
+echo "== cover display: one page"
+shoot cover 0 primary
+
+python3 -I - "$OUT" "$WORK" <<'PY' || exit 1
+import re, struct, subprocess, sys
+out, work = sys.argv[1:3]
+def fail(message):
+    sys.exit(f"FOLIO FOOT CHECK FAILED: {message}")
+SCALE = 3
+
+def layout_of(tag):
+    lines = [l for l in open(f"{out}/{tag}.log", encoding="utf-8", errors="replace") if l.startswith("[layout]")]
+    if not lines:
+        fail(f"{tag}: no [layout] line ({out}/{tag}.log)")
+    line = lines[-1]
+    pages = re.findall(r"\(([\d.]+), ([\d.]+), ([\d.]+), ([\d.]+)\)", line.split("pages=", 1)[1].split("textInsets")[0])
+    insets = re.search(r"textInsets=UIEdgeInsets\(top: ([\d.]+), left: ([\d.]+), bottom: ([\d.]+), right: ([\d.]+)\)", line)
+    if not pages or not insets:
+        fail(f"{tag}: cannot read {line}")
+    return [tuple(map(float, p)) for p in pages], tuple(map(float, insets.groups()))
+
+def ink_bands(tag, columns):
+    """Rows (points) holding ink between x0…x1 (points), merged across gaps under 2 pt."""
+    bmp = f"{work}/{tag}.bmp"
+    subprocess.run(["sips", "-s", "format", "bmp", f"{out}/{tag}.png", "--out", bmp], check=True, capture_output=True)
+    data = open(bmp, "rb").read()
+    offset, = struct.unpack_from("<I", data, 10)
+    width, height = struct.unpack_from("<ii", data, 18)
+    step = struct.unpack_from("<H", data, 28)[0] // 8
+    stride = (width * step + 3) & ~3
+    rows = abs(height)
+    def px(x, y):
+        i = offset + ((rows - 1 - y) if height > 0 else y) * stride + x * step
+        return data[i:i + 3]
+    paper = px(2, rows // 2)
+    x0, x1 = (int(v * SCALE) for v in columns)
+    bands, start = [], None
+    for y in range(rows + 1):
+        ink = y < rows and any(max(abs(a - b) for a, b in zip(px(x, y), paper)) > 40 for x in range(x0, x1, 2))
+        if ink and start is None: start = y
+        if not ink and start is not None: bands.append([start / SCALE, y / SCALE]); start = None
+    merged = []
+    for b in bands:
+        if merged and b[0] - merged[-1][1] < 2: merged[-1][1] = b[1]
+        else: merged.append(b)
+    return merged, rows / SCALE, width / SCALE
+
+def foot(tag, x, y, w, h, insets):
+    """The folio's ink band (the last band of the page) and the text lines above it."""
+    top, left, bottom, right = insets
+    bands, window_h, window_w = ink_bands(tag, (x + left, x + w - right))
+    if len(bands) < 3:
+        fail(f"{tag}: the page at x={x} has no text ({out}/{tag}.png)")
+    folio = bands[-1]
+    text = [b for b in bands[:-1] if b[0] >= y + top - 2]
+    return folio, text, window_h, window_w
+
+# Book pose: a spread.
+pages, insets = layout_of("book")
+if len(pages) != 2:
+    fail(f"book pose is not a spread: {pages}")
+for n, (x, y, w, h) in enumerate(pages):
+    folio, text, window_h, window_w = foot("book", x, y, w, h, insets)
+    above = window_h - folio[1]
+    name = ("left", "right")[n]
+    print(f"  spread {name} page: {len(text)} lines, last line's ink to {text[-1][1]:.1f} pt, "
+          f"folio's ink {folio[0]:.1f}…{folio[1]:.1f} pt, {above:.1f} pt above the bottom edge")
+    if not 10 <= above <= 24:
+        fail(f"spread, {name} page: the folio's ink ends {above:.1f} pt above the bottom edge, not 10…24 "
+             f"(43 pt was the dead band under it; under 10 is the home indicator's strip) ({out}/book.png)")
+    if folio[1] - folio[0] > 14:
+        fail(f"spread, {name} page: the last band ({folio}) is not a folio line ({out}/book.png)")
+    if folio[0] - text[-1][1] < 8:
+        fail(f"spread, {name} page: the folio's ink is {folio[0] - text[-1][1]:.1f} pt under the last line's ({out}/book.png)")
+    centre = x + w / 2
+    if abs(centre - window_w / 2) < 67 + 60:
+        fail(f"spread, {name} page: its folio (centred at {centre}) is near the home indicator at {window_w / 2}")
+    if len(text) < 19:
+        fail(f"spread, {name} page: {len(text)} lines of Pride at 19 pt (18 when the pages stopped at the safe area)")
+if max(foot("book", *p, insets)[1][-1][1] for p in pages) <= 605:
+    fail("spread: no page's text runs below 605 pt, where it ended with the pages stopped at the safe area")
+
+# The cover display: one page, the home indicator right under its folio.
+pages, insets = layout_of("cover")
+if len(pages) != 1:
+    fail(f"the cover display is not one page: {pages}")
+folio, text, window_h, _ = foot("cover", *pages[0], insets)
+above = window_h - folio[1]
+print(f"  cover page: {len(text)} lines, folio's ink {folio[0]:.1f}…{folio[1]:.1f} pt, {above:.1f} pt above the bottom edge")
+if above < 34:
+    fail(f"cover display: the folio's ink ends {above:.1f} pt above the bottom edge, inside the 34 pt bottom "
+         f"safe area over the home indicator ({out}/cover.png)")
+print("FOLIO FOOT CHECK PASSED")
+PY
