@@ -130,8 +130,50 @@ struct ReaderEngineTests {
         #expect(book.pageFrames[1].minX >= hinge.maxX)
         #expect(layout(hinge, active: false) == book)
         #expect(layout(CGRect(x: 475.5, y: 0, width: 0, height: 669), active: false) == book)
-        #expect(book.pageFrames == [CGRect(x: 0, y: 0, width: 453, height: 635),
-                                    CGRect(x: 498, y: 0, width: 453, height: 635)])
+        #expect(book.pageFrames == [CGRect(x: 0, y: 0, width: 453, height: 663),
+                                    CGRect(x: 498, y: 0, width: 453, height: 663)])
+    }
+
+    /// A spread's pages run down to `spreadFootInset` above the window's bottom edge, not to the
+    /// bottom safe area: the home indicator is centred on the display, in the gutter, under neither
+    /// folio. 🔴 On the Duo's inner display (34 pt safe area) they stopped at 635 pt with the 30 pt
+    /// folio band on top: text 569 pt tall, the folio's ink 43 pt above the edge. A single page keeps
+    /// to the safe area (the indicator is under its folio), and so does tabletop's deck.
+    @Test func spreadPagesRunToTheFootSinglePagesKeepClearOfTheHomeIndicator() {
+        func compute(_ size: CGSize, bottom: CGFloat, fold: CGRect?) -> PageLayout {
+            PageLayout.compute(.init(size: size, safeArea: EdgeInsets(top: 0, leading: 0, bottom: bottom, trailing: 84),
+                                     division: fold, divisionIsActive: fold != nil, camera: nil,
+                                     margin: 24, fontSize: 19, allowSpread: true, fullBleed: true))
+        }
+        let window = CGSize(width: 951, height: 669)
+        let duo = compute(window, bottom: 34, fold: CGRect(x: 455.5, y: 0, width: 40, height: 669))
+        #expect(duo.isSpread)
+        #expect(duo.pageFrames.map(\.maxY) == [663, 663])
+        #expect(duo.textSize.height == 597, "the text was 569 pt tall when the pages stopped at the safe area")
+        let lineHeight: CGFloat = 17.5   // the footnote font's line + 2, as `PageView` draws margins
+        for page in duo.pageFrames {
+            let folio = PageView.folioFrame(bounds: CGRect(origin: .zero, size: page.size),
+                                            textInsets: duo.textInsets, lineHeight: lineHeight)
+                .offsetBy(dx: page.minX, dy: page.minY)
+            #expect(folio.maxY <= page.maxY)
+            #expect(window.height - folio.maxY >= PageLayout.spreadFootInset + 4, "folio at the very edge: \(folio)")
+            // The folio is centred on its page, far beside the indicator (134 pt wide, centred on the display).
+            #expect(abs(folio.midX - window.width / 2) > 67 + 60, "folio near the home indicator: \(folio)")
+        }
+        // No indicator (no bottom inset): to the edge, as before. A spread without a fold (iPad
+        // landscape, 20 pt safe area): the same foot.
+        #expect(compute(window, bottom: 0, fold: CGRect(x: 455.5, y: 0, width: 40, height: 669)).pageFrames.map(\.maxY) == [669, 669])
+        let pad = compute(CGSize(width: 1210, height: 834), bottom: 20, fold: nil)
+        #expect(pad.isSpread)
+        #expect(pad.pageFrames.map(\.maxY) == [828, 828])
+        // A single page (cover display, iPhone, inner portrait): the folio stays above the safe area.
+        let cover = compute(CGSize(width: 466, height: 678), bottom: 34, fold: nil)
+        #expect(!cover.isSpread)
+        let safeBottom: CGFloat = 678 - 34
+        #expect(cover.pageFrames[0].maxY == safeBottom)
+        let folio = PageView.folioFrame(bounds: CGRect(origin: .zero, size: cover.pageViewSize),
+                                        textInsets: cover.textInsets, lineHeight: lineHeight)
+        #expect(folio.maxY <= cover.pageFrames[0].height)
     }
 
     /// Tabletop / laptop: the page on the upper half runs down to the MIDDLE of the fold, so its

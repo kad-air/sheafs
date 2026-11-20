@@ -238,8 +238,8 @@ struct ImageViewerTests {
     @Test func overAVerticalFoldThePictureStaysOnTheTappedPage() {
         let window = CGSize(width: 951, height: 669)
         let hinge = CGRect(x: 455.5, y: 0, width: 40, height: 669)
-        let leftPage = CGRect(x: 0, y: 0, width: 453, height: 635)
-        let rightPage = CGRect(x: 498, y: 0, width: 453, height: 635)
+        let leftPage = CGRect(x: 0, y: 0, width: 453, height: 663)
+        let rightPage = CGRect(x: 498, y: 0, width: 453, height: 663)
         for active in [true, false] {  // book pose and flat: the same, like the spread
             let left = ImageViewerLayout.viewport(window: window, division: hinge, divisionIsActive: active, pageFrame: leftPage)
             let right = ImageViewerLayout.viewport(window: window, division: hinge, divisionIsActive: active, pageFrame: rightPage)
@@ -295,7 +295,7 @@ struct ImageViewerTests {
     @Test func theViewerClosesWhenTheDisplayMovesItsPicture() {
         let hinge = CGRect(x: 455.5, y: 0, width: 40, height: 669)
         let inner = CGSize(width: 951, height: 669)
-        let rightPage = CGRect(x: 498, y: 0, width: 453, height: 635)
+        let rightPage = CGRect(x: 498, y: 0, width: 453, height: 663)
         func viewport(_ size: CGSize, _ fold: CGRect?, _ active: Bool) -> CGRect {
             ImageViewerLayout.viewport(window: size, division: fold, divisionIsActive: active, pageFrame: rightPage)
         }

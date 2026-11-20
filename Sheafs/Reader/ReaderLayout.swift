@@ -42,6 +42,16 @@ struct PageLayout: Equatable {
     static let footerHeight: CGFloat = 30
     static let headerHeight: CGFloat = 36
 
+    /// How far above the window's bottom edge a SPREAD's pages stop (at most the bottom safe area).
+    /// The home indicator is centred on the display, so on a spread it sits in the gutter (on the
+    /// Duo, on the fold), under neither folio: the bottom safe area (34 pt on the Duo's inner
+    /// display) is no reason to lift the folio band off the foot of the page. 🔴 The pages used to
+    /// stop at the safe area with the 30 pt band on top of it: the folio's ink ended 43 pt above the
+    /// edge, a band of empty page under it. At 6 pt its ink ends ~15 pt above the edge, as far as
+    /// the running head's begins below the top, and the text is 28 pt taller (a line at 19 pt).
+    /// A single page keeps to the safe area: the indicator is right under its folio.
+    static let spreadFootInset: CGFloat = 6
+
     /// The gutter of a spread on a fold: the fold's region plus 2 pt each side, never narrower than
     /// the 40 pt region the Duo reports for its hinge. The same in every pose, so unfolding from
     /// book pose to flat (or back) keeps the pages, and therefore every line break, exactly as they
@@ -115,8 +125,12 @@ struct PageLayout: Equatable {
         if wantsSpread, let gutter = gutterRect {
             let leftEdge = gutter.minX.rounded(.down), rightEdge = gutter.maxX.rounded(.up)
             let width = min(leftEdge - content.minX, content.maxX - rightEdge).rounded(.down)
-            let left = CGRect(x: leftEdge - width, y: content.minY, width: width, height: content.height)
-            let right = CGRect(x: rightEdge, y: content.minY, width: width, height: content.height)
+            // Down to `spreadFootInset` above the window's bottom, not the safe area (never with a
+            // deck below: that is tabletop, where the page ends at the fold).
+            let bottom = deck == nil ? input.size.height - min(input.safeArea.bottom, spreadFootInset) : content.maxY
+            let height = max(content.height, bottom - content.minY)
+            let left = CGRect(x: leftEdge - width, y: content.minY, width: width, height: height)
+            let right = CGRect(x: rightEdge, y: content.minY, width: width, height: height)
             return PageLayout(pageFrames: [left, right], textInsets: insets, deckFrame: deck, camera: camera)
         }
 
