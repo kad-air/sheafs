@@ -2,55 +2,52 @@ import SwiftUI
 
 /// The small appearance panel that floats over the bottom of the page, so the text being adjusted
 /// stays in view (Books' "Themes & Settings"). Everything with a visible effect on the page is here;
-/// "All Settings" steps through to the detailed `AppearanceView` sheet.
+/// "All Settings" steps through to the detailed `AppearanceView` sheet. Margins is a page of its
+/// own within the panel (three sliders, `MarginSliders`), so the panel stays as low over the page.
 struct QuickAppearanceView: View {
     var onMore: () -> Void
     var onClose: () -> Void
     @Environment(ReaderSettings.self) private var settings
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.spreadFoldGap) private var spreadFoldGap
     @State private var showFonts = false
+    @State private var showsMargins: Bool
+
+    init(onMore: @escaping () -> Void, onClose: @escaping () -> Void, startsOnMargins: Bool = false) {
+        self.onMore = onMore
+        self.onClose = onClose
+        _showsMargins = State(initialValue: startsOnMargins)
+    }
 
     var body: some View {
-        @Bindable var settings = settings
         VStack(spacing: 10) {
-            HStack(spacing: 6) {
-                ForEach(ReaderTheme.allCases) { theme in
-                    swatch(theme)
+            if showsMargins {
+                HStack(spacing: 6) {
+                    Button {
+                        showsMargins = false
+                    } label: {
+                        Label("Margins", systemImage: "chevron.left")
+                            .font(.headline)
+                            .padding(.horizontal, 12)
+                            .frame(minHeight: 40)
+                            .background(.fill.tertiary, in: Capsule())
+                    }
+                    .foregroundStyle(.primary)
+                    .accessibilityLabel("Back")
+                    Spacer(minLength: 4)
+                    buttons
                 }
-                Spacer(minLength: 4)
-                Button("All Settings", systemImage: "slider.horizontal.3", action: onMore)
-                    .labelStyle(.iconOnly)
-                    .frame(width: 40, height: 40)
-                    .background(.fill.tertiary, in: Circle())
-                Button("Close", systemImage: "xmark", action: onClose)
-                    .labelStyle(.iconOnly)
-                    .frame(width: 40, height: 40)
-                    .background(.fill.tertiary, in: Circle())
-            }
-            HStack(spacing: 8) {
-                StepPill(caption: "Size", display: "\(Int(settings.fontSize))",
-                         decrease: ("Smaller Text", "textformat.size.smaller"),
-                         increase: ("Larger Text", "textformat.size.larger"),
-                         value: $settings.fontSize, steps: 1,
-                         grid: ReaderSettings.fontSizeGrid, range: ReaderSettings.fontSizeRange)
-                fontMenu
-            }
-            HStack(spacing: 8) {
-                StepPill(caption: "Spacing", display: settings.lineHeight.formatted(.number.precision(.fractionLength(1 ... 2))),
-                         decrease: ("Tighter Lines", "minus"), increase: ("Looser Lines", "plus"),
-                         value: $settings.lineHeight, steps: 2,
-                         grid: ReaderSettings.lineHeightGrid, range: ReaderSettings.lineHeightRange)
-                StepPill(caption: "Margins", display: "\(Int(settings.margin))",
-                         decrease: ("Narrower Margins", "minus"), increase: ("Wider Margins", "plus"),
-                         value: $settings.margin, steps: 2,
-                         grid: ReaderSettings.marginGrid, range: ReaderSettings.marginRange)
-            }
-            HStack(spacing: 8) {
-                Chip(title: "Justify", systemImage: "text.justify", isOn: $settings.justified)
-                Chip(title: "Hyphenate", systemImage: "character.text.justify", isOn: $settings.hyphenate)
-                Chip(title: "Indent", systemImage: "increase.indent", isOn: Binding(
-                    get: { settings.paragraphStyle == .indented },
-                    set: { settings.paragraphStyle = $0 ? .indented : .spaced }))
+                MarginSliders(foldGap: spreadFoldGap)
+                    .padding(.horizontal, 4)
+            } else {
+                HStack(spacing: 6) {
+                    ForEach(ReaderTheme.allCases) { theme in
+                        swatch(theme)
+                    }
+                    Spacer(minLength: 4)
+                    buttons
+                }
+                mainRows
             }
         }
         .font(.subheadline)
@@ -60,6 +57,63 @@ struct QuickAppearanceView: View {
         .padding(.horizontal, 10)
         .padding(.bottom, 6)
         .animation(.snappy, value: settings.theme)
+        .animation(.snappy, value: showsMargins)
+    }
+
+    @ViewBuilder private var buttons: some View {
+        Button("All Settings", systemImage: "slider.horizontal.3", action: onMore)
+            .labelStyle(.iconOnly)
+            .frame(width: 40, height: 40)
+            .background(.fill.tertiary, in: Circle())
+        Button("Close", systemImage: "xmark", action: onClose)
+            .labelStyle(.iconOnly)
+            .frame(width: 40, height: 40)
+            .background(.fill.tertiary, in: Circle())
+    }
+
+    @ViewBuilder private var mainRows: some View {
+        @Bindable var settings = settings
+        HStack(spacing: 8) {
+            StepPill(caption: "Size", display: "\(Int(settings.fontSize))",
+                     decrease: ("Smaller Text", "textformat.size.smaller"),
+                     increase: ("Larger Text", "textformat.size.larger"),
+                     value: $settings.fontSize, steps: 1,
+                     grid: ReaderSettings.fontSizeGrid, range: ReaderSettings.fontSizeRange)
+            fontMenu
+        }
+        HStack(spacing: 8) {
+            StepPill(caption: "Spacing", display: settings.lineHeight.formatted(.number.precision(.fractionLength(1 ... 2))),
+                     decrease: ("Tighter Lines", "minus"), increase: ("Looser Lines", "plus"),
+                     value: $settings.lineHeight, steps: 2,
+                     grid: ReaderSettings.lineHeightGrid, range: ReaderSettings.lineHeightRange)
+            marginsButton
+        }
+        HStack(spacing: 8) {
+            Chip(title: "Justify", systemImage: "text.justify", isOn: $settings.justified)
+            Chip(title: "Hyphenate", systemImage: "character.text.justify", isOn: $settings.hyphenate)
+            Chip(title: "Indent", systemImage: "increase.indent", isOn: Binding(
+                get: { settings.paragraphStyle == .indented },
+                set: { settings.paragraphStyle = $0 ? .indented : .spaced }))
+        }
+    }
+
+    /// Opens the margins page: Side margins, Top and bottom margins, and Gutter over a spread.
+    private var marginsButton: some View {
+        Button {
+            showsMargins = true
+        } label: {
+            HStack(spacing: 4) {
+                Text("Margins")
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .background(.fill.tertiary, in: Capsule())
+            .contentShape(Capsule())
+        }
+        .foregroundStyle(.primary)
     }
 
     private var fontMenu: some View {

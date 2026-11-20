@@ -9,6 +9,9 @@ final class PageView: UIView {
     var page: Int = 0 { didSet { placedSketches = nil; setNeedsDisplay() } }
     var palette: ReaderPalette = .paper { didSet { backgroundColor = palette.background; setNeedsDisplay() } }
     var textInsets: UIEdgeInsets = .zero { didSet { placedSketches = nil; setNeedsDisplay() } }
+    /// The top and bottom margins past the least (`PageLayout.bandGap`): the text stands this far
+    /// off the running head's band and the folio's, which stay at the page's edges.
+    var bandGap: CGFloat = 0 { didSet { setNeedsDisplay() } }
     /// The running head: the book title on a left page, the chapter title on a right or single page.
     var head = "" { didSet { setNeedsDisplay() } }
     /// The page number.
@@ -200,21 +203,23 @@ final class PageView: UIView {
         let lineHeight = marginFont.lineHeight + 2
         if !head.isEmpty {
             let ribbon = isBookmarked ? Self.ribbonFrame(bounds: bounds, textInsets: textInsets, camera: camera) : nil
-            let frame = Self.headFrame(bounds: bounds, textInsets: textInsets, lineHeight: lineHeight, camera: camera, ribbon: ribbon)
+            let frame = Self.headFrame(bounds: bounds, textInsets: textInsets, bandGap: bandGap, lineHeight: lineHeight,
+                                       camera: camera, ribbon: ribbon)
             (head as NSString).draw(in: frame, withAttributes: attrs)
         }
         if !folio.isEmpty {
-            let frame = Self.folioFrame(bounds: bounds, textInsets: textInsets, lineHeight: lineHeight)
+            let frame = Self.folioFrame(bounds: bounds, textInsets: textInsets, bandGap: bandGap, lineHeight: lineHeight)
             (folio as NSString).draw(in: frame, withAttributes: attrs)
         }
     }
 
     /// Where the running head goes: centred over the text in the band above it, narrowed
     /// symmetrically so it stays clear of a camera hole in that band (the cover display's hole
-    /// sits at the top right, in the vertical bar's strip) and of a bookmark ribbon.
-    nonisolated static func headFrame(bounds: CGRect, textInsets: UIEdgeInsets, lineHeight: CGFloat,
+    /// sits at the top right, in the vertical bar's strip) and of a bookmark ribbon. A `bandGap`
+    /// (bigger top and bottom margins) moves the text down, not the head.
+    nonisolated static func headFrame(bounds: CGRect, textInsets: UIEdgeInsets, bandGap: CGFloat = 0, lineHeight: CGFloat,
                                       camera: CGRect?, ribbon: CGRect? = nil) -> CGRect {
-        let y = max(4, textInsets.top - lineHeight - 6)
+        let y = max(4, textInsets.top - bandGap - lineHeight - 6)
         var left = textInsets.left
         var right = bounds.width - textInsets.right
         let center = (left + right) / 2
@@ -226,10 +231,11 @@ final class PageView: UIView {
     }
 
     /// Where the folio goes: centred under the text, inside the footer band, above the home
-    /// indicator's zone (the page frame already excludes it).
-    nonisolated static func folioFrame(bounds: CGRect, textInsets: UIEdgeInsets, lineHeight: CGFloat) -> CGRect {
+    /// indicator's zone (the page frame already excludes it). A `bandGap` moves the text up, not
+    /// the folio: it stays at the foot of the page.
+    nonisolated static func folioFrame(bounds: CGRect, textInsets: UIEdgeInsets, bandGap: CGFloat = 0, lineHeight: CGFloat) -> CGRect {
         let width = bounds.width - textInsets.left - textInsets.right
-        return CGRect(x: textInsets.left, y: bounds.height - textInsets.bottom + 8, width: width, height: lineHeight)
+        return CGRect(x: textInsets.left, y: bounds.height - textInsets.bottom + bandGap + 8, width: width, height: lineHeight)
     }
 
     /// Draws the page into `context`, set up the UIKit way (origin top-left, scaled), exactly as

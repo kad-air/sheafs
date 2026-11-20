@@ -74,7 +74,7 @@ struct ReaderEngineTests {
         let layout = PageLayout.compute(.init(size: CGSize(width: 466, height: 678),
                                               safeArea: EdgeInsets(top: 0, leading: 0, bottom: 20, trailing: 84),
                                               division: nil, divisionIsActive: false, camera: nil,
-                                              margin: 24, fontSize: 19, allowSpread: true))
+                                              margins: .standard, fontSize: 19, allowSpread: true))
         #expect(layout.pageFrames.count == 1)
         #expect(layout.pageFrames[0].maxX <= 466 - 84)
         #expect(layout.textSize.width < layout.pageFrames[0].width)
@@ -85,7 +85,7 @@ struct ReaderEngineTests {
         let layout = PageLayout.compute(.init(size: CGSize(width: 951, height: 669),
                                               safeArea: EdgeInsets(top: 0, leading: 0, bottom: 20, trailing: 84),
                                               division: fold, divisionIsActive: false, camera: nil,
-                                              margin: 24, fontSize: 19, allowSpread: true, fullBleed: true))
+                                              margins: .standard, fontSize: 19, allowSpread: true, fullBleed: true))
         #expect(layout.isSpread)
         let left = layout.pageFrames[0], right = layout.pageFrames[1]
         #expect(left.width == right.width)
@@ -104,7 +104,7 @@ struct ReaderEngineTests {
         let layout = PageLayout.compute(.init(size: CGSize(width: 951, height: 669),
                                               safeArea: EdgeInsets(top: 0, leading: 0, bottom: 20, trailing: 84),
                                               division: fold, divisionIsActive: true, camera: nil,
-                                              margin: 24, fontSize: 19, allowSpread: true))
+                                              margins: .standard, fontSize: 19, allowSpread: true))
         #expect(layout.isSpread)
         #expect(layout.pageFrames[0].maxX <= fold.minX)
         #expect(layout.pageFrames[1].minX >= fold.maxX)
@@ -121,7 +121,7 @@ struct ReaderEngineTests {
             PageLayout.compute(.init(size: CGSize(width: 951, height: 669),
                                      safeArea: EdgeInsets(top: 0, leading: 0, bottom: 34, trailing: 84),
                                      division: fold, divisionIsActive: active, camera: nil,
-                                     margin: 24, fontSize: 19, allowSpread: true, fullBleed: true))
+                                     margins: .standard, fontSize: 19, allowSpread: true, fullBleed: true))
         }
         let hinge = CGRect(x: 455.5, y: 0, width: 40, height: 669)
         let book = layout(hinge, active: true)
@@ -143,7 +143,7 @@ struct ReaderEngineTests {
         func compute(_ size: CGSize, bottom: CGFloat, fold: CGRect?) -> PageLayout {
             PageLayout.compute(.init(size: size, safeArea: EdgeInsets(top: 0, leading: 0, bottom: bottom, trailing: 84),
                                      division: fold, divisionIsActive: fold != nil, camera: nil,
-                                     margin: 24, fontSize: 19, allowSpread: true, fullBleed: true))
+                                     margins: .standard, fontSize: 19, allowSpread: true, fullBleed: true))
         }
         let window = CGSize(width: 951, height: 669)
         let duo = compute(window, bottom: 34, fold: CGRect(x: 455.5, y: 0, width: 40, height: 669))
@@ -186,7 +186,7 @@ struct ReaderEngineTests {
         let layout = PageLayout.compute(.init(size: CGSize(width: 669, height: 951),
                                               safeArea: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0),
                                               division: fold, divisionIsActive: true, camera: nil,
-                                              margin: 24, fontSize: 19, allowSpread: true))
+                                              margins: .standard, fontSize: 19, allowSpread: true))
         #expect(layout.pageFrames.count == 1)
         #expect(layout.pageFrames[0].maxY == fold.midY)
         #expect(layout.pageFrames[0].minY == 59)
@@ -206,7 +206,7 @@ struct ReaderEngineTests {
         let layout = PageLayout.compute(.init(size: CGSize(width: 669, height: 951),
                                               safeArea: EdgeInsets(top: 0, leading: 0, bottom: 34, trailing: 0),
                                               division: hinge, divisionIsActive: true, camera: nil,
-                                              margin: 24, fontSize: 19, allowSpread: true, fullBleed: true))
+                                              margins: .standard, fontSize: 19, allowSpread: true, fullBleed: true))
         #expect(layout.pageFrames == [CGRect(x: 0, y: 0, width: 669, height: 475.5)])
         #expect(Double(layout.pageFrames[0].maxY) == TabletopEdgeTests.pageBottom)
         #expect(layout.textSize.height == 475.5 - PageLayout.headerHeight - PageLayout.footerHeight)
@@ -221,7 +221,7 @@ struct ReaderEngineTests {
         let flat = PageLayout.compute(.init(size: CGSize(width: 669, height: 951),
                                             safeArea: EdgeInsets(top: 0, leading: 0, bottom: 34, trailing: 0),
                                             division: hinge, divisionIsActive: false, camera: nil,
-                                            margin: 24, fontSize: 19, allowSpread: true, fullBleed: true))
+                                            margins: .standard, fontSize: 19, allowSpread: true, fullBleed: true))
         #expect(flat.pageFrames == [CGRect(x: 0, y: 0, width: 669, height: 917)])
         #expect(flat.deckFrame == nil)
     }
@@ -231,7 +231,7 @@ struct ReaderEngineTests {
         let layout = PageLayout.compute(.init(size: CGSize(width: 669, height: 951),
                                               safeArea: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0),
                                               division: fold, divisionIsActive: false, camera: nil,
-                                              margin: 24, fontSize: 19, allowSpread: true))
+                                              margins: .standard, fontSize: 19, allowSpread: true))
         #expect(layout.pageFrames.count == 1)
         #expect(layout.deckFrame == nil)
         let expectedHeight: CGFloat = 951 - 59 - 34
@@ -247,7 +247,7 @@ struct ReaderEngineTests {
         let input = PageLayout.Input(size: cover,
                                      safeArea: EdgeInsets(top: 0, leading: 0, bottom: 34, trailing: 84),
                                      division: nil, divisionIsActive: false, camera: hole,
-                                     margin: 24, fontSize: 19, allowSpread: true, fullBleed: true)
+                                     margins: .standard, fontSize: 19, allowSpread: true, fullBleed: true)
         let layout = PageLayout.compute(input)
         let zero: CGFloat = 0
         #expect(layout.pageFrames[0].minY == zero)
@@ -292,7 +292,7 @@ struct ReaderEngineTests {
         let input = PageLayout.Input(size: wide, safeArea: EdgeInsets(top: 0, leading: 0, bottom: 21, trailing: 0),
                                      division: nil, divisionIsActive: false,
                                      camera: CoverCamera.hole(window: wide, hasFold: false, orientation: .landscapeLeft),
-                                     margin: 24, fontSize: 19, allowSpread: true, fullBleed: true)
+                                     margins: .standard, fontSize: 19, allowSpread: true, fullBleed: true)
         let layout = PageLayout.compute(input)
         #expect(layout.textInsets.top == PageLayout.headerHeight)
         #expect(layout.pageFrames[0].maxY - layout.textInsets.bottom <= 399.67 - 2 + 0.01)

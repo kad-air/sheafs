@@ -1,0 +1,234 @@
+#!/usr/bin/env bash
+# End-to-end check of the three margins on the iPhone Duo simulator's open spread (flat), read off
+# the screenshots' pixels: the text columns' ink edges, the running heads' and folios' ink rows.
+#   - the ONE old margin (settings saved before the three, "margin":24) migrates (`[margins]`
+#     line) to exactly the old page: the same `[folio]` line as the build before the change
+#     (pages 9:22872 / 9:23557, folio 241, text 405×597) and the old `[layout]` insets, and the
+#     columns' ink starts/ends where the old build's text columns did (24…429 and 522…927 pt);
+#   - Side margins 44: the two OUTER ink edges move in 20 pt, the inner ones don't move;
+#   - Gutter 12: the two INNER ink edges move out 12 pt (the gap 24 pt narrower), the outer ones
+#     don't move;
+#   - Top and bottom 60: the text starts 24 pt lower on the right page and ends above 609 pt; the
+#     running heads' and folios' ink rows don't move (the folio stays at the foot of the page).
+# Pride and Prejudice halfway, Paper theme, New York 19 pt, justified.
+#   SIM="iPhone Duo" (default), DERIVED_DATA=/tmp/sheafs-derived (builds there, incrementally),
+#   NO_BUILD=1 (installs the last build), OUT=/tmp/sheafs-margins (screenshots + consoles, kept)
+set -euo pipefail
+cd "$(dirname "$0")/.."
+fail() { echo "MARGINS CHECK FAILED: $*" >&2; exit 1; }
+SIM=${SIM:-iPhone Duo}
+DD=${DERIVED_DATA:-/tmp/sheafs-derived}
+OUT=${OUT:-/tmp/sheafs-margins}
+HINGE=scripts/hinge/hinge
+FIX=Packages/SheafsKit/Tests/SheafsKitTests/Fixtures
+WORK=$(mktemp -d)
+CONSOLE_PID=""
+mkdir -p "$OUT"
+
+UDID=$(xcrun simctl list devices available -j | python3 -I -c '
+import json, sys
+name = sys.argv[1]
+for runtime in json.load(sys.stdin)["devices"].values():
+    for d in runtime:
+        if d["name"] == name: print(d["udid"]); sys.exit()
+' "$SIM")
+[[ -n $UDID ]] || fail "no simulator named \"$SIM\""
+xcrun simctl boot "$UDID" >/dev/null 2>&1 || true
+xcrun simctl bootstatus "$UDID" -b >/dev/null
+finish() {
+  [[ -n $CONSOLE_PID ]] && { kill "$CONSOLE_PID" >/dev/null 2>&1 || true; }
+  CONSOLE_PID=""
+  xcrun simctl terminate "$UDID" io.sheafs.reader >/dev/null 2>&1 || true
+}
+cleanup() {
+  local status=$?
+  finish
+  rm -rf "$WORK"
+  exit "$status"
+}
+trap cleanup EXIT
+
+if [[ -z ${NO_BUILD:-} ]]; then
+  [[ -f Config/Signing.xcconfig ]] || cp Config/Signing.example.xcconfig Config/Signing.xcconfig
+  xcodegen generate --quiet
+  xcodebuild -project Sheafs.xcodeproj -scheme Sheafs -destination "platform=iOS Simulator,id=$UDID" \
+    -derivedDataPath "$DD" -quiet build >"$WORK/build.log" 2>&1 || { tail -n 30 "$WORK/build.log" >&2; fail "build"; }
+fi
+xcrun simctl install "$UDID" "$DD/Build/Products/Debug-iphonesimulator/Sheafs.app"
+finish
+DATA=$(xcrun simctl get_app_container "$UDID" io.sheafs.reader data)
+PREFS=$DATA/Library/Preferences/io.sheafs.reader.plist
+mkdir -p "$DATA/Documents"
+cp "$FIX/pride-epub2.epub" "$DATA/Documents/"
+xcrun simctl launch "$UDID" io.sheafs.reader >/dev/null            # imports Documents/ (dedupes)
+sleep 4
+finish
+"$HINGE" -d "$UDID" orient portrait >/dev/null   # device portrait: unfolded = a spread
+"$HINGE" -d "$UDID" 180 >/dev/null
+sleep 1
+
+BASE='"theme":"paper","font":"newYork","fontSize":19,"lineHeight":1.4,"justified":true,"hyphenate":true,"paragraphStyle":"indented","keepScreenAwake":true,"tapToTurn":true'
+# shoot <tag> <margin keys>: the settings seeded (the app's container copy outranks `defaults
+# write`, so its key goes first), Pride halfway, a screenshot of the inner display once settled.
+shoot() {
+  local tag=$1 json="{$BASE,$2}" attempt
+  [[ -f $PREFS ]] && plutil -remove 'reader\.settings\.v1' "$PREFS" >/dev/null 2>&1 || true
+  xcrun simctl spawn "$UDID" defaults write io.sheafs.reader reader.settings.v1 -data "$(printf '%s' "$json" | xxd -p | tr -d '\n')"
+  for attempt in 1 2 3; do
+    : >"$OUT/$tag.log"
+    xcrun simctl launch --console-pty "$UDID" io.sheafs.reader -SheafsOpen Pride -SheafsGoTo 0.5 >"$OUT/$tag.log" 2>&1 &
+    CONSOLE_PID=$!
+    for _ in $(seq 1 60); do grep -aq '^\[folio\] shown' "$OUT/$tag.log" && break; sleep 0.5; done
+    if grep -aq '^\[folio\] shown' "$OUT/$tag.log"; then
+      sleep 3
+      xcrun simctl io "$UDID" screenshot --display=primary-1 "$OUT/$tag.png" >/dev/null 2>&1 || fail "screenshot $tag"
+      finish
+      return 0
+    fi
+    echo "  (no [folio] line in 30 s, attempt $attempt; relaunching)"
+    finish
+  done
+  fail "$tag: the reader never showed Pride (console: $OUT/$tag.log)"
+}
+
+echo "== the one old margin (24), migrated"
+shoot old '"margin":24'
+echo "== Side margins 44"
+shoot sides '"margin":44,"sideMargin":44,"gutter":24,"verticalMargin":36'
+echo "== Gutter 12 a page"
+shoot gutter '"margin":24,"sideMargin":24,"gutter":12,"verticalMargin":36'
+echo "== Top and bottom 60"
+shoot tall '"margin":24,"sideMargin":24,"gutter":24,"verticalMargin":60'
+
+python3 -I - "$OUT" "$WORK" <<'PY' || exit 1
+import re, struct, subprocess, sys
+out, work = sys.argv[1:3]
+def fail(message):
+    sys.exit(f"MARGINS CHECK FAILED: {message}")
+SCALE = 3
+
+def lines(tag, prefix):
+    return [l.rstrip("\n") for l in open(f"{out}/{tag}.log", encoding="utf-8", errors="replace") if l.startswith(prefix)]
+
+class Shot:
+    """The screenshot's pixels (points in, points out) and the reader's own `[layout]` line."""
+    def __init__(self, tag):
+        self.tag = tag
+        bmp = f"{work}/{tag}.bmp"
+        subprocess.run(["sips", "-s", "format", "bmp", f"{out}/{tag}.png", "--out", bmp], check=True, capture_output=True)
+        data = open(bmp, "rb").read()
+        offset, = struct.unpack_from("<I", data, 10)
+        width, height = struct.unpack_from("<ii", data, 18)
+        step = struct.unpack_from("<H", data, 28)[0] // 8
+        stride = (width * step + 3) & ~3
+        self.w, self.h = width, abs(height)
+        rows = [data[offset + r * stride: offset + r * stride + width * step] for r in range(self.h)]
+        self.rows = rows[::-1] if height > 0 else rows
+        self.step = step
+        self.paper = self.px(2, self.h // 2)
+        layout = lines(tag, "[layout]")
+        if not layout:
+            fail(f"{tag}: no [layout] line ({out}/{tag}.log)")
+        self.layout = layout[-1]
+        self.pages = [tuple(map(float, p)) for p in
+                      re.findall(r"\(([\d.]+), ([\d.]+), ([\d.]+), ([\d.]+)\)", self.layout.split("pages=", 1)[1].split("textInsets")[0])]
+        if len(self.pages) != 2:
+            fail(f"{tag}: not a spread: {self.layout}")
+
+    def px(self, x, y):
+        i = x * self.step
+        return self.rows[y][i:i + 3]
+
+    def ink(self, x, y):
+        return max(abs(a - b) for a, b in zip(self.px(x, y), self.paper)) > 40
+
+    def bands(self, x0, x1):
+        """Rows (points) holding ink between x0…x1 (points), merged across gaps under 2 pt."""
+        a, b = int(x0 * SCALE), int(x1 * SCALE)
+        found, start = [], None
+        for y in range(self.h + 1):
+            hit = y < self.h and any(self.ink(x, y) for x in range(a, b, 2))
+            if hit and start is None: start = y
+            if not hit and start is not None: found.append([start / SCALE, y / SCALE]); start = None
+        merged = []
+        for band in found:
+            if merged and band[0] - merged[-1][1] < 2: merged[-1][1] = band[1]
+            else: merged.append(band)
+        return merged
+
+    def page(self, n):
+        """Page n's running head band, text bands, folio band and its text's ink extent (x, points)."""
+        x, y, w, h = self.pages[n]
+        bands = self.bands(x + 2, x + w - 2)
+        if len(bands) < 5:
+            fail(f"{self.tag}: page {n} has no text ({out}/{self.tag}.png)")
+        head, text, folio = bands[0], bands[1:-1], bands[-1]
+        lo, hi = None, None
+        for top, bottom in text:
+            for y in range(int(top * SCALE), int(bottom * SCALE)):
+                xs = range(int(x * SCALE), int((x + w) * SCALE))
+                first = next((px for px in xs if self.ink(px, y)), None)
+                if first is None: continue
+                last = next(px for px in reversed(xs) if self.ink(px, y))
+                lo = first if lo is None else min(lo, first)
+                hi = last if hi is None else max(hi, last + 1)
+        return {"head": head, "text": text, "folio": folio, "left": lo / SCALE, "right": hi / SCALE}
+
+def near(a, b, tolerance):
+    return abs(a - b) <= tolerance
+
+shots = {tag: Shot(tag) for tag in ("old", "sides", "gutter", "tall")}
+pages = {tag: [shot.page(0), shot.page(1)] for tag, shot in shots.items()}
+for tag, (left, right) in pages.items():
+    print(f"  {tag}: left column ink {left['left']:.1f}…{left['right']:.1f} pt, right {right['left']:.1f}…{right['right']:.1f} pt, "
+          f"gap {right['left'] - left['right']:.1f} pt; right page text {right['text'][0][0]:.1f}…{right['text'][-1][1]:.1f} pt, "
+          f"head {right['head'][0]:.1f}…{right['head'][1]:.1f}, folio {right['folio'][0]:.1f}…{right['folio'][1]:.1f}")
+
+# 1. The old margin migrated: the same page as the build before the three (its own log lines).
+if not lines("old", "[margins] migrated the one margin 24.0 → side 24.0, gutter 24.0, top and bottom 36.0"):
+    fail(f"old: no [margins] migration line ({out}/old.log)")
+folio = lines("old", "[folio] shown")
+if not folio or "pages=[9:22872=241 9:23557=241]" not in folio[0] or "text=405x597" not in folio[0]:
+    fail(f"old: not the old build's page (pages=[9:22872=241 9:23557=241] text=405x597): {folio[:1]}")
+if "textInsets=UIEdgeInsets(top: 36.0, left: 24.0, bottom: 30.0, right: 24.0) bandGap=0.0" not in shots["old"].layout:
+    fail(f"old: not the old build's insets: {shots['old'].layout}")
+old = pages["old"]
+# The old build's columns: 24…429 and 522…927 pt. A column's ink starts at or just inside its left
+# edge (a glyph's side bearing) and ends at or just inside its right edge (justified lines).
+for value, edge, name, starts in [(old[0]["left"], 24, "left page's outer", True), (old[0]["right"], 429, "left page's inner", False),
+                                  (old[1]["left"], 522, "right page's inner", True), (old[1]["right"], 927, "right page's outer", False)]:
+    inside = value - edge if starts else edge - value
+    if not -1 <= inside <= 3:
+        fail(f"old: the {name} ink edge is at {value:.1f} pt, the old column edge at {edge} ({out}/old.png)")
+
+# 2. Side margins 44: outer edges in by 20, inner edges where they were.
+s = pages["sides"]
+if not (near(s[0]["left"] - old[0]["left"], 20, 1) and near(old[1]["right"] - s[1]["right"], 20, 1)):
+    fail(f"sides: the outer edges moved {s[0]['left'] - old[0]['left']:.1f} / {old[1]['right'] - s[1]['right']:.1f} pt, not 20 ({out}/sides.png)")
+if not (near(s[0]["right"], old[0]["right"], 1) and near(s[1]["left"], old[1]["left"], 1)):
+    fail(f"sides: the side margin moved the gutter: inner edges {s[0]['right']:.1f} / {s[1]['left']:.1f}, "
+         f"were {old[0]['right']:.1f} / {old[1]['left']:.1f} ({out}/sides.png)")
+
+# 3. Gutter 12: inner edges out by 12 each, outer edges where they were.
+g = pages["gutter"]
+if not (near(g[0]["right"] - old[0]["right"], 12, 1) and near(old[1]["left"] - g[1]["left"], 12, 1)):
+    fail(f"gutter: the inner edges moved {g[0]['right'] - old[0]['right']:.1f} / {old[1]['left'] - g[1]['left']:.1f} pt, not 12 ({out}/gutter.png)")
+if not (near(g[0]["left"], old[0]["left"], 1) and near(g[1]["right"], old[1]["right"], 1)):
+    fail(f"gutter: the gutter moved the side margins: outer edges {g[0]['left']:.1f} / {g[1]['right']:.1f}, "
+         f"were {old[0]['left']:.1f} / {old[1]['right']:.1f} ({out}/gutter.png)")
+
+# 4. Top and bottom 60: the text 24 pt in at both ends; head and folio where they were.
+t = pages["tall"]
+for n in range(2):
+    for part in ("head", "folio"):
+        if not (near(t[n][part][0], old[n][part][0], 0.5) and near(t[n][part][1], old[n][part][1], 0.5)):
+            fail(f"tall: page {n}'s {part} ink moved from {old[n][part]} to {t[n][part]} ({out}/tall.png)")
+    if t[n]["text"][-1][1] > 663 - 30 - 24 + 0.5:
+        fail(f"tall: page {n}'s text runs to {t[n]['text'][-1][1]:.1f} pt, below the 609 pt the bottom margin leaves ({out}/tall.png)")
+    if not (near(t[n]["left"], old[n]["left"], 1) and near(t[n]["right"], old[n]["right"], 1)):
+        fail(f"tall: page {n}'s column moved sideways ({out}/tall.png)")
+# The right page starts at the position: the same first line, 24 pt lower.
+if not near(t[1]["text"][0][0] - old[1]["text"][0][0], 24, 0.5):
+    fail(f"tall: the right page's first line moved {t[1]['text'][0][0] - old[1]['text'][0][0]:.1f} pt, not 24 ({out}/tall.png)")
+print("MARGINS CHECK PASSED")
+PY
