@@ -15,13 +15,13 @@ struct SteadyPageGeometryTests {
     static func coverInput(top: CGFloat, bottom: CGFloat) -> PageLayout.Input {
         PageLayout.Input(size: cover, safeArea: EdgeInsets(top: top, leading: 0, bottom: bottom, trailing: 84),
                          division: nil, divisionIsActive: false, camera: coverCamera,
-                         margin: 24, fontSize: 19, allowSpread: true, fullBleed: true)
+                         margins: .standard, fontSize: 19, allowSpread: true, fullBleed: true)
     }
 
     static func innerInput(top: CGFloat, bottom: CGFloat, foldActive: Bool = false) -> PageLayout.Input {
         PageLayout.Input(size: inner, safeArea: EdgeInsets(top: top, leading: 0, bottom: bottom, trailing: 84),
                          division: innerFold, divisionIsActive: foldActive, camera: nil,
-                         margin: 24, fontSize: 19, allowSpread: true, fullBleed: true)
+                         margins: .standard, fontSize: 19, allowSpread: true, fullBleed: true)
     }
 
     /// Feeds inputs as the reader sees them and returns every layout it would have drawn.

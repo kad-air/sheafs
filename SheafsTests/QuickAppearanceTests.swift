@@ -1,8 +1,8 @@
 import Testing
 @testable import Sheafs
 
-/// The quick panel's −/+ buttons move along the detailed sheet's slider grids, so both menus land on
-/// the same values. Expected values are worked by hand, not computed with the function under test.
+/// The quick panel's −/+ buttons (size, spacing) move along the detailed sheet's slider grids, so
+/// both menus land on the same values. Expected values are worked by hand, not computed with the function under test.
 struct QuickAppearanceTests {
     @Test func textSizeStepsByOnePointAndStopsAtTheEnds() {
         #expect(ReaderSettings.step(19, by: 1, grid: ReaderSettings.fontSizeGrid, in: ReaderSettings.fontSizeRange) == 20)
@@ -23,14 +23,6 @@ struct QuickAppearanceTests {
         #expect(ReaderSettings.step(1.43, by: 2, grid: grid, in: range) == 1.55)
     }
 
-    @Test func marginsMoveFourPointsAndStopAtTheEnds() {
-        let grid = ReaderSettings.marginGrid, range = ReaderSettings.marginRange
-        #expect(ReaderSettings.step(24, by: 2, grid: grid, in: range) == 28)
-        #expect(ReaderSettings.step(24, by: -2, grid: grid, in: range) == 20)
-        #expect(ReaderSettings.step(54, by: 2, grid: grid, in: range) == 56)
-        #expect(ReaderSettings.step(10, by: -2, grid: grid, in: range) == 8)
-    }
-
     /// The defaults sit on the grids, so the first tap moves by exactly one quick step.
     @Test func defaultsSitOnTheGrids() {
         let stored = ReaderSettings.Stored()
@@ -38,7 +30,6 @@ struct QuickAppearanceTests {
                                     in: ReaderSettings.fontSizeRange) == stored.fontSize)
         #expect(ReaderSettings.step(stored.lineHeight, by: 0, grid: ReaderSettings.lineHeightGrid,
                                     in: ReaderSettings.lineHeightRange) == stored.lineHeight)
-        #expect(ReaderSettings.step(stored.margin, by: 0, grid: ReaderSettings.marginGrid,
-                                    in: ReaderSettings.marginRange) == stored.margin)
+        // The margins are sliders on the panel's own page (`MarginTests`).
     }
 }

@@ -59,6 +59,9 @@ struct ReaderView: View {
     @State private var showAppearance = false
     /// The small panel over the bottom of the page; `showAppearance` is the detailed sheet behind it.
     @State private var showQuickAppearance = false
+    /// `-SheafsAppearance margins|full-margins`: the panel opens on its margins page, the sheet
+    /// scrolled to the margins (screenshots).
+    @State private var appearanceOnMargins = false
     @State private var geometry = SteadyPageGeometry()
     @State private var regions: WindowRegions?
     @State private var orientation: UIInterfaceOrientation = .unknown
@@ -142,7 +145,8 @@ struct ReaderView: View {
                     showAppearance = true
                 }, onClose: {
                     withAnimation(.snappy) { showQuickAppearance = false }
-                })
+                }, startsOnMargins: appearanceOnMargins)
+                .environment(\.spreadFoldGap, spreadFoldGap)
                 .frame(maxWidth: quickPanelWidth ?? .infinity)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             } else if showAsk {
@@ -201,7 +205,8 @@ struct ReaderView: View {
             }
         }
         .sheet(isPresented: $showAppearance) {
-            AppearanceView()
+            AppearanceView(scrollsToMargins: appearanceOnMargins)
+                .environment(\.spreadFoldGap, spreadFoldGap)
                 .presentationDetents([.medium, .large])
         }
         .sheet(item: $footnote) { note in
@@ -290,7 +295,7 @@ struct ReaderView: View {
                                              divisionIsActive: regions.divisionIsActive,
                                              camera: CoverCamera.hole(window: full, hasFold: regions.division != nil,
                                                                       orientation: orientation),
-                                             margin: settings.margin, fontSize: settings.fontSize, allowSpread: true,
+                                             margins: settings.margins, fontSize: settings.fontSize, allowSpread: true,
                                              fullBleed: true)
                 let layout = PageLayout.compute(geometry.input(for: fresh))
                 // Ask beside the book: the pager takes the right page's side alone (`AskPresentation`).
@@ -337,7 +342,7 @@ struct ReaderView: View {
                         // fold; the tool picker takes the bottom of the screen.
                         MarkupBar(onPrevious: { pagerProxy.turn(forward: false) }, onDone: endMarkup,
                                   onNext: { pagerProxy.turn(forward: true) })
-                            .position(x: page.midX, y: page.minY + max(24, layout.textInsets.top - 20))
+                            .position(x: page.midX, y: page.minY + max(24, layout.textInsets.top - layout.bandGap - 20))
                             .transition(.opacity)
                     }
                     // The Ask panel carries its own "Back to page N" (it may cover the folio).
@@ -374,7 +379,7 @@ struct ReaderView: View {
                     print("[layout] size=\(new.size)\(unsnapped != new.size ? " (unsnapped \(unsnapped))" : "") " +
                           "safe=\(new.safeArea) division=\(String(describing: new.division)) " +
                           "active=\(new.divisionIsActive) camera=\(String(describing: new.camera)) orientation=\(orientation.rawValue) → pages=\(used.pageFrames) " +
-                          "textInsets=\(used.textInsets) " +
+                          "textInsets=\(used.textInsets) bandGap=\(used.bandGap) " +
                           "holding=\(geometry.isHolding(new))")
                 }
                 .animation(.smooth, value: layout.deckFrame != nil)
@@ -742,6 +747,13 @@ struct ReaderView: View {
         return max(0, division.minX - (geometry.reading?.safeArea.leading ?? 0))
     }
 
+    /// The fold gap of the spread on screen, nil while the reader shows one page: the margin
+    /// controls offer the Gutter only then (`MarginSliders`). From the locked layout input, as the
+    /// pages are laid out; the margins never change a spread's page frames.
+    private var spreadFoldGap: CGFloat? {
+        geometry.reading.flatMap { PageLayout.compute($0).foldGap }
+    }
+
     /// Ask beside the book (`AskPresentation.beside`): the pane's width, from the leading safe edge
     /// to the left page's right edge; nil while Ask floats (or is closed). From the locked layout
     /// input, as the pages are laid out (a spread's frames don't depend on the text settings).
@@ -1033,7 +1045,8 @@ struct ReaderView: View {
     }
 
     /// `-SheafsAppearance quick|full` opens the quick panel or the detailed sheet once per launch, so
-    /// screenshots and simulator checks can reach them without taps. `-SheafsThemeSwitch <theme>`
+    /// screenshots and simulator checks can reach them without taps; `margins` opens the panel on
+    /// its margins page, `full-margins` the sheet scrolled to the margins. `-SheafsThemeSwitch <theme>`
     /// (paper, sepia, night, black, system) switches the theme 5 s later, as a tap on its swatch would
     /// (`scripts/check-auto-theme`: Night → Automatic must follow the device).
     private func openAppearanceFromLaunchArgument() {
@@ -1049,6 +1062,12 @@ struct ReaderView: View {
         switch UserDefaults.standard.string(forKey: "SheafsAppearance") {
         case "quick": openQuickAppearance()
         case "full": showAppearance = true
+        case "margins":
+            appearanceOnMargins = true
+            openQuickAppearance()
+        case "full-margins":
+            appearanceOnMargins = true
+            showAppearance = true
         default: break
         }
     }

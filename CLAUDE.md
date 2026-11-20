@@ -60,6 +60,13 @@ scripts/check-folio-foot          # end to end on a simulator (SIM="iPhone Duo")
                                   #   above the bottom edge (it was 43), centred off the home indicator, the
                                   #   text below 605 pt and ≥ 19 lines a page (it was 18); on the cover display
                                   #   the folio stays above the 34 pt safe area (OUT=/tmp/sheafs-folio-foot); NO_BUILD=1
+scripts/check-margins             # end to end on a simulator (SIM="iPhone Duo", open spread): Pride halfway,
+                                  #   read off the screenshots: settings with the ONE old margin (24) migrate
+                                  #   to the old build's exact page (`[folio]` pages and 405×597 text, ink
+                                  #   columns 24…429 / 522…927 pt); Side margins 44 moves only the outer ink
+                                  #   edges (20 pt), Gutter 12 only the inner ones (12 pt each); Top and
+                                  #   bottom 60 moves the text in 24 pt, never the running heads' or folios'
+                                  #   ink (OUT=/tmp/sheafs-margins); NO_BUILD=1
 scripts/check-cover-chrome        # end to end on a simulator (SIM="iPhone Duo"): a centre tap brings the
                                   #   bars up and they STAY up 2.5 s later on the cover display (portrait) and
                                   #   the inner display (flat, book pose): `[chrome]` lines + the screenshots'
@@ -139,7 +146,8 @@ typed text and transcripts: build the URL in a shell variable);
 the first containing it) or to the paragraph at that fraction of the book that follows another paragraph
 (a full spread, no orphaned heading), without a "Back to page N" trail;
 `-SheafsAppearance quick|full` (with `-SheafsOpen`) opens the quick appearance panel or the detailed
-sheet once the book is ready.
+sheet once the book is ready; `margins` opens the panel on its margins page, `full-margins` the sheet
+scrolled to its Margins section.
 `-SheafsThemeSwitch paper|sepia|night|system` (with `-SheafsOpen`) switches the theme 5 s after the
 book is ready, as tapping its swatch would.
 `-SheafsSearch <text> [-SheafsSearchPick <n> [-SheafsSearchBack YES]]` (with `-SheafsOpen`) opens the
@@ -510,7 +518,22 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     closes it, edge taps still turn pages, and its sliders button steps through to the detailed sheet.
     Over a vertical fold (spread, book pose) the panel keeps to the LEFT page: off the fold, and the
     right page, which holds the reading position, stays in view. Its −/+ buttons move along the
-    detailed sliders' grids (`QuickAppearanceTests`). Fonts are picked from `FontList` (each name in
+    detailed sliders' grids (`QuickAppearanceTests`). MARGINS are three sliders, `MarginSliders`, the
+    same view in the panel (its Margins pill swaps the panel's rows for a margins page, back with ‹,
+    so the panel stays as low over the page) and in the sheet's Margins section: Side margins
+    (`sideMargin`, 8…56, default 24), Top and bottom margins (`verticalMargin`, 36…84, default 36)
+    and Gutter (`gutter`, 8…56 a page, default 24), all on a 2 pt grid, each labelled with its size
+    in points; the pages re-lay as a slider moves. 🔴 Gutter shows ONLY while a spread is on screen:
+    the reader passes its layout's `foldGap` down as the `spreadFoldGap` environment value (nil on
+    one page), and Settings (no reader up) works out whether the reader WOULD lay out a spread in
+    its window (`PageLayout.foldGap(window:)`); its label is the whole space between the columns
+    (the fold gap + both gutters, 93 pt on the Duo by default), the setting each page's half.
+    Each margin moves only its own edges (`PageMargins`, below; `MarginTests`). The ONE margin they
+    replaced (`margin`, both the side margin and each page's half of the gutter; top and bottom
+    fixed) migrates at load, once: side = gutter = it, top and bottom 36, saved at once
+    (`[margins] migrated …`), so a page looks exactly as it did; `margin` is still written (as the
+    side margin) because older builds decode it non-optionally. The check scripts seed the old
+    one-margin JSON, so every end-to-end check runs the migration. Fonts are picked from `FontList` (each name in
     its own face; a popover from the panel, a pushed page from the sheet), not a `Menu`/menu
     `Picker`: system menus draw every item in the system font. `FontTests` checks every family is
     really installed (a missing one falls back to the system font without a word) and records
@@ -707,6 +730,7 @@ regions (see Duo behaviour below), so check layout changes on the phone.
     Gutenberg's documented OPDS start is `search.opds/` (its XML OPDS is due to be replaced by
     OPDS 2 JSON in 2027). `BuiltInCatalogTests`.
   - `Settings/` — `SettingsView` is a short grouped list (Reading → `AppearanceView(embedded: true)`,
+  whose Margins section offers Gutter where this window would show a spread,
     Library → storage stats, Sync & Accounts → the kosync account, About), each row pushing its
     own screen (`LibrarySettingsView`, `SyncSettingsView`, `AboutSettingsView`). `Sync/SyncService` — kosync
     settings (password in the keychain) + `pull`/`push`.
@@ -828,7 +852,15 @@ effects). APIs used: `GeometryProxy.reservedRegions(kind: .division, options:
 display and inner-landscape), `toolbarVisibility(_:for: .statusBar)`, `ToolbarOverflowMenu`,
 `visibilityPriority`.
 
-`PageLayout.compute` (tested in `SheafsTests`):
+`PageLayout.compute` (tested in `SheafsTests`), with the reader's `PageMargins` (side, gutter, vertical):
+- 🔴 On a spread the side margin is the two OUTER edges and the gutter the two INNER ones, at the fold;
+  `textInsets` are the RIGHT page's (gutter on its left), the left page mirrors them
+  (`textInsets(ofPage:)`, what `SpreadViewController` gives each `PageView`), so both pages keep one
+  text width and one pagination, and Ask beside the book keeps the right page's insets. A spread's page
+  frames never depend on the margins. Top and bottom past the least (`headerHeight`, 36) are
+  `bandGap`: the text moves in by it at both ends, the running head and folio stay at the page's
+  edges (`PageView.headFrame`/`folioFrame` take the gap), so a spread's folio stays at its foot;
+  the cover camera's band gets the same addition. One page: the side margin both sides, no gutter;
 - cover display / inner portrait flat → one page (measure capped at ~38 em on wide screens);
 - inner landscape, flat (INACTIVE vertical division) or book pose (ACTIVE) → a two-page spread
   whose gutter is the division frame + 2 pt each side, at least `minimumFoldGutter` (44 pt), centred
@@ -980,7 +1012,8 @@ come out exact, so it never reproduced there): not confirmed on the phone yet, w
   are not synced: the vanilla kosync protocol carries only the position.
 - `ReaderSettings.Stored` must keep NEW keys optional (`highlightColor: HighlightColor?`): a
   non-optional key missing from the saved JSON fails the whole decode and silently resets every
-  setting.
+  setting. The same goes the other way: keep WRITING a key an older build decodes non-optionally
+  (`margin`, `keepScreenAwake`), or a downgrade resets everything.
 - SpringBoard applies an app's `isIdleTimerDisabled = true` lazily (its coordinator logs `requested idle
   timer behavior disabled? YES` only when it next re-evaluates; often not at all on the simulator) but
   logs EVERY value it receives, as FrontBoard's `[(FBSceneManager):sceneID:io.sheafs.reader-default]
@@ -1023,6 +1056,12 @@ come out exact, so it never reproduced there): not confirmed on the phone yet, w
 - Simulator input: the iOS Simulator MCP's taps and rotation reach the inner display (coordinates in
   the lit screen's points); `-SheafsOpen` / launch args reach reader states and `scripts/hinge/hinge`
   sets poses. `xcrun simctl launch --console-pty <udid> io.sheafs.reader …` captures `print` output.
+  Xcode's device-interaction tool (`DeviceInteraction*`) sees and touches only the COVER display (its
+  inner-display captures come back black at 678×466): tap and scroll folded (hinge 0), then unfold
+  and screenshot with `simctl io`; the scene keeps its state (a sheet's scroll, a pushed screen).
+- Swift Testing: `#expect(width == 951 - 40)` with a `CGFloat` on the left FAILS on equal values
+  (the macro types the literal arithmetic alone, as `Int`; the same for `Double` vs `CGFloat`).
+  Give the right side a type (`CGFloat(951 - 40)`, `Double(PageLayout.headerHeight)`).
 - 🔴 Rotating the Duo simulator: `xcrun devicectl device orientation set` prints success and changes
   NOTHING (Safari on the cover stays portrait), and Xcode 27 has no Simulator.app. `hinge
   orient` works: it posts Device Hub's `orientation-picker-control` HID event (next to the hinge

@@ -1051,7 +1051,8 @@ final class SpreadViewController: UIViewController {
         for (index, frame) in layout.pageFrames.enumerated() {
             let pageView = PageView(frame: frame)
             pageView.palette = palette
-            pageView.textInsets = layout.textInsets
+            pageView.textInsets = layout.textInsets(ofPage: index)
+            pageView.bandGap = layout.bandGap
             pageView.camera = layout.camera?.offsetBy(dx: -frame.minX, dy: -frame.minY)
             pageView.curvesOverFold = layout.deckFrame != nil
             if index < slots.count, let slot = slots[index], let chapter = session.paginatedChapter(slot.spineIndex) {

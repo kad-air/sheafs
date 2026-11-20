@@ -133,7 +133,7 @@ struct BookmarkTests {
         let hole = try #require(CoverCamera.hole(window: cover, hasFold: false, orientation: .portrait))
         let input = PageLayout.Input(size: cover, safeArea: EdgeInsets(top: 0, leading: 0, bottom: 34, trailing: 84),
                                      division: nil, divisionIsActive: false, camera: hole,
-                                     margin: 24, fontSize: 19, allowSpread: true, fullBleed: true)
+                                     margins: .standard, fontSize: 19, allowSpread: true, fullBleed: true)
         let layout = PageLayout.compute(input)
         let bounds = CGRect(origin: .zero, size: layout.pageFrames[0].size)
         let onCover = PageView.ribbonFrame(bounds: bounds, textInsets: layout.textInsets, camera: layout.camera)

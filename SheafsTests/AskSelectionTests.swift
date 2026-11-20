@@ -22,7 +22,7 @@ struct AskSelectionTests {
         let size = CGSize(width: 466, height: 678)
         let layout = PageLayout.compute(.init(size: size, safeArea: EdgeInsets(top: 0, leading: 0, bottom: 20, trailing: 84),
                                               division: nil, divisionIsActive: false, camera: nil,
-                                              margin: 24, fontSize: 19, allowSpread: true, fullBleed: true))
+                                              margins: .standard, fontSize: 19, allowSpread: true, fullBleed: true))
         session.configure(style: ReaderEngineTests.style, textSize: layout.textSize)
         let scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
         let window = UIWindow(windowScene: scene)

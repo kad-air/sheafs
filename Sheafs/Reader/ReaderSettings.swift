@@ -97,7 +97,12 @@ final class ReaderSettings {
     var font: ReaderFont { didSet { save() } }
     var fontSize: Double { didSet { save() } }
     var lineHeight: Double { didSet { save() } }
-    var margin: Double { didSet { save() } }
+    /// Each page's outer edge to the text (`PageMargins.side`).
+    var sideMargin: Double { didSet { save() } }
+    /// The page's top edge to the text; the bottom moves with it (`PageMargins.vertical`).
+    var verticalMargin: Double { didSet { save() } }
+    /// On a spread, each page's edge at the fold to the text (`PageMargins.gutter`).
+    var gutter: Double { didSet { save() } }
     var justified: Bool { didSet { save() } }
     var hyphenate: Bool { didSet { save() } }
     var paragraphStyle: ParagraphStyleChoice { didSet { save() } }
@@ -122,6 +127,9 @@ final class ReaderSettings {
         var font = ReaderFont.newYork
         var fontSize = 19.0
         var lineHeight = 1.4
+        /// The one margin from before there were three (`sideMargin`, `gutter`, `verticalMargin`):
+        /// read only to migrate settings saved without them; still written (as the side margin) so
+        /// an older build reading these settings decodes them.
         var margin = 24.0
         var justified = false
         var hyphenate = true
@@ -140,6 +148,9 @@ final class ReaderSettings {
         /// `ScreenAwakeWindow.rawValue`. An Int, not the enum: an unknown value in a stored enum
         /// would fail the whole decode.
         var screenAwakeMinutes: Int?
+        var sideMargin: Double?
+        var gutter: Double?
+        var verticalMargin: Double?
     }
 
     init() {
@@ -151,7 +162,10 @@ final class ReaderSettings {
         font = stored.font
         fontSize = stored.fontSize
         lineHeight = stored.lineHeight
-        margin = stored.margin
+        let margins = Self.margins(stored)
+        sideMargin = margins.side
+        gutter = margins.gutter
+        verticalMargin = margins.vertical
         justified = stored.justified
         hyphenate = stored.hyphenate
         paragraphStyle = stored.paragraphStyle
@@ -162,15 +176,22 @@ final class ReaderSettings {
         volumeButtonsTurn = stored.volumeButtonsTurn ?? false
         askEnabled = stored.askEnabled ?? false
         print("[theme] settings loaded: theme \(theme), Automatic = \(lightTheme) in Light, \(darkTheme) in Dark")
+        if stored.sideMargin == nil || stored.gutter == nil || stored.verticalMargin == nil {
+            // Once: from now on the three keys are saved and the old one is ignored.
+            print("[margins] migrated the one margin \(stored.margin) → side \(sideMargin), gutter \(gutter), "
+                + "top and bottom \(verticalMargin)")
+            save()
+        }
     }
 
     private func save() {
-        let stored = Stored(theme: theme, font: font, fontSize: fontSize, lineHeight: lineHeight, margin: margin,
+        let stored = Stored(theme: theme, font: font, fontSize: fontSize, lineHeight: lineHeight, margin: sideMargin,
                             justified: justified, hyphenate: hyphenate, paragraphStyle: paragraphStyle,
                             keepScreenAwake: screenAwake != .off, tapToTurn: tapToTurn, highlightColor: highlightColor,
                             pageTurn: pageTurn, volumeButtonsTurn: volumeButtonsTurn,
                             lightTheme: lightTheme, darkTheme: darkTheme, askEnabled: askEnabled,
-                            screenAwakeMinutes: screenAwake.rawValue)
+                            screenAwakeMinutes: screenAwake.rawValue,
+                            sideMargin: sideMargin, gutter: gutter, verticalMargin: verticalMargin)
         if let data = try? JSONEncoder().encode(stored) {
             UserDefaults.standard.set(data, forKey: Self.key)
         }
@@ -182,6 +203,17 @@ final class ReaderSettings {
         if let minutes, let window = ScreenAwakeWindow(rawValue: minutes) { return window }
         return keepScreenAwake ? .standard : .off
     }
+
+    /// The three margins as saved, else (settings saved while there was ONE margin) what that one
+    /// drew: it was the side margin AND each page's half of a spread's gutter (one value on both
+    /// sides of each page), and the top and bottom were fixed at today's least. So the page looks
+    /// exactly as it did.
+    static func margins(_ stored: Stored) -> PageMargins {
+        PageMargins(side: stored.sideMargin ?? stored.margin, gutter: stored.gutter ?? stored.margin,
+                    vertical: stored.verticalMargin ?? Double(PageMargins.standard.vertical))
+    }
+
+    var margins: PageMargins { PageMargins(side: sideMargin, gutter: gutter, vertical: verticalMargin) }
 
     /// The colours of `theme` (the current one by default) while the DEVICE is in `system` mode.
     /// 🔴 Pass the device's scheme, never the reader's forced one: Automatic with a dark Light-mode
@@ -205,7 +237,12 @@ extension ReaderSettings {
     nonisolated static let fontSizeGrid = 1.0
     nonisolated static let lineHeightRange: ClosedRange<Double> = 1.1 ... 1.9
     nonisolated static let lineHeightGrid = 0.05
+    /// Side margins and the gutter (each page's half of it): the one margin's old range, so every
+    /// saved value carries over. 8 pt keeps the text off the display's rounded edge and the fold.
     nonisolated static let marginRange: ClosedRange<Double> = 8 ... 56
+    /// Top and bottom: the least is what the running head and folio need (the fixed margins before
+    /// there was a setting, `PageLayout.headerHeight`); the most adds 48 pt above and below the text.
+    nonisolated static let verticalMarginRange: ClosedRange<Double> = 36 ... 84
     nonisolated static let marginGrid = 2.0
 
     /// `value` moved by `steps` grid steps: snapped to the grid that starts at the range's lower bound

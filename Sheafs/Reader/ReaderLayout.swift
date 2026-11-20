@@ -1,12 +1,33 @@
 import SwiftUI
 import UIKit
 
+/// The reader's three margins (`ReaderSettings`), in points. `side`: each page's OUTER edge to the
+/// text (a single page's left and right; a spread's two outer edges only). `gutter`: on a spread,
+/// each page's edge at the fold to the text, so the space between the two columns is the fold plus
+/// twice this. `vertical`: the page's top edge to the text where nothing else is in the head band;
+/// past the least (`PageLayout.headerHeight`, the running head's band) the extra goes between the
+/// running head and the text and, the same amount, between the text and the folio.
+nonisolated struct PageMargins: Equatable, Sendable {
+    var side: CGFloat
+    var gutter: CGFloat
+    var vertical: CGFloat
+
+    /// What the one margin setting drew at its default (24): a spread's fold gap was the fold plus
+    /// 24 a side, and the top and bottom were fixed.
+    static let standard = PageMargins(side: 24, gutter: 24, vertical: 36)
+}
+
 /// Where pages go on screen: one page, or a two-page spread with the gutter on the fold.
 struct PageLayout: Equatable {
     /// Frames of the page views (1 or 2), in the reader's coordinate space.
     var pageFrames: [CGRect]
-    /// Insets from a page view's edges to its text container.
+    /// Insets from a page view's edges to its text container: a single page's, or a spread's RIGHT
+    /// page's (its left inset is the gutter's, at the fold). The left page mirrors them
+    /// (`textInsets(ofPage:)`); both are the same width, so one pagination serves both pages.
     var textInsets: UIEdgeInsets
+    /// How far the text stands off the running head's band above it and the folio's band below it:
+    /// the top and bottom margins beyond the least. The head and folio stay at the page's edges.
+    var bandGap: CGFloat = 0
     /// The region below a horizontal active fold (tabletop pose) left free for controls, if any. The
     /// page above it ends at the fold's middle, so the two meet only through the fold's lower half.
     var deckFrame: CGRect?
@@ -15,6 +36,18 @@ struct PageLayout: Equatable {
 
     var isSpread: Bool { pageFrames.count == 2 }
     var pageViewSize: CGSize { pageFrames.first?.size ?? .zero }
+    /// The space between a spread's two pages that no text enters (the fold's region, or an iPad's
+    /// middle); nil for one page. The gap between the two columns of text is this plus both gutters.
+    var foldGap: CGFloat? { isSpread ? pageFrames[1].minX - pageFrames[0].maxX : nil }
+
+    /// The text insets of page `index`: the left page of a spread mirrors `textInsets` (the side
+    /// margin on its left, the gutter on its right, at the fold).
+    func textInsets(ofPage index: Int) -> UIEdgeInsets {
+        guard isSpread, index == 0 else { return textInsets }
+        var mirrored = textInsets
+        swap(&mirrored.left, &mirrored.right)
+        return mirrored
+    }
     /// The text container size shared by every page.
     var textSize: CGSize {
         let s = pageViewSize
@@ -30,7 +63,7 @@ struct PageLayout: Equatable {
         var divisionIsActive: Bool
         /// The cover display's camera hole in window coordinates, or nil on any other display.
         var camera: CGRect?
-        var margin: CGFloat
+        var margins: PageMargins
         var fontSize: CGFloat
         var allowSpread: Bool
         /// Let the pages run the full width (under the vertical bar's strip); the bars overlay on tap.
@@ -90,7 +123,12 @@ struct PageLayout: Equatable {
                 bottomBand = max(bottomBand, content.maxY - hole.minY + 2)
             }
         }
-        let insets = UIEdgeInsets(top: topBand, left: input.margin, bottom: bottomBand, right: input.margin)
+        // Top and bottom margins past the least open a gap between the bands and the text; the
+        // running head and the folio stay where they are, at the page's edges (a spread's folio
+        // stays at the foot of the page, never over a band of empty page).
+        let margins = input.margins
+        let bandGap = max(0, margins.vertical - headerHeight)
+        let insets = UIEdgeInsets(top: topBand + bandGap, left: margins.side, bottom: bottomBand + bandGap, right: margins.side)
         var deck: CGRect?
 
         if let fold = input.division, fold.width >= fold.height, input.divisionIsActive,
@@ -131,14 +169,28 @@ struct PageLayout: Equatable {
             let height = max(content.height, bottom - content.minY)
             let left = CGRect(x: leftEdge - width, y: content.minY, width: width, height: height)
             let right = CGRect(x: rightEdge, y: content.minY, width: width, height: height)
-            return PageLayout(pageFrames: [left, right], textInsets: insets, deckFrame: deck, camera: camera)
+            // The right page's insets: the gutter at the fold, the side margin outside. The page
+            // frames don't depend on the margins, so neither setting moves the other's edge.
+            var rightInsets = insets
+            rightInsets.left = margins.gutter
+            return PageLayout(pageFrames: [left, right], textInsets: rightInsets, bandGap: bandGap, deckFrame: deck, camera: camera)
         }
 
         // Single page: cap the measure so long lines stay readable on wide screens.
-        let maxMeasure = input.fontSize * 38 + input.margin * 2
+        let maxMeasure = input.fontSize * 38 + margins.side * 2
         let width = min(content.width, maxMeasure).rounded(.down)
         let frame = CGRect(x: (content.midX - width / 2).rounded(), y: content.minY, width: width, height: content.height)
-        return PageLayout(pageFrames: [frame], textInsets: insets, deckFrame: deck, camera: camera)
+        return PageLayout(pageFrames: [frame], textInsets: insets, bandGap: bandGap, deckFrame: deck, camera: camera)
+    }
+
+    /// The fold gap a spread would have in the window `proxy` spans (a reader that ignores the safe
+    /// area), nil if the reader would show one page there: the Settings screen has no reader up,
+    /// and shows the Gutter control where the reader would lay out a spread.
+    static func foldGap(window proxy: GeometryProxy) -> CGFloat? {
+        let regions = WindowRegions(proxy: proxy)
+        return compute(Input(size: proxy.size, safeArea: EdgeInsets(), division: regions.division,
+                             divisionIsActive: regions.divisionIsActive, camera: nil, margins: .standard,
+                             fontSize: 19, allowSpread: true, fullBleed: true)).foldGap
     }
 }
 

@@ -179,7 +179,7 @@ struct ImageViewerTests {
         let window = CGSize(width: 466, height: 678)
         let layout = PageLayout.compute(.init(size: window, safeArea: EdgeInsets(top: 0, leading: 0, bottom: 20, trailing: 84),
                                               division: nil, divisionIsActive: false, camera: nil,
-                                              margin: 24, fontSize: 19, allowSpread: true, fullBleed: true))
+                                              margins: .standard, fontSize: 19, allowSpread: true, fullBleed: true))
         session.configure(style: ReaderEngineTests.style, textSize: layout.textSize)
         let controller = PagerController(session: session)
         controller.pageTurn = .slide

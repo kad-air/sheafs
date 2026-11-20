@@ -18,7 +18,7 @@ struct AskPresentationTests {
     static func layout(size: CGSize, fold: CGRect?, active: Bool) -> PageLayout {
         PageLayout.compute(.init(size: size, safeArea: EdgeInsets(top: 0, leading: 0, bottom: 34, trailing: 84),
                                  division: fold, divisionIsActive: active, camera: nil,
-                                 margin: 24, fontSize: 19, allowSpread: true, fullBleed: true))
+                                 margins: .standard, fontSize: 19, allowSpread: true, fullBleed: true))
     }
 
     @Test func theInnerDisplayPutsAskLeftOfTheFoldAndKeepsTheRightPage() throws {
